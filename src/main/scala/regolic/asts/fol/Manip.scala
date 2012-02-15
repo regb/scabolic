@@ -122,6 +122,13 @@ object Manip {
   def conjunctiveNormalForm(formula: Formula): Formula = {
     require(isQuantifierFree(formula))
 
+    def distribute(and1: Formula, and2: Formula): Formula = {
+      val (And(fs1), And(fs2)) = (and1, and2)
+      And(fs1.flatMap(f1 =>
+        fs2.map(f2 => Or(List(f1, f2)))
+      ))
+    }
+
     def inductiveStep(f: Formula): Formula = f match {
       case And(fs) => And(fs.flatMap{ case And(fs2) => fs2 })
       case Or(fs) => And(fs.foldLeft(List[Formula]())( (a, and) => {

@@ -35,31 +35,31 @@ object Trees {
   }
 
   object TrueSymbol {
-    def apply() = ConnectiveSymbol("true", 0)
-    def unapply(symbol: ConnectiveSymbol): Boolean = symbol match {
-      case ConnectiveSymbol("true", 0) => true 
+    def apply() = PredicateSymbol("true", List())
+    def unapply(symbol: PredicateSymbol): Boolean = symbol match {
+      case PredicateSymbol("true", List()) => true 
       case _ => false
     }
   }
   object True {
-    def apply() = ConnectiveApplication(TrueSymbol(), Nil)
-    def unapply(appli: ConnectiveApplication): Boolean = appli match {
-      case ConnectiveApplication(TrueSymbol(), Nil) => true
+    def apply() = PredicateApplication(TrueSymbol(), Nil)
+    def unapply(appli: PredicateApplication): Boolean = appli match {
+      case PredicateApplication(TrueSymbol(), Nil) => true
       case _ => false
     }
   }
 
   object FalseSymbol {
-    def apply() = ConnectiveSymbol("false", 0)
-    def unapply(symbol: ConnectiveSymbol): Boolean = symbol match {
-      case ConnectiveSymbol("false", 0) => true 
+    def apply() = PredicateSymbol("false", List())
+    def unapply(symbol: PredicateSymbol): Boolean = symbol match {
+      case PredicateSymbol("false", List()) => true 
       case _ => false
     }
   }
   object False {
-    def apply() = ConnectiveApplication(FalseSymbol(), Nil)
-    def unapply(appli: ConnectiveApplication): Boolean = appli match {
-      case ConnectiveApplication(FalseSymbol(), Nil) => true
+    def apply() = PredicateApplication(FalseSymbol(), Nil)
+    def unapply(appli: PredicateApplication): Boolean = appli match {
+      case PredicateApplication(FalseSymbol(), Nil) => true
       case _ => false
     }
   }

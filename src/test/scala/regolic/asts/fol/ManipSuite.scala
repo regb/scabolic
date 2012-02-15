@@ -51,4 +51,33 @@ class ManipSuite extends FunSuite {
 
   }
 
+  test("isConjunctiveNormalForm: trivial formulas") {
+    assert(isConjunctiveNormalForm(And(List(Or(List(True()))))))
+    assert(!isConjunctiveNormalForm(True()))
+
+    assert(isBasicForm(p))
+    assert(isBasicForm(Not(p)))
+    assert(isBasicForm(And(List(p, q, r))))
+    assert(isBasicForm(Or(List(p, s, t))))
+
+    assert(!isBasicForm(Implies(p, q)))
+    assert(!isBasicForm(Iff(r, q)))
+    assert(!isBasicForm(IfThenElse(p, q, t)))
+  }
+
+  test("isConjunctiveNormalForm: composed formulas") {
+    assert(isBasicForm(And(List(Not(p), s, t))))
+    assert(isBasicForm(And(List(Not(p), Or(List(p, s)), t))))
+    assert(isBasicForm(Or(List(And(List(Or(List(Not(p), True(), q)), p, Not(p), Not(False()))), p, t, Not(r)))))
+
+    assert(!isBasicForm(Or(List(And(List(Or(List(Not(p), True(), q)), p, Not(Or(List(p, Implies(r, t)))), Not(False()))), p, t, Not(r)))))
+  }
+
+  test("conjunctiveNormalForm: trivial formulas") {
+
+  }
+
+  test("conjunctiveNormalForm: composed formulas") {
+
+  }
 }
