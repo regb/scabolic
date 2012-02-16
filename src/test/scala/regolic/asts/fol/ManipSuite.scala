@@ -19,6 +19,8 @@ class ManipSuite extends FunSuite {
   private val s = PredicateApplication(sSymbol, List())
   private val t = PredicateApplication(tSymbol, List())
 
+  val sort = Sort("sort")
+  private val x = Variable("x", sort)
 
 
   test("isBasicForm: trivial formulas") {
@@ -92,6 +94,86 @@ class ManipSuite extends FunSuite {
   }
 
   test("conjunctiveNormalForm: composed formulas") {
-    //assert(isConjunctiveNormalForm(conjunctiveNormalForm(Or(List(And(List(Or(List(Not(p), True(), q)), p, Not(Or(List(p, Implies(r, t)))), Not(False()))), p, t, Not(r))))))
+    assert(isConjunctiveNormalForm(conjunctiveNormalForm(Or(List(And(List(Or(List(Not(p), True(), q)), p, Not(Or(List(p, Implies(r, t)))), Not(False()))), p, t, Not(r))))))
   }
+
+  test("isQuantifierFree: trivial formulas") {
+    assert(isQuantifierFree(True()))
+    assert(isQuantifierFree(False()))
+
+    assert(isQuantifierFree(p))
+    assert(isQuantifierFree(Not(p)))
+    assert(isQuantifierFree(And(List(p, q, r))))
+    assert(isQuantifierFree(Or(List(p, s, t))))
+
+    assert(isQuantifierFree(Implies(p, q)))
+    assert(isQuantifierFree(Iff(r, q)))
+    assert(isQuantifierFree(IfThenElse(p, q, t)))
+
+    assert(!isQuantifierFree(Exists(x, p)))
+    assert(!isQuantifierFree(Forall(x, p)))
+  }
+
+  test("isQuantifierFree: composed formulas") {
+    assert(isQuantifierFree(And(List(Not(p), s, t))))
+    assert(isQuantifierFree(And(List(Not(p), Or(List(p, s)), t))))
+    assert(isQuantifierFree(Or(List(And(List(Or(List(Not(p), True(), q)), p, Not(p), Not(False()))), p, t, Not(r)))))
+
+    assert(!isQuantifierFree(Or(List(And(List(Or(List(Not(Exists(x, p)), True(), q)), p, Not(Or(List(p, Implies(r, t)))), Not(False()))), p, t, Not(r)))))
+    assert(!isQuantifierFree(Or(List(And(List(Or(List(Not(p), True(), q)), p, Not(p), Not(Forall(x, False())))), p, t, Not(r)))))
+  }
+
+  test("simplify: soundness") {
+
+  }
+
+  test("simplify: node reduction") {
+
+  }
+
+  test("isNegationNormalForm: trivial term") {
+    assert(isNegationNormalForm(True()))
+    assert(isNegationNormalForm(False()))
+
+    assert(isNegationNormalForm(p))
+    assert(isNegationNormalForm(Not(p)))
+    assert(isNegationNormalForm(And(List(p, q, r))))
+    assert(isNegationNormalForm(Or(List(p, s, t))))
+
+    assert(!isNegationNormalForm(Implies(p, q)))
+    assert(!isNegationNormalForm(Iff(r, q)))
+    assert(!isNegationNormalForm(IfThenElse(p, q, t)))
+
+    assert(isNegationNormalForm(Exists(x, p)))
+    assert(isNegationNormalForm(Forall(x, p)))
+  }
+
+  test("isNegationNormalForm: composed term") {
+    assert(isNegationNormalForm(Or(List(Not(p), True(), Not(False()), And(List(Not(q), p))))))
+    assert(!isNegationNormalForm(Or(List(Not(p), True(), Not(False()), And(List(Not(Or(List(p, q))), p))))))
+    assert(!isNegationNormalForm(Not(Or(List(Not(p), True(), Not(False()), And(List(Or(List(p, q)), p)))))))
+  }
+
+  test("negationNormalForm: trivial term") {
+    assert(isNegationNormalForm(negationNormalForm(True())))
+    assert(isNegationNormalForm(negationNormalForm(False())))
+
+    assert(isNegationNormalForm(negationNormalForm(p)))
+    assert(isNegationNormalForm(negationNormalForm(Not(p))))
+    assert(isNegationNormalForm(negationNormalForm(And(List(p, q, r)))))
+    assert(isNegationNormalForm(negationNormalForm(Or(List(p, s, t)))))
+
+    assert(isNegationNormalForm(negationNormalForm(Implies(p, q))))
+    assert(isNegationNormalForm(negationNormalForm(Iff(r, q))))
+    assert(isNegationNormalForm(negationNormalForm(IfThenElse(p, q, t))))
+
+    assert(isNegationNormalForm(negationNormalForm(Exists(x, p))))
+    assert(isNegationNormalForm(negationNormalForm(Forall(x, p))))
+  }
+
+  test("negationNormalForm: composed term") {
+    assert(isNegationNormalForm(negationNormalForm(Or(List(Not(p), True(), Not(False()), And(List(Not(Or(List(p, q))), p)))))))
+    assert(isNegationNormalForm(negationNormalForm(Not(Or(List(Not(p), True(), Not(False()), And(List(Not(Or(List(p, q))), p))))))))
+  }
+
 }

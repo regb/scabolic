@@ -179,6 +179,25 @@ object Manip {
     mapPostorder(formula, inductiveStep, t => t)
   }
 
+  def isNegationNormalForm(formula: Formula): Boolean = forall(formula, (f: Formula) => f match {
+    case Not(f2) => f2.isInstanceOf[PredicateApplication]
+    case Iff(_, _) | Implies(_, _) | IfThenElse(_, _, _) => false
+    case _ => true
+  })
+
+  def negationNormalForm(formula: Formula): Formula = {
+    def inductiveStep(f: Formula): Formula = f match {
+      case Not(And(fs)) => Or(fs.map(f => Not(f)))
+      case Not(Or(fs)) => And(fs.map(f => Not(f)))
+      case Not(Forall(x, f)) => Exists(x, Not(f))
+      case Not(Exists(x, f)) => Forall(x, Not(f))
+      case Not(Not(f)) => f
+      case _ => f
+    }
+
+    mapPreorder(basicForm(formula), inductiveStep, t => t)
+  }
+
   def isQuantifierFree(f: Formula): Boolean = forall(f, (sf: Formula) => sf match {
       case Forall(_, _) | Exists(_, _) => false
       case _ => true
