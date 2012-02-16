@@ -114,7 +114,11 @@ object Manip {
   //a conjunctive normal form, always as an And of Ors (even with single formula)
   def isConjunctiveNormalForm(formula: Formula): Boolean = formula match {
     case And(fs) => fs.forall{
-      case Or(fs2) => fs2.forall(f => f.isInstanceOf[PredicateApplication])
+      case Or(fs2) => fs2.forall(f => f match {
+        case Not(PredicateApplication(_, _)) => true
+        case PredicateApplication(_, _) => true
+        case _ => false
+      })
       case _ => false
     }
     case _ => false
@@ -124,23 +128,33 @@ object Manip {
 
     def distribute(and1: Formula, and2: Formula): Formula = {
       val (And(fs1), And(fs2)) = (and1, and2)
-      And(fs1.flatMap(f1 =>
-        fs2.map(f2 => Or(List(f1, f2)))
-      ))
+      And(fs1.flatMap{ case Or(fss1) =>
+        fs2.map{ case Or(fss2) => Or(fss1 ::: fss2) }
+      })
     }
 
     def inductiveStep(f: Formula): Formula = f match {
-      case And(fs) => And(fs.flatMap{ case And(fs2) => fs2 })
-      case Or(fs) => And(fs.foldLeft(List[Formula]())( (a, and) => {
-        val And(fs2) = and
-        null
-      }))
+      case And(fs) => fs match {
+        case Nil => And(List(Or(List(False()))))
+        case fs => And(fs.flatMap{ case And(fs2) => fs2 })
+      }
+      case Or(fs) => fs match {
+        case Nil => And(List(Or(List(True()))))
+        case f::Nil => f
+        case fs => And(
+          fs.reduceLeft((and1, and2) => distribute(and1, and2)) match {
+            case And(fs2) => fs2
+          }
+        )
+      }
       case Not(And(fs)) => inductiveStep(Or(fs.map{
         case Or(fs2) => And(fs2.map{ //I map to an Or so that each element is in cnf
           case Not(f) => Or(List(f))
           case f => Or(List(Not(f)))
         })
       }))
+
+      case p@PredicateApplication(_, _) => And(List(Or(List(p))))
 
       case _ => sys.error("unexpected formula: " + f)
 
@@ -159,6 +173,7 @@ object Manip {
       case Iff(f1, f2) => Or(List(And(List(f1, f2)), And(List(Not(f1), Not(f2)))))
       case Implies(f1, f2) => Or(List(f2, Not(f1)))
       case IfThenElse(f1, f2, f3) => And(List(Or(List(Not(f1), f2)), Or(List(f1, f3)))) //TODO: I'm not so sure about the meaning of IfThenElse
+      case _ => f
     }
 
     mapPostorder(formula, inductiveStep, t => t)
