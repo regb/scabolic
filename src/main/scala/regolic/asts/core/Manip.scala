@@ -49,7 +49,7 @@ object Manip {
   }
 
   def mapPostorder(f: Formula, ff: (Formula) => Formula, ft: (Term) => Term): Formula = mapPostorder(f, ff, ft, Nil)
-  private def mapPostorder(f: Formula, ff: (Formula) => Formula, ft: (Term) => Term, bv: List[Variable]): Formula = ff(f) match {
+  private def mapPostorder(f: Formula, ff: (Formula) => Formula, ft: (Term) => Term, bv: List[Variable]): Formula = f match {
     case PredicateApplication(s, ts) => ff(PredicateApplication(s, ts.map(t => mapPostorder(t, ff, ft, bv))))
     case ConnectiveApplication(s, fs) => ff(ConnectiveApplication(s, fs.map(f => mapPostorder(f, ff, ft, bv))))
     case QuantifierApplication(s, v, f) => ff(QuantifierApplication(s, v, mapPostorder(f, ff, ft, v :: bv)))
