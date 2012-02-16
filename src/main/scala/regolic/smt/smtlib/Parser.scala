@@ -11,7 +11,7 @@ import regolic.asts.core.Trees._
  * This parser is based on the grammar of the 1.2 version of the SMTLIB format found at this url:
  * http://combination.cs.uiowa.edu/smtlib/papers.html
  *
- * Not also that we are limited to parse benchmark and we don't attempt to parse theory description file
+ * Note also that we only parse benchmarks and we don't attempt to parse theory description file
  * 
  */
 
