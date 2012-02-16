@@ -95,6 +95,52 @@ class ManipSuite extends FunSuite {
 
   test("conjunctiveNormalForm: composed formulas") {
     assert(isConjunctiveNormalForm(conjunctiveNormalForm(Or(List(And(List(Or(List(Not(p), True(), q)), p, Not(Or(List(p, Implies(r, t)))), Not(False()))), p, t, Not(r))))))
+    assert(isConjunctiveNormalForm(conjunctiveNormalForm(And(List(And(List(Or(List(Not(p), True(), q)), p, Not(Or(List(p, Implies(r, t)))), Not(False()))), p, t, Not(r))))))
+  }
+
+  test("isDisjunctiveNormalForm: trivial formulas") {
+    assert(isDisjunctiveNormalForm(Or(List(And(List(True()))))))
+    assert(!isDisjunctiveNormalForm(True()))
+
+    assert(isDisjunctiveNormalForm(Or(List(And(List(p))))))
+    assert(isDisjunctiveNormalForm(Or(List(And(List(Not(p)))))))
+    assert(isDisjunctiveNormalForm(Or(List(And(List(p)), And(List(q)), And(List(r))))))
+    assert(isDisjunctiveNormalForm(Or(List(And(List(p, s, t))))))
+
+    assert(!isDisjunctiveNormalForm(Or(List(p, q))))
+    assert(!isDisjunctiveNormalForm(And(List(p, q))))
+    assert(!isDisjunctiveNormalForm(Not(p)))
+    assert(!isDisjunctiveNormalForm(Implies(p, q)))
+    assert(!isDisjunctiveNormalForm(Iff(r, q)))
+    assert(!isDisjunctiveNormalForm(IfThenElse(p, q, t)))
+  }
+
+  test("isDisjunctiveNormalForm: composed formulas") {
+    assert(isDisjunctiveNormalForm(Or(List(And(List(Not(p), q, r)), And(List(s, t))))))
+    assert(isDisjunctiveNormalForm(Or(List(And(List(Not(p), Not(q), p)), And(List(p, s)), And(List(t))))))
+    assert(isDisjunctiveNormalForm(Or(List(And(List(Not(p), True(), p)), And(List(p, s)), And(List(False(), t))))))
+
+    assert(!isDisjunctiveNormalForm(Or(List(And(List(Or(List(Not(p), True(), q)), p, Not(Or(List(p, Implies(r, t)))), Not(False()))), p, t, Not(r)))))
+  }
+
+  test("disjunctiveNormalForm: trivial formulas") {
+    assert(isDisjunctiveNormalForm(disjunctiveNormalForm(True())))
+    assert(isDisjunctiveNormalForm(disjunctiveNormalForm(False())))
+
+    assert(isDisjunctiveNormalForm(disjunctiveNormalForm(p)))
+    assert(isDisjunctiveNormalForm(disjunctiveNormalForm(And(List(p, q, r)))))
+    assert(isDisjunctiveNormalForm(disjunctiveNormalForm(Or(List(p, q, r)))))
+    assert(isDisjunctiveNormalForm(disjunctiveNormalForm(Not(p))))
+
+    assert(isDisjunctiveNormalForm(disjunctiveNormalForm(Implies(p, t))))
+    assert(isDisjunctiveNormalForm(disjunctiveNormalForm(Iff(p, r))))
+    assert(isDisjunctiveNormalForm(disjunctiveNormalForm(IfThenElse(r, s, t))))
+
+  }
+
+  test("disjunctiveNormalForm: composed formulas") {
+    assert(isDisjunctiveNormalForm(disjunctiveNormalForm(Or(List(And(List(Or(List(Not(p), True(), q)), p, Not(Or(List(p, Implies(r, t)))), Not(False()))), p, t, Not(r))))))
+    assert(isDisjunctiveNormalForm(disjunctiveNormalForm(And(List(And(List(Or(List(Not(p), True(), q)), p, Not(Or(List(p, Implies(r, t)))), Not(False()))), p, t, Not(r))))))
   }
 
   test("isQuantifierFree: trivial formulas") {

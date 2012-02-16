@@ -135,11 +135,11 @@ object Manip {
 
     def inductiveStep(f: Formula): Formula = f match {
       case And(fs) => fs match {
-        case Nil => And(List(Or(List(False()))))
+        case Nil => And(List(Or(List())))
         case fs => And(fs.flatMap{ case And(fs2) => fs2 })
       }
       case Or(fs) => fs match {
-        case Nil => And(List(Or(List(True()))))
+        case Nil => And(List(Or(List())))
         case f::Nil => f
         case fs => And(
           fs.reduceLeft((and1, and2) => distribute(and1, and2)) match {
@@ -155,6 +155,58 @@ object Manip {
       }))
 
       case p@PredicateApplication(_, _) => And(List(Or(List(p))))
+
+      case _ => sys.error("unexpected formula: " + f)
+
+    }
+
+    mapPostorder(basicForm(formula), inductiveStep, t => t)
+  }
+
+  //a disjunctive normal form, always as an Or of Ands (even with single formula)
+  def isDisjunctiveNormalForm(formula: Formula): Boolean = formula match {
+    case Or(fs) => fs.forall{
+      case And(fs2) => fs2.forall(f => f match {
+        case Not(PredicateApplication(_, _)) => true
+        case PredicateApplication(_, _) => true
+        case _ => false
+      })
+      case _ => false
+    }
+    case _ => false
+  }
+  def disjunctiveNormalForm(formula: Formula): Formula = {
+    require(isQuantifierFree(formula))
+
+    def distribute(or1: Formula, or2: Formula): Formula = {
+      val (Or(fs1), Or(fs2)) = (or1, or2)
+      Or(fs1.flatMap{ case And(fss1) =>
+        fs2.map{ case And(fss2) => And(fss1 ::: fss2) }
+      })
+    }
+
+    def inductiveStep(f: Formula): Formula = f match {
+      case Or(fs) => fs match {
+        case Nil => Or(List(And(List())))
+        case fs => Or(fs.flatMap{ case Or(fs2) => fs2 })
+      }
+      case And(fs) => fs match {
+        case Nil => Or(List(And(List())))
+        case f::Nil => f
+        case fs => Or(
+          fs.reduceLeft((or1, or2) => distribute(or1, or2)) match {
+            case Or(fs2) => fs2
+          }
+        )
+      }
+      case Not(Or(fs)) => inductiveStep(And(fs.map{
+        case And(fs2) => Or(fs2.map{
+          case Not(f) => And(List(f))
+          case f => And(List(Not(f)))
+        })
+      }))
+
+      case p@PredicateApplication(_, _) => Or(List(And(List(p))))
 
       case _ => sys.error("unexpected formula: " + f)
 
