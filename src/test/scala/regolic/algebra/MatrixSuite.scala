@@ -8,15 +8,42 @@ class MatrixSuite extends FunSuite {
   def r(n: BigInt, d: BigInt) = Rational(n, d)
 
   def s2m(str: String): Matrix[Rational] = new Matrix(str.split(',').map(s => s.split(' ').map(n => Rational(n))))
+  def s2v(str: String): Vector[Rational] = new Vector(str.split(' ').map(n => Rational(n)))
+
+  val id2 = s2m("1 0," +
+                "0 1")
+  val id3 = s2m("1 0 0," +
+                "0 1 0," +
+                "0 0 1")
+  val id4 = s2m("1 0 0 0," +
+                "0 1 0 0," +
+                "0 0 1 0," +
+                "0 0 0 1")
+
+  val v1 = s2v("1 2 3")
 
   val m0 = s2m("0 0," +
                "0 0")
+  val m01 = s2m("0 0 0," +
+                "0 0 0")
   val m1 = s2m("1 2 3," +
                "4 5 6," +
                "7 8 9")
+  val m1sub01 = s2m("1 2," +
+                    "4 5")
+  val m1sub02 = s2m("1 3," +
+                    "7 9")
+  val m1sub12 = s2m("5 6," +
+                    "8 9")
+  val m1neg = s2m("-1 -2 -3," +
+                  "-4 -5 -6," +
+                  "-7 -8 -9")
   val m2 = s2m("2 5 1," +
                "1 2 1," +
                "3 2 4")
+  val m2neg = s2m("-2 -5 -1," +
+                  "-1 -2 -1," +
+                  "-3 -2 -4")
   val m3 = s2m("1 0," +
                "0 2")
   val m4 = s2m("-1 0," +
@@ -40,6 +67,9 @@ class MatrixSuite extends FunSuite {
                    "2 4 7 42," +
                    "2 4 6 38")
 
+  val m1xv1 = s2v("14 32 50")
+
+
   test("representation") {
     assert(m1(0,0) === r(1))
     assert(m1(0,1) === r(2))
@@ -50,6 +80,15 @@ class MatrixSuite extends FunSuite {
     assert(m1(2,0) === r(7))
     assert(m1(2,1) === r(8))
     assert(m1(2,2) === r(9))
+    intercept[IllegalArgumentException] {
+      Matrix(Array(Array(r(1), r(2)), Array(r(3), r(4), r(5))))
+    }
+    intercept[IllegalArgumentException] {
+      Matrix(Array[Array[Rational]]())
+    }
+    intercept[IllegalArgumentException] {
+      Matrix(Array(Array[Rational](), Array[Rational]()))
+    }
   }
 
   test("equals") {
@@ -58,17 +97,105 @@ class MatrixSuite extends FunSuite {
     assert(s2m("1 2,1 2") === s2m("1 2,1 2"))
     assert(s2m("2") === s2m("2"))
     assert(s2m("1 2,2 1") != s2m("1 2,1 2"))
-    assert(m0 == m0.zero)
+    assert(s2m("1 2 3 4,4 3 2 1") === s2m("1 2 3 4,4 3 2 1"))
+  }
+
+  test("toArray") {
+    assert(m1 === new Matrix(m1.toArray))
+    assert(m2 === new Matrix(m2.toArray))
+    assert(m3 === new Matrix(m3.toArray))
+    assert(m4 === new Matrix(m4.toArray))
+  }
+
+  test("vector to matrix") {
+    assert(s2m("1,2,3,4") === Matrix(s2v("1 2 3 4")))
+  }
+
+  test("zero") {
+    assert(m0 === m0.zero)
+    assert(m0 === m3.zero)
+    assert(m0 === Matrix.zero[Rational](2))
+    assert(m01 === Matrix.zero[Rational](2, 3))
+  }
+
+  test("identity") {
+    assert(id2 === Matrix.identity[Rational](2))
+    assert(id3 === Matrix.identity[Rational](3))
+    assert(id4 === Matrix.identity[Rational](4))
+  }
+
+  test("submatrix") {
+    assert(id2 === id3.subMatrix(List(0, 1), List(0, 1)))
+    assert(id2 === id3.subMatrix(0, 2, 0, 2))
+    assert(id2 === id4.subMatrix(List(0, 2), List(0, 2)))
+    assert(m1sub01 === m1.subMatrix(List(0, 1), List(0, 1)))
+    assert(m1sub01 === m1.subMatrix(0, 2, 0, 2))
+    assert(m1sub02 === m1.subMatrix(List(0, 2), List(0, 2)))
+    assert(m1sub12 === m1.subMatrix(1, 2, 1, 2))
+
+    assert(id4 === id4.subMatrix(List(0, 1, 2, 3), List(0, 1, 2, 3)))
+    assert(id4 === id4.subMatrix(0, 4, 0, 4))
+  }
+
+  test("row") {
+    assert(id4.row(2) === s2v("0 0 1 0"))
+    assert(id4.row(0) === s2v("1 0 0 0"))
+    assert(m1.row(1) === s2v("4 5 6"))
+  }
+  test("col") {
+    assert(id4.col(2) === s2v("0 0 1 0"))
+    assert(id4.col(0) === s2v("1 0 0 0"))
+    assert(m1.col(1) === s2v("2 5 8"))
+  }
+
+  test("map") {
+
+  }
+
+  test("foldLeft") {
+
+  }
+
+  test("forall") {
+
+  }
+
+  test("exists") {
+
   }
 
   test("addition") {
     assert(m1plusm2 === m1 + m2)
     assert(m0 === m3 + m4)
+    intercept[IllegalArgumentException] {
+      m1 + m3
+    }
   }
 
-  test("multiplication") {
+  test("negation") {
+    assert(-m1 === m1neg)
+    assert(-m2 === m2neg)
+  }
+
+  test("multiplication by matrix") {
+    assert(id3 === id3 * id3)
+    assert(m1 === id3 * m1)
+    assert(m1 === m1 * id3)
     assert(m1xm2 === m1 * m2)
     assert(m3xm4 === m3 * m4)
+    intercept[IllegalArgumentException] {
+      m1 * m3
+    }
+    intercept[IllegalArgumentException] {
+      s2m("1 2 3,4 5 6") * s2m("2 3 1,5 6 4")
+    }
+  }
+
+  test("multiplication by vector") {
+    assert(v1 === id3*v1)
+    assert(v1 === id3(v1))
+    assert(m1xv1 === m1*v1)
+    assert(m1xv1 === m1(v1))
   }
 
   test("gauss") {

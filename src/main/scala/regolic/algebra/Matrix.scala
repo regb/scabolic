@@ -14,10 +14,20 @@ class Matrix[T <: Field[T]](m: Array[Array[T]])(implicit field: Field[T], man: C
   private val matrix = ArrayTools.matrixCopy(m)
 
   def apply(row: Int, col: Int): T = matrix(row)(col)
-  def apply(vec: Vector[T]): Vector[T] = Vector(this * Matrix(vec))
+  def apply(row: Int): Vector[T] = this.row(row)
+  def apply(vector: Vector[T]): Vector[T] = this * vector
 
   def toArray = ArrayTools.matrixCopy(matrix)
 
+  def subMatrix(rows: List[Int], cols: List[Int]): Matrix[T] = {
+    val subMat = Array.ofDim[T](rows.size, cols.size)
+    rows.zipWithIndex.foreach{ case (row, i) =>
+      cols.zipWithIndex.foreach{ case (col, j) =>
+        subMat(i)(j) = matrix(row)(col)
+      }
+    }
+    new Matrix(subMat)
+  }
   def subMatrix(fromRow: Int, nbRow: Int, fromCol: Int, nbCol: Int): Matrix[T] = {
     val subMat = Array.ofDim[T](nbRow, nbCol)
     var row = fromRow
@@ -39,8 +49,8 @@ class Matrix[T <: Field[T]](m: Array[Array[T]])(implicit field: Field[T], man: C
     new Matrix(subMat)
   }
 
-  def row(r: Int): Matrix[T] = subMatrix(r, 1, 0, nbCol)
-  def col(c: Int): Matrix[T] = subMatrix(0, nbRow, c, 1)
+  def row(r: Int): Vector[T] = Vector(subMatrix(r, 1, 0, nbCol))
+  def col(c: Int): Vector[T] = Vector(subMatrix(0, nbRow, c, 1))
 
   lazy val zero = this.map(el => field.zero)
   def +(mat: Matrix[T]): Matrix[T] = {
@@ -85,7 +95,7 @@ class Matrix[T <: Field[T]](m: Array[Array[T]])(implicit field: Field[T], man: C
     }
     new Matrix(newMat)
   }
-
+  def *(vec: Vector[T]): Vector[T] = Vector(this * Matrix(vec))
   def *(scalar: T): Matrix[T] = {
     var i,j = 0
     val res = Array.ofDim[T](nbRow, nbCol)
@@ -100,51 +110,19 @@ class Matrix[T <: Field[T]](m: Array[Array[T]])(implicit field: Field[T], man: C
     new Matrix(res)
   }
 
+  def transpose: Matrix[T] = new Matrix(matrix.transpose)
+
   def map[S <: Field[S]](f: ((T) => (S)))(implicit fi: Field[S], m: ClassManifest[S]): Matrix[S] = {
     val newArray = matrix.map(x => x.map(y => f(y)))
     new Matrix(newArray)
   }
 
+  //foldLeft on the matrix, the order is: row by row starting at the first one then going from
+  //the first column to the last, then the second row ...
   def foldLeft[S](z: S)(f: (S, T) => S): S = matrix.foldLeft(z)((acc, arr) => arr.foldLeft(acc)(f))
 
-  def forall(p: T => Boolean): Boolean = foldLeft(true)((b, e) => b && p(e))
-
-  override def equals(that: Any): Boolean = that match {
-    case (thatM: Matrix[_]) => 
-      ArrayTools.matrixForAll[Any](matrix.asInstanceOf[Array[Array[Any]]], thatM.toArray.asInstanceOf[Array[Array[Any]]], (x: Any, y: Any) => x == y)
-    case _ => false
-  }
-
-  //TODO
-  override def hashCode: Int = {
-    0
-  }
-
-  override def toString: String = {
-    var str = "\n"
-    var i,j = 0
-    while(i < nbRow) {
-      j = 0
-      while(j < nbCol) {
-        str += matrix(i)(j).toString + " "
-        j += 1
-      }
-      str += "\n"
-      i += 1
-    }
-    str + "\n"
-  }
-
-  private def findPivot(fromRow: Int, col: Int): Int = {
-    var pivot = -1	
-    var row = fromRow
-    while(row < matrix.length) {
-      if(matrix(row)(col) != field.zero) 
-        return row
-      row += 1
-    }
-    pivot
-  }
+  def forall(p: (T) => Boolean): Boolean = foldLeft(true)((b, e) => b && p(e))
+  def exists(p: (T) => Boolean): Boolean = foldLeft(false)((b, e) => b || p(e))
 
   def gaussianElimination: Option[Matrix[T]] = {
     val matArray = matrix.toArray
@@ -215,13 +193,74 @@ class Matrix[T <: Field[T]](m: Array[Array[T]])(implicit field: Field[T], man: C
     }
   }
 
+  override def equals(that: Any): Boolean = that match {
+    case (thatM: Matrix[_]) => 
+      ArrayTools.matrixForAll[Any](matrix.asInstanceOf[Array[Array[Any]]], thatM.toArray.asInstanceOf[Array[Array[Any]]], (x: Any, y: Any) => x == y)
+    case _ => false
+  }
+
+  //TODO
+  override def hashCode: Int = {
+    0
+  }
+
+  override def toString: String = {
+    var str = "\n"
+    var i,j = 0
+    while(i < nbRow) {
+      j = 0
+      while(j < nbCol) {
+        str += matrix(i)(j).toString + " "
+        j += 1
+      }
+      str += "\n"
+      i += 1
+    }
+    str
+  }
+
+  private def findPivot(fromRow: Int, col: Int): Int = {
+    var pivot = -1	
+    var row = fromRow
+    while(row < matrix.length) {
+      if(matrix(row)(col) != field.zero) 
+        return row
+      row += 1
+    }
+    pivot
+  }
+
 }
 
 object Matrix {
 
-  def apply[F <: Field[F]](vec: Vector[F])(implicit field: Field[F], man: ClassManifest[F]) = 
-    new Matrix(vec.toArray.map(x => Array(x)))
-  def apply[F <: Field[F]](mat: Array[Array[F]])(implicit field: Field[F],  man: ClassManifest[F]) =
+  //convert the vector to a one column matrix
+  def apply[F <: Field[F]](vec: Vector[F])(implicit field: Field[F], man: ClassManifest[F]): Matrix[F] = try {
+    val vecArray: Array[F] = vec.toArray
+    val nbElements = vecArray.size
+    val matArray: Array[Array[F]] = Array.ofDim(nbElements, 1)
+    for(i <- 0 until nbElements)
+      matArray(i)(0) = vecArray(i)
+    new Matrix(matArray)
+  }
+  def apply[F <: Field[F]](mat: Array[Array[F]])(implicit field: Field[F],  man: ClassManifest[F]): Matrix[F] =
     new Matrix(mat)
+
+  def identity[T <: Field[T]](n: Int)(implicit field: Field[T], man: ClassManifest[T]): Matrix[T] = {
+    val matrix = Array.ofDim[T](n, n)
+    for(i <- 0 until n)
+      for(j <- 0 until n)
+        if(i == j) matrix(i)(j) = field.one else matrix(i)(j) = field.zero
+    new Matrix(matrix)
+  }
+
+  def zero[T <: Field[T]](n: Int)(implicit field: Field[T], man: ClassManifest[T]): Matrix[T] = Matrix.zero(n, n)
+  def zero[T <: Field[T]](n: Int, m: Int)(implicit field: Field[T], man: ClassManifest[T]): Matrix[T] = {
+    val matrix = Array.ofDim[T](n, m)
+    for(i <- 0 until n)
+      for(j <- 0 until m)
+        matrix(i)(j) = field.zero
+    new Matrix(matrix)
+  }
 
 }

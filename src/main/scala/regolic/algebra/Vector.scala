@@ -4,12 +4,12 @@ import regolic.tools.ArrayTools
 
 class Vector[T <: Field[T]](v: Array[T])(implicit field: Field[T], man: ClassManifest[T]) extends VectorSpace[Vector[T], T] {
 
-  private val nbElement = vector.length
+  private val nbElement = v.length
   require(nbElement > 0)
 
-  private val vector = ArrayTools.arrayCopy(v)
+  private val vector: Array[T] = ArrayTools.arrayCopy(v)
 
-  def toArray = ArrayTools.arrayCopy(vector)
+  def toArray: Array[T] = ArrayTools.arrayCopy(vector)
 
   def element(index: Int): T = vector(index)
   def apply(index: Int): T = vector(index)
@@ -27,6 +27,9 @@ class Vector[T <: Field[T]](v: Array[T])(implicit field: Field[T], man: ClassMan
     new Vector(res)
   }
 
+  def unary_-() = this.map(el => -el)
+  lazy val zero = this.map(el => field.zero)
+
   def *(vec: Vector[T]): T = {
     require(nbElement == vec.size)
     var res = field.zero
@@ -37,9 +40,6 @@ class Vector[T <: Field[T]](v: Array[T])(implicit field: Field[T], man: ClassMan
     }
     res
   }
-  def unary_-() = this.map(el => -el)
-  lazy val zero = this.map(el => field.zero)
-
   def *(scalar: T): Vector[T] = {
     var i = 0
     val res = new Array[T](nbElement)
@@ -49,11 +49,19 @@ class Vector[T <: Field[T]](v: Array[T])(implicit field: Field[T], man: ClassMan
     }
     new Vector(res)
   }
+  def *(mat: Matrix[T]): Vector[T] = Vector(Matrix(this).transpose * mat)
 
   def map[S <: Field[S]](f: (T) => S)(implicit fi: Field[S], m: ClassManifest[S]): Vector[S] = new Vector(vector.map(f))
 
+  def foldLeft[S](z: S)(f: (S, T) => S): S = vector.foldLeft(z)(f)
+  def forall(f: (T) => Boolean): Boolean = vector.forall(f)
+  def exists(f: (T) => Boolean): Boolean = vector.exists(f)
+
+  //return first index that verify the predicate, or -1 if none does
+  def indexWhere(f: (T) => Boolean): Int = vector.indexWhere(f)
+
   override def equals(that: Any): Boolean = that match {
-    case (thatV: Vector[_]) => vector == thatV.vector
+    case (thatV: Vector[_]) => vector.size == thatV.vector.size && vector.zip(thatV.vector).forall{ case (e1, e2) => e1 == e2 }
     case _ => false
   }
 
@@ -77,9 +85,14 @@ class Vector[T <: Field[T]](v: Array[T])(implicit field: Field[T], man: ClassMan
 
 object Vector {
 
+  def apply[F <: Field[F]](mat: Array[F])(implicit field: Field[F],  man: ClassManifest[F]): Vector[F] = new Vector(mat)
+  //try to use the matrix as a vector, if it has one column or one row
   def apply[T <: Field[T]](m: Matrix[T])(implicit field: Field[T], man: ClassManifest[T]): Vector[T] = {
-    require(m.nbCol == 1)
-    new Vector(m.toArray.map{case Array(el) => el})
+    require(m.nbCol == 1 || m.nbRow == 1)
+    if(m.nbCol == 1)
+      new Vector(m.toArray.map{case Array(el) => el})
+    else
+      new Vector(m.toArray(0))
   }
 
 }
