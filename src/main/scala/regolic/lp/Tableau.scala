@@ -7,6 +7,8 @@ class Tableau(val basis: List[Int], val systemMatrix: Matrix[Rational], val redu
   
   def isOptimal: Boolean = reducedCost.forall(el => el >= 0)
 
+  def isUnbounded(pivot: Int): Boolean = systemMatrix.col(pivot).forall(_ <= 0)
+
   def nextTableau: Tableau = {
     val pivot = this.findPivot
     val leavingIndex = this.findLeavingIndex(pivot)
@@ -14,13 +16,14 @@ class Tableau(val basis: List[Int], val systemMatrix: Matrix[Rational], val redu
     newTableau
   }
 
-  //the pivot will be the most negative value in the reducedcost vector, require that there exists a negative number
+  //the pivot will be the left most negative value (according to Bland's rule)
   def findPivot: Int = {
-    val minIndex = reducedCost.minIndex
-    require(reducedCost(minIndex) < 0)
+    val minIndex = reducedCost.indexWhere(_ < 0)
+    require(minIndex != -1)
     minIndex
   }
 
+  //in case of tie, we will pick the toppest one (according to Bland's rule) 
   def findLeavingIndex(pivot: Int): Int = {
     val pivotCol = systemMatrix.col(pivot)
     var minIndex = -1
@@ -29,6 +32,7 @@ class Tableau(val basis: List[Int], val systemMatrix: Matrix[Rational], val redu
     for(i <- 0 until dim) {
       if(pivotCol(i) > Rational.zero) {
         val newMin = basisSolution(i) / pivotCol(i)
+        //the tie rule simply means keeping the first one we encountered, because we examined from the toppest basis
         if(min == null || newMin < min) {
           min = newMin
           minIndex = i

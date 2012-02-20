@@ -29,6 +29,15 @@ class TableauSuite extends FunSuite {
                   "0 5/2 0 1 -1/2 0 1/2," +
                   "1 1/4 1/2 0 1/4 0 9/4," +
                   "0 13/4 1/2 0 -3/4 1 13/4", List(3, 0, 5))
+  val renewt1 = s2t("0 0 -1/2 11/10 7/10 0 59/5," +
+                    "0 1 0 2/5 -1/5 0 1/5," +
+                    "1 0 1/2 -1/10 3/10 0 11/5," +
+                    "0 0 1/2 -13/10 -1/10 1 13/5", List(1, 0, 5))
+  val rerenewt1 = s2t("1 0 0 1 1 0 14," +
+                      "0 1 0 2/5 -1/5 0 1/5," +
+                      "2 0 1 -1/5 3/5 0 22/5," +
+                      "-1 0 0 -6/5 -2/5 1 2/5", List(1, 2, 5))
+
 
   val t2 = s2t("0 0 0 -1 -5," +
                "1 0 -1 -2 1," +
@@ -37,6 +46,11 @@ class TableauSuite extends FunSuite {
   val newt2 = s2t("0 1/3 2/3 0 -14/3," +
                   "1 2/3 1/3 0 5/3," +
                   "0 1/3 2/3 1 1/3", List(0, 3))
+
+  val t3 = s2t("-3/4 20 -1/2 6 0 0 0 3," +
+               "1/4 -8 -1 9 1 0 0 0," +
+               "1/2 -12 -1/2 3 0 1 0 0," +
+               "0 0 1 0 0 0 1 1", List(4, 5, 6))
 
   test("representation") {
   }
@@ -58,22 +72,34 @@ class TableauSuite extends FunSuite {
 
   test("findPivot") {
     assert(t1.findPivot === 0)
+    assert(newt1.findPivot === 1)
+    assert(renewt1.findPivot === 2)
     assert(t2.findPivot === 3)
   }
 
   test("findLeavingIndex") {
     assert(t1.findLeavingIndex(t1.findPivot) === 4)
+    assert(newt1.findLeavingIndex(newt1.findPivot) === 3)
+    assert(renewt1.findLeavingIndex(renewt1.findPivot) === 0)
     assert(t2.findLeavingIndex(t2.findPivot) === 1)
   }
 
   test("changeBasis") {
     assert(t1.changeBasis(0, 4) === newt1)
+    assert(newt1.changeBasis(1, 3) === renewt1)
+    assert(renewt1.changeBasis(2, 0) === rerenewt1)
     assert(t2.changeBasis(3, 1) === newt2)
   }
 
   test("nextTableau") {
     assert(t1.nextTableau === newt1)
+    assert(newt1.nextTableau == renewt1)
+    assert(renewt1.nextTableau == rerenewt1)
     assert(t2.nextTableau === newt2)
+  }
+
+  test("cycling") {
+    //use t3
   }
 
 
