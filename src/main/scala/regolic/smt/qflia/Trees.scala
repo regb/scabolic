@@ -1,4 +1,4 @@
-package regolic.smt.logics.qflia
+package regolic.smt.qflia
 
 
 object Trees {

@@ -26,7 +26,8 @@ object PrettyPrinter {
   private def defaultTermPrinter(term: Term): Option[String] = term match {
     case Add(ts) => Some(ts.map(apply).mkString("(", ADDSTR, ")"))
     case Sub(t1, t2) => Some("(" + apply(t1) + SUBSTR + apply(t2) + ")")
-    case Mul(t, n) => Some("(" + apply(t) + MULSTR + n + ")")
+    case Mul(ts) => Some(ts.map(apply).mkString("(", MULSTR, ")"))
+    case MulConst(t, n) => Some("(" + apply(t) + MULSTR + n + ")")
     case _ => None
   }
 

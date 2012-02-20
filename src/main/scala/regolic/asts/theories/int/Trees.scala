@@ -2,6 +2,7 @@ package regolic.asts.theories.int
 
 import regolic.asts.core.Trees._
 import regolic.asts.fol.Trees.Constant
+import regolic.asts.fol.{Trees => FolT}
 
 object Trees {
 
@@ -10,6 +11,21 @@ object Trees {
     def unapply(sort: Sort): Boolean = sort match {
       case Sort("Int") => true
       case _ => false
+    }
+  }
+
+  object EqualsSymbol {
+    def apply(): PredicateSymbol = FolT.EqualsSymbol(IntSort())
+    def unapply(s: PredicateSymbol): Boolean = s match {
+      case FolT.EqualsSymbol(IntSort()) => true
+      case _ => false
+    }
+  }
+  object Equals {
+    def apply(t1: Term, t2: Term): PredicateApplication = PredicateApplication(EqualsSymbol(), List(t1, t2))
+    def unapply(pApply: PredicateApplication): Option[(Term, Term)] = pApply match {
+      case PredicateApplication(EqualsSymbol(), List(t1, t2)) => Some((t1, t2))
+      case _ => None
     }
   }
 
@@ -125,6 +141,21 @@ object Trees {
   }
 
   object MulSymbol {
+    def apply(n: Int) = FunctionSymbol("*", (1 to n).map(_ => IntSort()).toList, IntSort())
+    def unapply(symb: FunctionSymbol): Option[Int] = symb match {
+      case FunctionSymbol("*", argsSort, IntSort()) if argsSort.forall(s => s == IntSort()) => Some(argsSort.size)
+      case _ => None
+    }
+  }
+  object Mul {
+    def apply(ts: List[Term]) = FunctionApplication(MulSymbol(ts.size), ts)
+    def unapply(appli: FunctionApplication): Option[List[Term]] = appli match {
+      case FunctionApplication(MulSymbol(_), ts) => Some(ts)
+      case _ => None
+    }
+  }
+
+  object MulConstSymbol {
     def apply(n: BigInt) = FunctionSymbol("*" + n.toString, List(IntSort()), IntSort())
     def unapply(symb: FunctionSymbol): Option[BigInt] = symb match {
       case FunctionSymbol(name, List(IntSort()), IntSort()) => {
@@ -137,10 +168,10 @@ object Trees {
       case _ => None
     }
   }
-  object Mul {
-    def apply(t: Term, n: BigInt) = FunctionApplication(MulSymbol(n), List(t))
+  object MulConst {
+    def apply(t: Term, n: BigInt) = FunctionApplication(MulConstSymbol(n), List(t))
     def unapply(appli: FunctionApplication): Option[(Term, BigInt)] = appli match {
-      case FunctionApplication(MulSymbol(n), List(t)) => Some((t, n))
+      case FunctionApplication(MulConstSymbol(n), List(t)) => Some((t, n))
       case _ => None
     }
   }
@@ -160,17 +191,47 @@ object Trees {
     }
   }
 
-  object ModuloSymbol {
+  object ModSymbol {
     def apply() = FunctionSymbol("%", List(IntSort(), IntSort()), IntSort())
     def unapply(symb: FunctionSymbol): Boolean = symb match {
       case FunctionSymbol("%", List(IntSort(), IntSort()), IntSort()) => true
       case _ => false
     }
   }
-  object Modulo {
-    def apply(t1: Term, t2: Term) = FunctionApplication(ModuloSymbol(), List(t1, t2))
+  object Mod {
+    def apply(t1: Term, t2: Term) = FunctionApplication(ModSymbol(), List(t1, t2))
     def unapply(appli: FunctionApplication): Option[(Term, Term)] = appli match {
-      case FunctionApplication(ModuloSymbol(), List(t1, t2)) => Some((t1, t2))
+      case FunctionApplication(ModSymbol(), List(t1, t2)) => Some((t1, t2))
+      case _ => None
+    }
+  }
+
+  object NegSymbol {
+    def apply() = FunctionSymbol("-", List(IntSort()), IntSort())
+    def unapply(symb: FunctionSymbol): Boolean = symb match {
+        case FunctionSymbol("-", List(IntSort()), IntSort()) => true
+        case _ => false
+    }
+  }
+  object Neg {
+    def apply(t: Term) = FunctionApplication(NegSymbol(), List(t))
+    def unapply(appli: FunctionApplication): Option[Term] = appli match {
+      case FunctionApplication(NegSymbol(), List(t)) => Some(t)
+      case _ => None
+    }
+  }
+
+  object AbsSymbol {
+    def apply() = FunctionSymbol("abs", List(IntSort()), IntSort())
+    def unapply(symb: FunctionSymbol): Boolean = symb match {
+        case FunctionSymbol("abs", List(IntSort()), IntSort()) => true
+        case _ => false
+    }
+  }
+  object Abs {
+    def apply(t: Term) = FunctionApplication(AbsSymbol(), List(t))
+    def unapply(appli: FunctionApplication): Option[Term] = appli match {
+      case FunctionApplication(AbsSymbol(), List(t)) => Some(t)
       case _ => None
     }
   }

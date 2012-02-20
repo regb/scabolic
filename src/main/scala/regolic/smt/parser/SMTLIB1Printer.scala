@@ -1,6 +1,6 @@
-package regolic.smt.smtlib
+package regolic.smt.parser
 
-import Trees._
+import SMTLIB1Trees._
 
 object Printer {
 
