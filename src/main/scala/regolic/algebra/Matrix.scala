@@ -19,6 +19,19 @@ class Matrix[T <: Field[T]](m: Array[Array[T]])(implicit field: Field[T], man: C
 
   def toArray = ArrayTools.matrixCopy(matrix)
 
+  def toCols: Array[Vector[T]] = {
+    val a = Array.ofDim[Vector[T]](nbCol)
+    for(j <- 0 until nbCol)
+      a(j) = this.col(j)
+    a
+  }
+  def toRows: Array[Vector[T]] = {
+    val a = Array.ofDim[Vector[T]](nbRow)
+    for(i <- 0 until nbRow)
+      a(i) = this.row(i)
+    a
+  }
+
   def subMatrix(rows: List[Int], cols: List[Int]): Matrix[T] = {
     val subMat = Array.ofDim[T](rows.size, cols.size)
     rows.zipWithIndex.foreach{ case (row, i) =>
@@ -324,12 +337,7 @@ object Matrix {
   }
 
   def zero[T <: Field[T]](n: Int)(implicit field: Field[T], man: ClassManifest[T]): Matrix[T] = Matrix.zero(n, n)
-  def zero[T <: Field[T]](n: Int, m: Int)(implicit field: Field[T], man: ClassManifest[T]): Matrix[T] = {
-    val matrix = Array.ofDim[T](n, m)
-    for(i <- 0 until n)
-      for(j <- 0 until m)
-        matrix(i)(j) = field.zero
-    new Matrix(matrix)
-  }
+  def zero[T <: Field[T]](n: Int, m: Int)(implicit field: Field[T], man: ClassManifest[T]): Matrix[T] =
+    new Matrix(Array.fill[T](n, m)(field.zero))
 
 }

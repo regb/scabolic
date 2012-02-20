@@ -71,6 +71,30 @@ class Vector[T <: Field[T]](v: Array[T])(implicit field: Field[T], man: ClassMan
   //return first index that verify the predicate, or -1 if none does
   def indexWhere(f: (T) => Boolean): Int = vector.indexWhere(f)
 
+  def augment(vec: Vector[T]): Vector[T] = {
+    val newVector = Array.ofDim(size + vec.size)
+    for(i <- 0 until size)
+      newVector(i) = vector(i)
+    for(i <- 0 until vec.size)
+      newVector(i + size) = vec(i)
+    new Vector(newVector)
+  }
+
+  def subVector(elements: List[Int]): Vector[T] = {
+    val newVector = Array.ofDim[T](elements.size)
+    elements.zipWithIndex.map {
+      case (el, i) => newVector(i) = vector(el)
+    }
+    new Vector(newVector)
+  }
+
+  def subVector(from: Int, nbElement: Int): Vector[T] = {
+    val newVector = Array.ofDim[T](nbElement)
+    for(i <- 0 until nbElement)
+      newVector(i) = vector(from + i)
+    new Vector(newVector)
+  }
+
   def min: T = vector.min
   def minIndex: Int = {
     val minValue = this.min
@@ -81,6 +105,9 @@ class Vector[T <: Field[T]](v: Array[T])(implicit field: Field[T], man: ClassMan
     val maxValue = this.max
     this.indexWhere(_ == maxValue) 
   }
+
+  def sum: T = vector.foldLeft(field.zero)((acc, el) => acc + el)
+  def prod: T = vector.foldLeft(field.one)((acc, el) => acc * el)
 
   override def equals(that: Any): Boolean = that match {
     case (thatV: Vector[_]) => vector.size == thatV.vector.size && vector.zip(thatV.vector).forall{ case (e1, e2) => e1 == e2 }
@@ -116,5 +143,8 @@ object Vector {
     else
       new Vector(m.toArray(0))
   }
+
+  def zero[T <: Field[T]](n: Int)(implicit field: Field[T], man: ClassManifest[T]): Vector[T] = 
+        new Vector(Array.fill[T](n)(field.zero))
 
 }
