@@ -1,9 +1,9 @@
-package regolic.smt.smtlib
+package regolic.smt.parser
 
 import scala.util.parsing.combinator._
 import scala.io.Source
 
-import Trees._
+import SMTLIB1Trees._
 import regolic.asts.fol.Trees._
 import regolic.asts.core.Trees._
 
@@ -15,11 +15,11 @@ import regolic.asts.core.Trees._
  * 
  */
 
-class Parser(filename: String) extends RegexParsers {
+class SMTLIB1Parser(filename: String) extends RegexParsers {
 
   /* Parse a full benchmark, do not interpret any symbol of any logic, 
      a parser for the logic should process the resulting Benchmark */
-  def parse(): Trees.Benchmark = {
+  def parse(): SMTLIB1Trees.Benchmark = {
     val bench = parseAll(benchmark, Source.fromFile(filename).bufferedReader)
     bench.get
   }
@@ -305,13 +305,13 @@ class Parser(filename: String) extends RegexParsers {
   private val regexNumeral: String = """0|[1-9][0-9]*"""
   //private val regexRational: String = regexNumeral + """\.0*""" + regexNumeral
 
-  private[Parser] abstract class Connective
-  private[Parser] case object ConnectiveAnd extends Connective
-  private[Parser] case object ConnectiveNot extends Connective
-  private[Parser] case object ConnectiveOr extends Connective
-  private[Parser] case object ConnectiveImplies extends Connective
-  private[Parser] case object ConnectiveIff extends Connective
-  private[Parser] case object ConnectiveITE extends Connective
-  private[Parser] case object ConnectiveXor extends Connective
+  private[SMTLIB1Parser] abstract class Connective
+  private[SMTLIB1Parser] case object ConnectiveAnd extends Connective
+  private[SMTLIB1Parser] case object ConnectiveNot extends Connective
+  private[SMTLIB1Parser] case object ConnectiveOr extends Connective
+  private[SMTLIB1Parser] case object ConnectiveImplies extends Connective
+  private[SMTLIB1Parser] case object ConnectiveIff extends Connective
+  private[SMTLIB1Parser] case object ConnectiveITE extends Connective
+  private[SMTLIB1Parser] case object ConnectiveXor extends Connective
   
 }

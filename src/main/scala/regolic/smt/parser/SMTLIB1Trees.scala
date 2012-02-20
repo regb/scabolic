@@ -1,10 +1,10 @@
-package regolic.smt.smtlib
+package regolic.smt.parser
 
 import scala.collection.mutable.ListBuffer
 import scala.collection.mutable.HashMap
 import regolic.asts.core.Trees._
 
-object Trees {
+object SMTLIB1Trees {
 
   case class Benchmark(name: String, attributes: List[BenchAttribute]) {
 
