@@ -69,6 +69,25 @@ class MatrixSuite extends FunSuite {
 
   val m1xv1 = s2v("14 32 50")
 
+  val m5 = s2m("2 0," +
+               "0 4")
+  val m5inv = s2m("1/2 0," +
+                  "0 1/4")
+  val m6 = s2m("2 1," +
+               "4 4")
+  val m6inv = s2m("1 -1/4," +
+                  "-1 1/2")
+  val m7 = s2m("3 1," +
+               "9 4")
+  val m7inv = s2m("4/3 -1/3," +
+                  "-3 1")
+  val m8 = s2m("1 2 2," +
+               "2 2 2," +
+               "2 2 1")
+  val m8inv = s2m("-1 1 0," +
+                  "1 -3/2 1," +
+                  "0 1 -1")
+
 
   test("representation") {
     assert(m1(0,0) === r(1))
@@ -148,6 +167,13 @@ class MatrixSuite extends FunSuite {
     assert(m1.col(1) === s2v("2 5 8"))
   }
 
+  test("augment") {
+    assert(m1.augment(m1) === s2m("1 2 3 1 2 3,4 5 6 4 5 6,7 8 9 7 8 9"))
+    assert(id3.augment(id3) === s2m("1 0 0 1 0 0,0 1 0 0 1 0,0 0 1 0 0 1"))
+    assert(s2m("0 1 2 4,5 6 7 8").augment(s2m("1,1")) === s2m("0 1 2 4 1,5 6 7 8 1"))
+    intercept[IllegalArgumentException] { m1.augment(id2) }
+  }
+
   test("map") {
 
   }
@@ -196,6 +222,22 @@ class MatrixSuite extends FunSuite {
     assert(v1 === id3(v1))
     assert(m1xv1 === m1*v1)
     assert(m1xv1 === m1(v1))
+  }
+
+  test("isNonSingular") {
+    assert(id4.isNonSingular)
+    assert(m5.isNonSingular)
+    assert(m6.isNonSingular)
+    assert(m7.isNonSingular)
+    assert(m8.isNonSingular)
+  }
+
+  test("inverse") {
+    assert(id4.inverse == id4)
+    assert(m5.inverse == m5inv)
+    assert(m6.inverse == m6inv)
+    assert(m7.inverse == m7inv)
+    assert(m8.inverse == m8inv)
   }
 
   test("gauss") {

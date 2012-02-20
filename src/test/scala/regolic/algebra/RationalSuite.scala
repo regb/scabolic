@@ -26,6 +26,17 @@ class RationalSuite extends FunSuite {
     assert(r(1,2).denominator === 2)
   }
 
+  test("String based constructor") {
+    assert(r(1) === Rational("1"))
+    assert(r(1) === Rational("1/1"))
+    assert(r(2) === Rational("2"))
+    assert(r(2) === Rational("2/1"))
+    assert(r(1,2) === Rational("1/2"))
+    assert(r(2,3) === Rational("2/3"))
+    assert(r(13,27) === Rational("13/27"))
+
+  }
+
   test("gcd representation positive num and denum") {
     assert(r(4,2).numerator === 2)
     assert(r(4,2).denominator === 1)

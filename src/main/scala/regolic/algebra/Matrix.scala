@@ -124,6 +124,55 @@ class Matrix[T <: Field[T]](m: Array[Array[T]])(implicit field: Field[T], man: C
   def forall(p: (T) => Boolean): Boolean = foldLeft(true)((b, e) => b && p(e))
   def exists(p: (T) => Boolean): Boolean = foldLeft(false)((b, e) => b || p(e))
 
+  def augment(mat: Matrix[T]): Matrix[T] = {
+    require(nbRow == mat.nbRow)
+    val newMatrix = Array.ofDim(nbRow, nbCol + mat.nbCol)
+    for(i <- 0 until nbRow) {
+      for(j <- 0 until nbCol)
+        newMatrix(i)(j) = matrix(i)(j)
+      for(j <- 0 until mat.nbCol)
+        newMatrix(i)(j+nbCol) = mat(i, j)
+    }
+    new Matrix(newMatrix)
+  }
+
+  //not a very efficient algorithm on big matrices, but I heard determinant are not of much use anyway
+  def determinant: T = {
+    require(nbRow == nbCol)
+    val allIndices = (0 until nbRow)
+    val row = 0
+    val indicesWithoutRow = allIndices.filterNot(_ == row).toList
+    var determinant: T = field.zero
+    for(j <- 0 until nbCol) {
+      if(j % 2 == 0)
+        determinant += matrix(row)(j) * subMatrix(indicesWithoutRow, allIndices.filterNot(_ == j).toList).determinant
+      else
+        determinant += (-field.one) * matrix(row)(j) * subMatrix(indicesWithoutRow, allIndices.filterNot(_ == j).toList).determinant
+    }
+    determinant
+  }
+
+  def isNonSingular: Boolean = {
+    try { 
+      this.inverse
+      true
+    } catch {
+      case _ => false
+    }
+  }
+
+  def inverse: Matrix[T] = {
+    require(nbRow == nbCol)
+    val idMatrix = Matrix.identity[T](nbRow)
+    val augmentedMatrix = this.augment(idMatrix)
+    val reducedMatrix = augmentedMatrix.gaussJordanElimination match {
+      case None => {require(false); idMatrix}
+      case Some(m) => m
+    }
+    require(reducedMatrix.subMatrix(0, nbRow, 0, nbCol) == idMatrix)
+    reducedMatrix.subMatrix(0, nbRow, nbCol, nbCol)
+  }
+
   def gaussianElimination: Option[Matrix[T]] = {
     val matArray = matrix.toArray
     var r = 0
