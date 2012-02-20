@@ -116,6 +116,26 @@ class Matrix[T <: Field[T]](m: Array[Array[T]])(implicit field: Field[T], man: C
     val newArray = matrix.map(x => x.map(y => f(y)))
     new Matrix(newArray)
   }
+  def mapWithIndex[S <: Field[S]](f: ((T, Int, Int) => (S)))(implicit fi: Field[S], m: ClassManifest[S]): Matrix[S] = {
+    val newArray = Array.ofDim[S](nbRow, nbCol)
+    for(row <- 0 until nbRow)
+      for(col <- 0 until nbCol)
+        newArray(row)(col) = f(matrix(row)(col), row, col)
+    new Matrix(newArray)
+  }
+
+  def mapRow(row: Int, f: (T) => T) = {
+    val newArray = ArrayTools.matrixCopy(matrix)
+    newArray(row) = newArray(row).map(f)
+    new Matrix(newArray)
+  }
+
+  def mapCol(col: Int, f: (T) => T) = {
+    val newArray = ArrayTools.matrixCopy(matrix)
+    for(row <- 0 until nbRow)
+      newArray(row)(col) = f(matrix(row)(col))
+    new Matrix(newArray)
+  }
 
   //foldLeft on the matrix, the order is: row by row starting at the first one then going from
   //the first column to the last, then the second row ...

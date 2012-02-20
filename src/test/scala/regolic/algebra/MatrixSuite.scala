@@ -178,6 +178,21 @@ class MatrixSuite extends FunSuite {
 
   }
 
+  test("mapWithIndex") {
+    assert(m1.mapWithIndex((el, row, col) => el) === m1)
+    assert(m3.mapWithIndex((el, row, col) => el) === m3)
+    assert(id2.mapWithIndex((el, row, col) => el * (row+col)) === s2m("0 0,0 2"))
+    assert(m1.mapWithIndex((el, row, col) => el + row) === s2m("1 2 3,5 6 7,9 10 11"))
+  }
+
+  test("mapRow") {
+    assert(m1.mapRow(0, el => el + 2) === s2m("3 4 5,4 5 6,7 8 9"))
+  }
+
+  test("mapCol") {
+    assert(m1.mapCol(0, el => el + 2) === s2m("3 2 3,6 5 6,9 8 9"))
+  }
+
   test("foldLeft") {
 
   }
