@@ -1,6 +1,6 @@
 package regolic.algebra
 
-trait Field[T <: Field[T]] extends Ring[T] {
+trait Field[T <: Field[T]] extends Ring[T] with Ordered[T] {
   
   /*
    * addition: 

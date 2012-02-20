@@ -27,7 +27,12 @@ class Vector[T <: Field[T]](v: Array[T])(implicit field: Field[T], man: ClassMan
     new Vector(res)
   }
 
+
   def unary_-() = this.map(el => -el)
+
+  //TODO add this to the vector space trait
+  def -(vec: Vector[T]): Vector[T] = this + (-vec)
+
   lazy val zero = this.map(el => field.zero)
 
   def *(vec: Vector[T]): T = {
@@ -52,6 +57,12 @@ class Vector[T <: Field[T]](v: Array[T])(implicit field: Field[T], man: ClassMan
   def *(mat: Matrix[T]): Vector[T] = Vector(Matrix(this).transpose * mat)
 
   def map[S <: Field[S]](f: (T) => S)(implicit fi: Field[S], m: ClassManifest[S]): Vector[S] = new Vector(vector.map(f))
+  def mapWithIndex[S <: Field[S]](f: ((T, Int) => (S)))(implicit fi: Field[S], m: ClassManifest[S]): Vector[S] = {
+    val newArray = Array.ofDim[S](size)
+    for(i <- 0 until size)
+      newArray(i) = f(vector(i), i)
+    new Vector(newArray)
+  }
 
   def foldLeft[S](z: S)(f: (S, T) => S): S = vector.foldLeft(z)(f)
   def forall(f: (T) => Boolean): Boolean = vector.forall(f)
@@ -59,6 +70,17 @@ class Vector[T <: Field[T]](v: Array[T])(implicit field: Field[T], man: ClassMan
 
   //return first index that verify the predicate, or -1 if none does
   def indexWhere(f: (T) => Boolean): Int = vector.indexWhere(f)
+
+  def min: T = vector.min
+  def minIndex: Int = {
+    val minValue = this.min
+    this.indexWhere(_ == minValue) 
+  }
+  def max: T = vector.max
+  def maxIndex: Int = {
+    val maxValue = this.max
+    this.indexWhere(_ == maxValue) 
+  }
 
   override def equals(that: Any): Boolean = that match {
     case (thatV: Vector[_]) => vector.size == thatV.vector.size && vector.zip(thatV.vector).forall{ case (e1, e2) => e1 == e2 }

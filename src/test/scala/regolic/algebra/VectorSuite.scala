@@ -50,6 +50,10 @@ class VectorSuite extends FunSuite {
 
   }
 
+  test("mapWithIndex") {
+    assert(v1.mapWithIndex((el, index) => el + index) === s2v("1 3 5"))
+  }
+
   test("foldLeft") {
 
   }
@@ -60,6 +64,27 @@ class VectorSuite extends FunSuite {
 
   test("exists") {
 
+  }
+
+  test("min") {
+    assert(v1.min === r(1))
+    assert(v2.min === r(4))
+    assert(s2v("0 3 -2 4 -1").min === r(-2))
+  }
+  test("minIndex") {
+    assert(v1.minIndex === 0)
+    assert(v2.minIndex === 0)
+    assert(s2v("0 3 -2 4 -1").minIndex === 2)
+  }
+  test("max") {
+    assert(v1.max === r(3))
+    assert(v2.max === r(6))
+    assert(s2v("0 3 -2 4 -1").max === r(4))
+  }
+  test("maxIndex") {
+    assert(v1.maxIndex === 2)
+    assert(v2.maxIndex === 2)
+    assert(s2v("0 3 -2 4 -1").maxIndex === 3)
   }
 
 
