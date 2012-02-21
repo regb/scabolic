@@ -2,10 +2,13 @@ package regolic.analysis
 
 import regolic.algebra.Rational
 import regolic.asts.core.{Trees => CoreT, Manip => CoreM}
+import regolic.asts.core.Trees.PredicateApplication
 import regolic.asts.fol.{Trees => FolT, Manip => FolM}
 import regolic.asts.theories.real
 import real.{Trees => RealT, Manip => RealM}
 import regolic.equation.LinearSystemSolver
+import regolic.equation.PolynomialSolver
+import regolic.simplifier.PolynomialFactorizer
 
 object Preamble {
 
@@ -96,10 +99,10 @@ object Preamble {
   def substitute(t: Term, mapping: Map[Variable, Term]): Term = CoreM.substitute(t, mapping)
   def contains(t: Term, el: Term): Boolean = CoreM.contains(t, el)
   def solveSum(v: Variable, lb: Term, ub: Term, body: Term): Option[Term] = new Summation(v, lb, ub, body).closedFormula
-  def solveEquations(eqs: List[Formula]): Map[Variable, Term] = LinearSystemSolver(eqs)
+  def solveEquations(eqs: List[PredicateApplication]): Map[Variable, Term] = LinearSystemSolver(eqs)
   def derive(term: Term, variable: Variable): Term = Derivative(new RealFunction(variable, term))
-  def polynomialRoots(term: Term): Set[(Term, Int)] = RealM.polynomialRoots(term) 
-  def factorizePolynomial(term: Term): Term = RealM.factorizePolynomial(term) 
+  def polynomialRoots(term: Term): Set[(Term, Int)] = PolynomialSolver.polynomialRoots(term) 
+  def factorizePolynomial(term: Term): Term = PolynomialFactorizer.factorizePolynomial(term) 
   val e = RealT.E()
   val pi = RealT.PI()
   def exp(t: Term): Term = RealT.Exp(t)

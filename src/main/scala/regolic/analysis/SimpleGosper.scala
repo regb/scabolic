@@ -1,6 +1,7 @@
 package regolic.analysis
 
 import Preamble._
+import regolic.asts.core.Trees.PredicateApplication
 import regolic.algebra.Rational
 import regolic.equation.LinearSystemSolver
 
@@ -26,7 +27,7 @@ object SimpleGosper {
     val gosperRhs = polynomeQ*substitute(generalY, variable, variable + 1) - generalY
     val polynomialFormRhs = polynomialForm(gosperRhs, variable)
 
-    def generateEquations(polynomial: Term): List[Formula] = polynomial match {
+    def generateEquations(polynomial: Term): List[PredicateApplication] = polynomial match {
       case Add(Mul(t :: Pow(_, n@Num(_)) :: Nil) :: ms) => Equals(t, if(n==power) 1 else 0) :: generateEquations(Add(ms))
       case Add(Nil) => Nil
       case _ => sys.error("unexpected error, todo " + polynomial)
