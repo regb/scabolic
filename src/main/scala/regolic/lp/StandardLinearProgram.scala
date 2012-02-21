@@ -1,6 +1,7 @@
 package regolic.lp
 
 import regolic.asts.core.Trees.Term
+import regolic.asts.core.Trees.PredicateApplication
 import regolic.algebra.Rational
 import regolic.algebra.Vector
 import regolic.algebra.Matrix
@@ -16,5 +17,16 @@ class StandardLinearProgram(val c: Vector[Rational], val A: Matrix[Rational], va
 
   require(A.nbRow == nbConstraints && A.nbCol == nbVariables)
 
+}
+
+object StandardLinearProgram {
+
+  def fromMax(objectiveFunction: Term, constraints: List[PredicateApplication]): StandardLinearProgram = {
+    null
+  }
+
+  def fromMin(objectiveFunction: Term, constraints: List[PredicateApplication]): StandardLinearProgram = {
+    null
+  }
 
 }
