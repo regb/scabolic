@@ -1,15 +1,17 @@
-package regolic.calculus
+package regolic.equation
 
-import regolic.calculus.Trees._
-import regolic.asts.core.{Manip => CoreM}
 import regolic.algebra.Rational
 import regolic.algebra.Matrix
+import regolic.asts.core.Trees._
+import regolic.asts.core.Manip._
+import regolic.asts.fol.Trees.And
 import regolic.asts.theories.real.Eval
 import regolic.asts.theories.real.Manip._
+import regolic.asts.theories.real.Trees._
 
 import scala.collection.mutable.HashMap
 
-object LinearEquationSolver {
+object LinearSystemSolver {
 
   class LinearEquation(eq: Formula) {
 
@@ -17,15 +19,15 @@ object LinearEquationSolver {
 
   def apply(equations: List[Formula]): Map[Variable, Term] = {
 
-    def coeffVar(v: Variable, t: Term): Rational = if(CoreM.contains(t, v)) polynomialForm(t, v) match {
-      case Add(h :: Mul(coeff :: Pow(v2, Number(r)) :: Nil) :: Nil) if v2==v && r.isOne => Eval(coeff, Map())
-      case Add(Mul(coeff :: Pow(v2, Number(r)) :: Nil) :: Nil) if v2==v && r.isZero => Rational(0)
+    def coeffVar(v: Variable, t: Term): Rational = if(contains(t, v)) polynomialForm(t, v) match {
+      case Add(h :: Mul(coeff :: Pow(v2, Num(r)) :: Nil) :: Nil) if v2==v && r.isOne => Eval(coeff, Map())
+      case Add(Mul(coeff :: Pow(v2, Num(r)) :: Nil) :: Nil) if v2==v && r.isZero => Rational(0)
       case x => sys.error("not linear expression: " + t)
     } else Rational(0)
 
     val lhSides = equations.map{ case Equals(t1, t2) => Sub(t1, t2) case _ => sys.error("unexpected") }
     val nbEqus = lhSides.length
-    val listVars = CoreM.vars(And(equations)).toList
+    val listVars = vars(And(equations)).toList
     val nbVars = listVars.length
     val cstsRhs: List[Rational] = lhSides.map(t => -Eval(t, Map(listVars.map(v => (v, Rational(0))): _*)))
     val matrixList: List[List[Rational]] = lhSides.map(lhs => listVars.map(v => coeffVar(v, lhs)))
@@ -42,7 +44,7 @@ object LinearEquationSolver {
             map.put(listVars(c), Zero())
             c = c+1
           } else {
-            map.put(listVars(c), Number(reducedMatrix(r, nbVars)))
+            map.put(listVars(c), Num(reducedMatrix(r, nbVars)))
             r += 1
             c += 1
           }

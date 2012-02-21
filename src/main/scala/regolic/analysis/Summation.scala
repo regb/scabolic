@@ -1,4 +1,4 @@
-package regolic.calculus
+package regolic.analysis
 
 import Preamble._
 import regolic.algebra.Rational

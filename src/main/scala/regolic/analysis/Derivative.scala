@@ -1,12 +1,14 @@
-package regolic.calculus
+package regolic.analysis
 
 import regolic.asts.core.Trees._
 import regolic.asts.theories.real.Trees._
 import regolic.asts.theories.real.Manip._
 
-object Differential {
+object Derivative {
 
-  def derive(t: Term, x: Variable): Term = {
+  def apply(f: RealFunction): Term = {
+    val x = f.variable
+    val t = f.expression
     def derive0(t: Term): Term = {
       val res = t match {
         case Num(_) => Zero()

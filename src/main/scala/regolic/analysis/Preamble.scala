@@ -1,11 +1,11 @@
-package regolic.calculus
+package regolic.analysis
 
 import regolic.algebra.Rational
 import regolic.asts.core.{Trees => CoreT, Manip => CoreM}
-import regolic.asts.fol
-import fol.{Trees => FolT, Manip => FolM}
+import regolic.asts.fol.{Trees => FolT, Manip => FolM}
 import regolic.asts.theories.real
 import real.{Trees => RealT, Manip => RealM}
+import regolic.equation.LinearSystemSolver
 
 object Preamble {
 
@@ -96,8 +96,8 @@ object Preamble {
   def substitute(t: Term, mapping: Map[Variable, Term]): Term = CoreM.substitute(t, mapping)
   def contains(t: Term, el: Term): Boolean = CoreM.contains(t, el)
   def solveSum(v: Variable, lb: Term, ub: Term, body: Term): Option[Term] = new Summation(v, lb, ub, body).closedFormula
-  def solveEquations(eqs: List[Formula]): Map[Variable, Term] = LinearEquationSolver(eqs)
-  def derive(term: Term, variable: Variable): Term = Differential.derive(term, variable)
+  def solveEquations(eqs: List[Formula]): Map[Variable, Term] = LinearSystemSolver(eqs)
+  def derive(term: Term, variable: Variable): Term = Derivative(new RealFunction(variable, term))
   def polynomialRoots(term: Term): Set[(Term, Int)] = RealM.polynomialRoots(term) 
   def factorizePolynomial(term: Term): Term = RealM.factorizePolynomial(term) 
   val e = RealT.E()

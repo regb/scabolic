@@ -1,4 +1,4 @@
-package regolic.calculus
+package regolic.analysis
 
 import org.scalatest.FunSuite
 import Preamble._

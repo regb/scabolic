@@ -1,10 +1,9 @@
-package regolic.calculus
+package regolic.analysis
 
 import org.scalatest.FunSuite
 import Preamble._
-//import Differential._
 
-class DifferentialSuite extends FunSuite {
+class DerivativeSuite extends FunSuite {
 
   //TODO method in asts.theories.real to check whether two terms are equal, maybe returning an Option[Boolean], should be put in the same object as Eval
 
@@ -22,7 +21,7 @@ class DifferentialSuite extends FunSuite {
   }
 
   test("derive: simple derivative") {
-    val dt = derive(t1, x)
+    val dt = Derivative(new RealFunction(x, t1))
     assert(testEq(dt, dt1)) 
   }
 

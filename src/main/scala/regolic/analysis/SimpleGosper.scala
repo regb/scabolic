@@ -1,7 +1,8 @@
-package regolic.calculus
+package regolic.analysis
 
 import Preamble._
 import regolic.algebra.Rational
+import regolic.equation.LinearSystemSolver
 
 object SimpleGosper {
 
@@ -32,7 +33,7 @@ object SimpleGosper {
     }
 
     val lEquations = generateEquations(polynomialFormRhs)
-    val map = LinearEquationSolver(lEquations)
+    val map = LinearSystemSolver(lEquations)
     val nMap = listVars.foldLeft(map)((amap, v) => if(!amap.contains(v)) amap + (v -> 0) else amap)
     val polynomeY = substitute(generalY, nMap)
 
