@@ -4,7 +4,7 @@ import regolic.algebra.{Matrix, Rational, Vector}
 
 object Simplex {
 
-  trait Result
+  sealed trait Result
   case object Unbounded extends Result
   case object Infeasible extends Result
   case class Optimal(assignment: Vector[Rational]) extends Result

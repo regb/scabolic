@@ -34,8 +34,8 @@ object SimpleGosper {
     }
 
     val lEquations = generateEquations(polynomialFormRhs)
-    val map = LinearSystemSolver(lEquations)
-    val nMap = listVars.foldLeft(map)((amap, v) => if(!amap.contains(v)) amap + (v -> 0) else amap)
+    val map = LinearSystemSolver.findAssignment(lEquations).get.map{ case (v, r) => (v, Num(r)) }
+    val nMap = listVars.foldLeft(map)((amap, v) => if(!amap.contains(v)) amap + (v -> Num(0)) else amap)
     val polynomeY = substitute(generalY, nMap)
 
     //TODO

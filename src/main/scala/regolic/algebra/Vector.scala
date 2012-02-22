@@ -10,6 +10,7 @@ class Vector[T <: Field[T]](v: Array[T])(implicit field: Field[T], man: ClassMan
   private val vector: Array[T] = ArrayTools.arrayCopy(v)
 
   def toArray: Array[T] = ArrayTools.arrayCopy(vector)
+  def toList: List[T] = vector.toList
 
   def element(index: Int): T = vector(index)
   def apply(index: Int): T = vector(index)
@@ -70,6 +71,7 @@ class Vector[T <: Field[T]](v: Array[T])(implicit field: Field[T], man: ClassMan
 
   //return first index that verify the predicate, or -1 if none does
   def indexWhere(f: (T) => Boolean): Int = vector.indexWhere(f)
+  def indexOf(el: T): Int = vector.indexOf(el)
 
   def augment(vec: Vector[T]): Vector[T] = {
     val newVector = Array.ofDim(size + vec.size)

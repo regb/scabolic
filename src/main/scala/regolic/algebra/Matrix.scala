@@ -209,81 +209,100 @@ class Matrix[T <: Field[T]](m: Array[Array[T]])(implicit field: Field[T], man: C
     require(nbRow == nbCol)
     val idMatrix = Matrix.identity[T](nbRow)
     val augmentedMatrix = this.augment(idMatrix)
-    val reducedMatrix = augmentedMatrix.gaussJordanElimination match {
-      case None => {require(false); idMatrix}
-      case Some(m) => m
-    }
+    val reducedMatrix = augmentedMatrix.gaussJordanElimination
     require(reducedMatrix.subMatrix(0, nbRow, 0, nbCol) == idMatrix)
     reducedMatrix.subMatrix(0, nbRow, nbCol, nbCol)
   }
 
-  def gaussianElimination: Option[Matrix[T]] = {
+
+  //warning, this is kind of a low level code (for the Scala standard that is), that is probably going to be more efficient and it
+  //is hidden behind a function code abstraction anyway.
+  def gaussianElimination: Matrix[T] = {
+    import ArrayTools.swapRows
+
     val matArray = matrix.toArray
+    var nr = nbRow
+    var nc = nbCol
+
+    for(r <- 0 until nr) {
+      var allZeros = true
+      for(c <- 0 until nc if allZeros)
+        if(matArray(r)(c) != field.zero) allZeros = false
+      if(allZeros) {
+        swapRows(matArray, r, nr - 1)
+        nr = nr - 1
+      }
+    }
+
     var r = 0
     var c = 0
+    while (r < nr && c < nc) {
 
-    while (r < nbRow && c < nbCol) {
-      val pivot = findPivot(r, c)
-      if (pivot == -2)
-        return None
-      else if(pivot == -1)
+      var pivot = -1 
+      var allZeros = true
+      for(i <- r until nr if allZeros) {
+        if(matArray(i)(c) != field.zero) {
+          allZeros = false
+          pivot = i
+        }
+      }
+
+      if(pivot == -1)
         c += 1
       else {
-        ArrayTools.swapRows(matArray, r, pivot)
+
+        if(pivot != r)
+          swapRows(matArray, r, pivot)
+
         val divisor = matArray(r)(c)
-        ArrayTools.mapElements(matArray(r), ((x: T) => x/divisor), c, nbCol)
-        var i = r + 1
-        while (i < nbRow) {
-          var j = 0
+        ArrayTools.mapElements(matArray(r), ((x: T) => x/divisor), c, nc)
+
+        for(i <- (r+1) until nr) {
           val mul = matArray(i)(c)
-          while (j < nbCol) {
+          for(j <- c until nc)
+            matArray(i)(j) = matArray(i)(j) - mul * matArray(r)(j)
+        }
+
+        r += 1
+        c += 1
+      }
+    }
+    new Matrix(matArray)
+  }
+
+  def gaussJordanElimination: Matrix[T] = {
+    val echelonMat = this.gaussianElimination
+    val matArray = echelonMat.toArray
+    val row = echelonMat.nbRow
+    val col = echelonMat.nbCol
+    var r = row - 1
+    while(r > 0) {
+
+      var c = 0
+      var found = false
+      //find the pivot
+      while(c < col && !found) {
+        (matArray(r)(c) == field.zero) match {
+          case true => c += 1
+          case false => found = true
+        }
+      }
+
+      if(c != col) {
+        var i = r - 1
+        while(i >= 0) {
+          val mul = matArray(i)(c)
+          var j = 0
+          while(j < col) {
             matArray(i)(j) = matArray(i)(j) - mul * matArray(r)(j)
             j += 1
           }
-          i += 1
-        }
+          i -= 1
+        }	
       }
-      r += 1
-      c += 1
+      r -= 1
     }
-    Some(new Matrix(matArray))
-  }
-
-  def gaussJordanElimination: Option[Matrix[T]] = this.gaussianElimination match {
-    case None => None
-    case Some(echelonMat) => {
-      val matArray = echelonMat.toArray
-      val row = echelonMat.nbRow
-      val col = echelonMat.nbCol
-      var r = row - 1
-      while(r > 0) {
-
-        var c = 0
-        var found = false
-        //find the pivot
-        while(c < col && !found) {
-          (matArray(r)(c) == field.zero) match {
-            case true => c += 1
-            case false => found = true
-          }
-        }
-
-        if(c != col) {
-          var i = r - 1
-          while(i >= 0) {
-            val mul = matArray(i)(c)
-            var j = 0
-            while(j < col) {
-              matArray(i)(j) = matArray(i)(j) - mul * matArray(r)(j)
-              j += 1
-            }
-            i -= 1
-          }	
-        }
-        r -= 1
-      }
-      Some(new Matrix(matArray))
-    }
+    new Matrix(matArray)
   }
 
   override def equals(that: Any): Boolean = that match {
@@ -310,17 +329,6 @@ class Matrix[T <: Field[T]](m: Array[Array[T]])(implicit field: Field[T], man: C
       i += 1
     }
     str
-  }
-
-  private def findPivot(fromRow: Int, col: Int): Int = {
-    var pivot = -1	
-    var row = fromRow
-    while(row < matrix.length) {
-      if(matrix(row)(col) != field.zero) 
-        return row
-      row += 1
-    }
-    pivot
   }
 
 }

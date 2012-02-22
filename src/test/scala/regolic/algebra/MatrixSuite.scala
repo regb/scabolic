@@ -256,12 +256,9 @@ class MatrixSuite extends FunSuite {
   }
 
   test("gauss") {
-    val reduct1 = gauss1.gaussJordanElimination 
-    assert(reduct1 != None)
-    assert(reduct1.get === gauss2)
-    val reduct3 = gauss3.gaussJordanElimination
-    assert(reduct3 != None)
-    assert(reduct3.get === gauss2)
+    assert(gauss1.gaussJordanElimination === gauss2)
+    assert(gauss3.gaussJordanElimination === gauss2)
+
   }
 
 }

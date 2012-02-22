@@ -99,7 +99,7 @@ object Preamble {
   def substitute(t: Term, mapping: Map[Variable, Term]): Term = CoreM.substitute(t, mapping)
   def contains(t: Term, el: Term): Boolean = CoreM.contains(t, el)
   def solveSum(v: Variable, lb: Term, ub: Term, body: Term): Option[Term] = new Summation(v, lb, ub, body).closedFormula
-  def solveEquations(eqs: List[PredicateApplication]): Map[Variable, Term] = LinearSystemSolver(eqs)
+  def solveEquations(eqs: List[PredicateApplication]): Option[Map[Variable, Rational]] = LinearSystemSolver.findAssignment(eqs)
   def derive(term: Term, variable: Variable): Term = Derivative(new RealFunction(variable, term))
   def polynomialRoots(term: Term): Set[(Term, Int)] = PolynomialSolver.polynomialRoots(term) 
   def factorizePolynomial(term: Term): Term = PolynomialFactorizer.factorizePolynomial(term) 
