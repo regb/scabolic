@@ -168,6 +168,17 @@ class Matrix[T <: Field[T]](m: Array[Array[T]])(implicit field: Field[T], man: C
     }
     new Matrix(newMatrix)
   }
+  //augment with a vertical vector (interpret the vector as a one column matrix)
+  def augment(vec: Vector[T]): Matrix[T] = {
+    require(nbRow == vec.size)
+    val newMatrix = Array.ofDim(nbRow, nbCol + 1)
+    for(i <- 0 until nbRow) {
+      for(j <- 0 until nbCol)
+        newMatrix(i)(j) = matrix(i)(j)
+      newMatrix(i)(nbCol) = vec(i)
+    }
+    new Matrix(newMatrix)
+  }
 
   //not a very efficient algorithm on big matrices, but I heard determinant are not of much use anyway
   def determinant: T = {

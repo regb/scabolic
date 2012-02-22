@@ -2,6 +2,7 @@ package regolic.equation
 
 import regolic.algebra.Rational
 import regolic.algebra.Matrix
+import regolic.algebra.Vector
 import regolic.asts.core.Trees._
 import regolic.asts.core.Manip._
 import regolic.asts.fol.Trees.And
@@ -15,34 +16,31 @@ object LinearSystemSolver {
 
   def apply(equations: List[PredicateApplication]): Map[Variable, Term] = {
     require(equations.forall{ case Equals(_, _) => true case _ => false })
-    //require(equations.forall
 
-    def coeffVar(v: Variable, t: Term): Rational = if(contains(t, v)) polynomialForm(t, v) match {
-      case Add(h :: Mul(coeff :: Pow(v2, Num(r)) :: Nil) :: Nil) if v2==v && r.isOne => Eval(coeff, Map())
-      case Add(Mul(coeff :: Pow(v2, Num(r)) :: Nil) :: Nil) if v2==v && r.isZero => Rational(0)
-      case x => sys.error("not linear expression: " + t)
-    } else Rational(0)
+    def coeffVar(v: Variable, t: Term): Rational = if(!contains(t, v)) Rational.zero else polynomialForm(t, v) match {
+      case Add(Mul(coeff :: Pow(v2, Num(r)) :: Nil) :: rest :: Nil) if v2==v && r.isOne => Eval(coeff, Map())
+      case Add(Mul(coeff :: Pow(v2, Num(r)) :: Nil) :: Nil) if v2==v && r.isZero => Rational.zero
+      case _ => throw new IllegalArgumentException("not a linear expression: " + t)
+    }
 
-    val lhSides = equations.map{ case Equals(t1, t2) => Sub(t1, t2) case _ => sys.error("unexpected") }
+    val lhSides: Array[Term] = equations.map{ case Equals(t1, t2) => Sub(t1, t2) }.toArray
     val nbEqus = lhSides.length
-    val listVars = vars(And(equations)).toList
-    val nbVars = listVars.length
-    val cstsRhs: List[Rational] = lhSides.map(t => -Eval(t, Map(listVars.map(v => (v, Rational(0))): _*)))
-    val matrixList: List[List[Rational]] = lhSides.map(lhs => listVars.map(v => coeffVar(v, lhs)))
-    val augmentedMatrixList: List[List[Rational]] = List.range(0, matrixList.length).map(i => matrixList(i) ::: List(cstsRhs(i))) 
-    val matrixArray = augmentedMatrixList.map(l => l.toArray).toArray
-    val matrix = new Matrix[Rational](matrixArray)
-    matrix.gaussJordanElimination match {
+    val allVars: Array[Variable] = equations.map(vars).flatten.distinct.toArray
+    val nbVars = allVars.length
+    val cstsRhs: Vector[Rational] = Vector(lhSides.map(t => -Eval(t, Map(allVars.map(v => (v, Rational(0))): _*))))
+    val matrixCoef: Matrix[Rational] = Matrix(lhSides.map(lhs => allVars.map(v => coeffVar(v, lhs))))
+    val augmentedMatrixCoef: Matrix[Rational] = matrixCoef.augment(cstsRhs)
+    augmentedMatrixCoef.gaussJordanElimination match {
       case Some(reducedMatrix) => {
         val map = new HashMap[Variable, Term]
         var r = 0;
         var c = 0;
         while(c < nbVars && r < nbEqus) {
           if(reducedMatrix(r, c).isZero) {
-            map.put(listVars(c), Zero())
+            map.put(allVars(c), Zero())
             c = c+1
           } else {
-            map.put(listVars(c), Num(reducedMatrix(r, nbVars)))
+            map.put(allVars(c), Num(reducedMatrix(r, nbVars)))
             r += 1
             c += 1
           }
@@ -56,7 +54,7 @@ object LinearSystemSolver {
           }
         } else if(c < nbVars) {
           while(c < nbVars) {
-            map.put(listVars(c), Zero())
+            map.put(allVars(c), Zero())
             c += 1
           }
         }
