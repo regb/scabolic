@@ -7,42 +7,28 @@ import regolic.algebra.Rational
 import regolic.tools.Math.fix
 import regolic.tools.SeqTools.mapUnique
 
+/*
+ * One of the design principle of the Manip object is to contain only basic
+ * operation on the associated tree. Any "advanced" algorithm should be provide as a separate code
+ * in a separate package. This Manip object tries to provide the most comonly used features.
+ *
+ * Note also that most of these methods do not do anything too smart, in particular a method like
+ * isPolynomial will not give a completely correct answer, in particular it will not attemp to simplify the formula to
+ * see whether some terms cancels out
+ */
+
 //maybe only do the safe modification (for example, not 0 * 1/a, because a 
 //could be 0) here, and having a more aggressive system in calculus that could 
 //return a list of assumption or take a list of assumption in addition
 
+//TODO: choosing an ordering of degree in polynomials
+
 object Manip {
-
-  def polynomialDivision(term: Term): (Term, Term) = {
-    require(isRational(term) && isDiv(term))
-    val Div(numerator@Add(ts1), denominator@Add(ts2)) = term
-    val numerators: List[Term] = ts1.reverse
-    val denominators: List[Term] = ts2.reverse
-    val Mul(List(leadNumeratorCoeff, Pow(variable@Var(_), Num(leadNumeratorDegree)))) = numerators.head
-    val Mul(List(leadDenominatorCoeff, Pow(v2, Num(leadDenominatorDegree)))) = denominators.head
-    assert(variable == v2)
-    assert(leadNumeratorDegree.isInteger && leadDenominatorDegree.isInteger)
-
-    if(leadNumeratorDegree < leadDenominatorDegree) {
-      (Zero(), numerator)
-    }
-    else {
-      val newLeadCoeff = simplify(Div(leadNumeratorCoeff, leadDenominatorCoeff))
-      val newLeadDegree = Num(leadNumeratorDegree - leadDenominatorDegree)
-      val leadQuotient = Mul(List(newLeadCoeff, Pow(variable, newLeadDegree)))
-
-      val multQuotient = Mul(List(leadQuotient, Add(denominators)))
-      val remainder = Sub(numerator, multQuotient)
-
-      val (recQuotient, recRemainder) = polynomialDivision(Div(polynomialForm(remainder, variable), Add(ts2)))
-
-      (polynomialForm(Add(List(recQuotient, leadQuotient)), variable), recRemainder)
-    }
-  }
 
   def isSingleVarPolynomial(term: Term) = isPolynomial(term) && (vars(term).size == 1)
 
   //Is polynomial (accepting multiple variables)
+  //do not require the polynomial to be in a standard form
   def isPolynomial(term: Term): Boolean = term match {
     case Var(_) => true
     case Num(_) => true
@@ -61,50 +47,61 @@ object Manip {
   def polynomialDegree(polynomial: Term, variable: Variable): BigInt = {
     require(isPolynomialForm(polynomial, variable))
     val Add(ts) = polynomial
-    val Mul(_ :: Pow(v, Num(degree)) :: ms) = ts.last
+    val Mul(_ :: Pow(v, Num(degree)) :: ms) = ts.head
     require(v == variable)
     assert(degree.isInteger)
     degree.toBigInt
   }
 
   //checking that the term in in polynomial standard form
-  def isPolynomialForm(term: Term, variable: Variable): Boolean = term match {
-    case Add(ts) => ts.forall{
-      case Mul(List(coef, Pow(v, Num(r)))) => v == variable && r.isInteger //TODO something with coef
+  //an*x^n + ... + a0*x^0, with an != 0
+  def isPolynomialForm(term: Term, variable: Variable): Boolean = {
+    def isCorrectPower(n: Rational, ts: List[Term]): Boolean = ts match {
+      case Mul(List(coef, Pow(v, Num(r)))) :: Nil => variable == v && !contains(coef, variable) && r == n && n.isZero
+      case Mul(List(coef, Pow(v, Num(r)))) :: ts => variable == v && !contains(coef, variable) && r == n && isCorrectPower(n-1, ts)
       case _ => false
     }
-    case _ => false
-      //TODO: ordering of degree
+    term match {
+      case Add(ts@( Mul(List(coef, Pow(v, Num(r))))::_ )) => isCorrectPower(r, ts)
+      case _ => false
+    }
   }
 
-  //return a0*x^0 + a1*x^1 + ... + an*x^n
-  //note that all these terms appears explicitly in the returned tree, they are not simplified
-  //note also that a_i could be a complex polynomial consisting of other variables
-  def polynomialForm(term: Term, variable: Variable): Term = {
-    require(isPolynomial(term))
+  /*
+   * return an*x^n + ... + a0*x^0, with an != 0 and x being the head variable
+   * note that all these terms appears explicitly in the returned tree, they are not simplified
+   * note also that a_i could be a complex polynomial consisting of other variables, in that case, it will be
+   * recursively put in polynomialForm according to the rest of the list of variables. If the list is empty no change
+   * is done to the term.
+   *
+   * Note that there will be one level of nested Add and Mul for each variable in the list, even if the coefficient
+   * do not contains any of the variables. This will be applied to each coefficient.
+   */
+
+  def polynomialForm(term: Term, variable: Variable): Term = polynomialForm(term, List(variable))
+  def polynomialForm(term: Term, variables: List[Variable]): Term = {
+    require(isPolynomial(term)) //this requires make sure that there won't be any n^x in the expanded form
+    val variable = variables.head
 
     def containsNTimesVar(t: Term, degree: Int): Boolean = count(t, (_: Formula) => false, (t: Term) => t == variable) == degree
 
     def unify(ts: List[Term], degree: Int): List[Term] = if(ts.isEmpty) Nil else {
       val (thisDegree, otherDegree) = ts.partition(x => containsNTimesVar(x, degree))
       val coeff = 
-        (thisDegree.map{
+        (thisDegree.map {
           case Mul(ts) => ts.filterNot(_ == variable) match {
             case Nil => One()
             case t :: Nil => t
             case ts@_ => Mul(ts)
           }
-          case v@Var(_) if v == variable => One()
-          case v@Var(_) if v != variable => v
-          case n@Num(_) => n
-          case _ => sys.error("should be a product")
         }) match {
-        case Nil => Zero()
-        case t :: Nil => t
-        case ts@_ => Add(ts)
-      }
+            case Nil => Zero()
+            case t :: Nil => t
+            case ts@_ => Add(ts)
+        }
       val sCoeff = simplify(coeff)
-      val mul = Mul(List(sCoeff, Pow(variable, Num(Rational(degree)))))
+      assert(!contains(sCoeff, variable))
+      val mul = Mul(List(polynomialForm(sCoeff, variables.tail), Pow(variable, Num(Rational(degree)))))
       if(otherDegree.isEmpty) {
         if(sCoeff == Zero()) 
           Nil 
@@ -113,15 +110,13 @@ object Manip {
       } else mul :: unify(otherDegree, degree+1)
     }
 
-    val fTerm = expandedForm(term) match {
-      case Add(ts) => Add(unify(ts, 0))
-      case v@Var(_) if v != variable => Add(List(Mul(List(v, Pow(variable, Zero())))))
-      case v@Var(_) if v == variable => Add(List(Mul(List(Zero(), Pow(variable, Zero()))),
-        Mul(List(One(), Pow(variable, One())))))
-      case n@Num(_) => Add(List(Mul(List(n, Pow(variable, Zero())))))
-      case x@_ => sys.error("Add of product expected" + x)
+    if(variables.isEmpty)
+      term
+    else {
+      val Add(ts) = expandedForm(term)
+      val fTerm = Add(unify(ts, 0).reverse)
+      fTerm
     }
-    fTerm
   }
 
   def toLnAndExp(term: Term): Term = {
@@ -145,17 +140,44 @@ object Manip {
     mapPostorder(term, f => f, inductionStep)
   }
 
-  //expand in a sum of product of atoms, where each atom is either a Var, a Num or a Neg of a Var or a Num
-  //works only on polynomials (kind of work with exponential as well, we ll have to define it more cleanly in the future)
-  //For now we consider a Pow(_, x) with x being a variable as an atom, but might change in the future
-  def expandedForm(term: Term): Term = {
-    //require(isPolynomial(term))
+  /*
+   * an atom is: a num, var, an Neg of an non-Neg atom
+   * a Pow(n,x) with n a Num  and x a Var.
+   * irrational numbers are atom as well, but the recognition of
+   * irational numbers is limited to nthroots
+   * this definition is not very perfect by any means, but we will work with that for now
+   * there is no real reasons to define atoms as such, so they need more thinking
+   *
+   * The idea of the atoms is to have something containing all non-reductible node, in
+   * particular some irreductible representation of all numbers (Rational and Irratinal) as well
+   * as variables. I am not sure why Pow(n, x) should be considered as an atom, but it is definitely
+   * useful for other algorithms to be considered as such, so we should find a good reason to keep it as
+   * an atom
+   */
+  def isAtom(term: Term): Boolean = term match {
+    case Num(_) | PI() | E() | Var(_) => true
+    case Pow(Num(_), Var(_)) => true
+    case NthRoot(n, Num(r)) => r.nthRoot(n) == None
+    case Neg(t) => !isNeg(t) && isAtom(t)
+  }
 
+  //expandedForm is kind of similar to a disjunctive normal form on logical formula
+  def isExpandedForm(term: Term): Boolean = term match {
+    case Add(ts) => ts.forall{
+      case Mul(ts2) => ts2.forall(isAtom)
+      case _ => false
+    }
+    case _ => false
+  }
+
+  //note here that everything is explicitely wrapped into the sum of prod, except for subterms of the atoms
+  //(like Pow(n, x) both n and x are not wrapped around the Add and Mul)
+  def expandedForm(term: Term): Term = {
     def sumProduct(t: Term) = Add(List(Mul(List(t))))
 
     def inductionStep(t: Term): Term = t match {
-      case Add(ts) => Add(ts.flatMap{case Add(ts2) => ts2 case _ => sys.error("not expected")})
-      case Sub(Add(ts1), Add(ts2)) => Add(ts1 ::: (ts2.map{case Mul(ts3) => Mul(Num(Rational(-1)) :: ts3) case _ => sys.error("not expected")}))
+      case Add(ts) => Add(ts.flatMap{ case Add(ts2) => ts2 })
+      case Sub(Add(ts1), Add(ts2)) => Add(ts1 ::: (ts2.map{case Mul(ts3) => Mul(Num(Rational(-1)) :: ts3) }))
       case Mul(ts) => multiply(ts)
       case Div(Add(ts1), Add(ts2)) => {
         assert(ts2.size == 1)
@@ -164,18 +186,23 @@ object Manip {
         val Num(r) = ts3.head
         Add(ts1.map{case Mul(ts2) => Mul(Num(r.inverse) :: ts2)})
       }
-      case p@Pow(t1, Add(ts)) => ts match { //TODO, maybe should refuse the non polynomial case
+      case p@Pow(t1, Add(ts)) => ts match {
         case List(Mul(List(Num(r)))) =>
-          assert(r.isInteger)
+          require(r.isInteger)
           if(r.isZero) sumProduct(One()) else multiply((1 to r.toInt).map(_ => t1).toList)
-        case _ => sumProduct(p)
+        case List(Mul(List(v@Var(_)))) => t1 match {
+          case Add(List(Mul(List(n@Num(_))))) => Pow(n, v)
+          case _ => throw new IllegalArgumentException
+        }
+        case _ => throw new IllegalArgumentException
       }
       case Neg(Add(ts)) => Add(ts.map{ case Mul(ts2) => Mul(Num(-1) :: ts2) })
       case v@Var(_) => sumProduct(v)
       case n@Num(_) => sumProduct(n)
-      //case n@Neg(Var(_)) => sumProduct(n)
-      //case n@Neg(Num(_)) => sumProduct(n)
-      case _ => sys.error("Not expected term: " + t)
+      case e@E() => sumProduct(e)
+      case pi@PI() => sumProduct(pi)
+      case NthRoot(n, Add(List(Mul(List(Num(r)))))) if r.nthRoot(n) == None => NthRoot(n, Num(r))
+      case _ => throw new IllegalArgumentException
     }
 
     def multiply(ts : List[Term]): Term = {
@@ -424,6 +451,10 @@ object Manip {
   }
   private def isMul(t: Term) = t match {
     case Mul(_) => true
+    case _ => false
+  }
+  private def isNeg(t: Term) = t match {
+    case Neg(_) => true
     case _ => false
   }
   private def isNumOrProdWithNum(t: Term) = t match {

@@ -13,11 +13,9 @@ import scala.collection.mutable.HashMap
 
 object LinearSystemSolver {
 
-  class LinearEquation(eq: Formula) {
-
-  }
-
-  def apply(equations: List[Formula]): Map[Variable, Term] = {
+  def apply(equations: List[PredicateApplication]): Map[Variable, Term] = {
+    require(equations.forall{ case Equals(_, _) => true case _ => false })
+    //require(equations.forall
 
     def coeffVar(v: Variable, t: Term): Rational = if(contains(t, v)) polynomialForm(t, v) match {
       case Add(h :: Mul(coeff :: Pow(v2, Num(r)) :: Nil) :: Nil) if v2==v && r.isOne => Eval(coeff, Map())
