@@ -81,38 +81,40 @@ object Manip {
   def polynomialForm(term: Term, variable: Variable): Term = polynomialForm(term, List(variable))
   def polynomialForm(term: Term, variables: List[Variable]): Term = {
     require(isPolynomial(term)) //this requires make sure that there won't be any n^x in the expanded form
-    val variable = variables.head
-
-    def containsNTimesVar(t: Term, degree: Int): Boolean = count(t, (_: Formula) => false, (t: Term) => t == variable) == degree
-
-    def unify(ts: List[Term], degree: Int): List[Term] = if(ts.isEmpty) Nil else {
-      val (thisDegree, otherDegree) = ts.partition(x => containsNTimesVar(x, degree))
-      val coeff = 
-        (thisDegree.map {
-          case Mul(ts) => ts.filterNot(_ == variable) match {
-            case Nil => One()
-            case t :: Nil => t
-            case ts@_ => Mul(ts)
-          }
-        }) match {
-            case Nil => Zero()
-            case t :: Nil => t
-            case ts@_ => Add(ts)
-        }
-      val sCoeff = simplify(coeff)
-      assert(!contains(sCoeff, variable))
-      val mul = Mul(List(polynomialForm(sCoeff, variables.tail), Pow(variable, Num(Rational(degree)))))
-      if(otherDegree.isEmpty) {
-        if(sCoeff == Zero()) 
-          Nil 
-        else 
-          List(mul)
-      } else mul :: unify(otherDegree, degree+1)
-    }
 
     if(variables.isEmpty)
       term
     else {
+
+      val variable = variables.head
+  
+      def containsNTimesVar(t: Term, degree: Int): Boolean = count(t, (_: Formula) => false, (t: Term) => t == variable) == degree
+  
+      def unify(ts: List[Term], degree: Int): List[Term] = if(ts.isEmpty) Nil else {
+        val (thisDegree, otherDegree) = ts.partition(x => containsNTimesVar(x, degree))
+        val coeff = 
+          (thisDegree.map {
+            case Mul(ts) => ts.filterNot(_ == variable) match {
+              case Nil => One()
+              case t :: Nil => t
+              case ts@_ => Mul(ts)
+            }
+          }) match {
+              case Nil => Zero()
+              case t :: Nil => t
+              case ts@_ => Add(ts)
+          }
+        val sCoeff = simplify(coeff)
+        assert(!contains(sCoeff, variable))
+        val mul = Mul(List(polynomialForm(sCoeff, variables.tail), Pow(variable, Num(Rational(degree)))))
+        if(otherDegree.isEmpty) {
+          if(sCoeff == Zero()) 
+            Nil 
+          else 
+            List(mul)
+        } else mul :: unify(otherDegree, degree+1)
+      }
+  
       val Add(ts) = expandedForm(term)
       val fTerm = Add(unify(ts, 0).reverse)
       fTerm
@@ -155,11 +157,16 @@ object Manip {
    * an atom
    */
   def isAtom(term: Term): Boolean = term match {
-    case Num(_) | PI() | E() | Var(_) => true
+    case Num(_) => true
+    case PI() => true
+    case E() => true
+    case Var(_) => true
     case Pow(Num(_), Var(_)) => true
     case NthRoot(n, Num(r)) => r.nthRoot(n) == None
     case Neg(t) => !isNeg(t) && isAtom(t)
+    case _ => false
   }
+
 
   //expandedForm is kind of similar to a disjunctive normal form on logical formula
   def isExpandedForm(term: Term): Boolean = term match {
@@ -174,6 +181,16 @@ object Manip {
   //(like Pow(n, x) both n and x are not wrapped around the Add and Mul)
   def expandedForm(term: Term): Term = {
     def sumProduct(t: Term) = Add(List(Mul(List(t))))
+
+    def inductionSqrt(t: Term): Term = {
+      val NthRoot(n, e) = t
+      e match {
+        case Add(List(Mul(List(Num(r))))) => 
+          require(r.nthRoot(n) == None)
+          NthRoot(n, Num(r))
+        case _ => throw new IllegalArgumentException
+      }
+    }
 
     def inductionStep(t: Term): Term = t match {
       case Add(ts) => Add(ts.flatMap{ case Add(ts2) => ts2 })
@@ -201,7 +218,7 @@ object Manip {
       case n@Num(_) => sumProduct(n)
       case e@E() => sumProduct(e)
       case pi@PI() => sumProduct(pi)
-      case NthRoot(n, Add(List(Mul(List(Num(r)))))) if r.nthRoot(n) == None => NthRoot(n, Num(r))
+      case NthRoot(_, e) => inductionSqrt(e)
       case _ => throw new IllegalArgumentException
     }
 

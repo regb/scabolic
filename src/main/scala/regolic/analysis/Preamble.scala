@@ -89,7 +89,7 @@ object Preamble {
   def expandedForm(t: Term): Term = RealM.expandedForm(t)
   def isRational(t: Term): Boolean = RealM.isRational(t)
   def rationalForm(t: Term, v: Variable): Term = RealM.rationalForm(t, v)
-  def polynomialDivision(t: Term): (Term, Term) = RealM.polynomialDivision(t)
+  def polynomialDivision(t: Term): (Term, Term) = regolic.polynomial.Operations.euclidianDivision(t)
   def expandedRationalForm(t: Term): Term = RealM.expandedRationalForm(t)
   def eval(t: Term, m: Map[Variable, Rational] = Map()): Rational = real.Eval(t, m)
   def eval(t: Term, v: Variable, r: Rational): Rational = real.Eval(t, v, r)

@@ -34,6 +34,6 @@ object Eval {
         case None => null //TODO, change return type to Term and put Sqrt(Num(rat))
       }
     }
-    case x@_ => sys.error("unexpected: " + x)
+    case x@_ => throw new IllegalArgumentException("term: " + t + " could not be evaluated to a Rational")
   }
 }
