@@ -221,26 +221,14 @@ class Matrix[T <: Field[T]](m: Array[Array[T]])(implicit field: Field[T], man: C
     import ArrayTools.swapRows
 
     val matArray = matrix.toArray
-    var nr = nbRow
-    var nc = nbCol
-
-    for(r <- 0 until nr) {
-      var allZeros = true
-      for(c <- 0 until nc if allZeros)
-        if(matArray(r)(c) != field.zero) allZeros = false
-      if(allZeros) {
-        swapRows(matArray, r, nr - 1)
-        nr = nr - 1
-      }
-    }
 
     var r = 0
     var c = 0
-    while (r < nr && c < nc) {
+    while (r < nbRow && c < nbCol) {
 
       var pivot = -1 
       var allZeros = true
-      for(i <- r until nr if allZeros) {
+      for(i <- r until nbRow if allZeros) {
         if(matArray(i)(c) != field.zero) {
           allZeros = false
           pivot = i
@@ -255,11 +243,11 @@ class Matrix[T <: Field[T]](m: Array[Array[T]])(implicit field: Field[T], man: C
           swapRows(matArray, r, pivot)
 
         val divisor = matArray(r)(c)
-        ArrayTools.mapElements(matArray(r), ((x: T) => x/divisor), c, nc)
+        ArrayTools.mapElements(matArray(r), ((x: T) => x/divisor), c, nbCol)
 
-        for(i <- (r+1) until nr) {
+        for(i <- (r+1) until nbRow) {
           val mul = matArray(i)(c)
-          for(j <- c until nc)
+          for(j <- c until nbCol)
             matArray(i)(j) = matArray(i)(j) - mul * matArray(r)(j)
         }
 

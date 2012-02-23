@@ -259,6 +259,16 @@ class MatrixSuite extends FunSuite {
     assert(gauss1.gaussJordanElimination === gauss2)
     assert(gauss3.gaussJordanElimination === gauss2)
 
+    assert(s2m("1 1 1,1 1 1").gaussJordanElimination === s2m("1 1 1,0 0 0"))
+    assert(s2m("1 2,1 1,3 4").gaussJordanElimination === s2m("1 0,0 1,0 0"))
+
+    assert(s2m("1 1,0 0").gaussJordanElimination === s2m("1 1,0 0"))
+    assert(s2m("0 0,1 1").gaussJordanElimination === s2m("1 1,0 0"))
+
+    assert(s2m("0 0 0 0,2 0 0 1,1 1 0 0").gaussJordanElimination === s2m("1 0 0 1/2,0 1 0 -1/2,0 0 0 0"))
+
+    assert(s2m("1 2 3 4,2 3 4 5").gaussJordanElimination === s2m("1 0 -1 -2,0 1 2 3"))
+
   }
 
 }
