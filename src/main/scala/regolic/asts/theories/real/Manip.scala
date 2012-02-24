@@ -21,8 +21,6 @@ import regolic.tools.SeqTools.mapUnique
 //could be 0) here, and having a more aggressive system in calculus that could 
 //return a list of assumption or take a list of assumption in addition
 
-//TODO: choosing an ordering of degree in polynomials
-
 object Manip {
 
   def isSingleVarPolynomial(term: Term) = isPolynomial(term) && (vars(term).size == 1)
@@ -433,7 +431,6 @@ object Manip {
 
     fix(mapSimplify,term)
   }
-
 
   /* Helpers */
 

@@ -73,7 +73,7 @@ object LinearSystemSolver {
     else if(fixedVars.size == nbVars)//.forall(t => !exists(t, { case Var(_) => true case _ => false })))
       Unique(map.toMap.map{ case (v, t) => (v, Eval(t, Map())) })
     else
-      Infinite(allVars.toList -- fixedVars.toList, map.toMap.map{ case (v, t) => (v, simplify(t)) })
+      Infinite(allVars.toList.filterNot(v => fixedVars.contains(v)), map.toMap.map{ case (v, t) => (v, simplify(t)) })
 
   }
 
