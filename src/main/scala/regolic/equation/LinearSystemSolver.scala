@@ -22,7 +22,6 @@ object LinearSystemSolver {
 
   def apply(equations: List[PredicateApplication]): Result = {
     require(equations.forall{ case Equals(_, _) => true case _ => false })
-    println("Solving: " + equations.mkString("\n"))
 
     def coeffVar(v: Variable, t: Term): Rational = if(!contains(t, v)) Rational.zero else polynomialForm(t, v) match {
       case Add(Mul(coeff :: Pow(v2, Num(r)) :: Nil) :: rest :: Nil) if v2==v && r.isOne => Eval(coeff, Map())
@@ -33,14 +32,11 @@ object LinearSystemSolver {
     val lhSides: Array[Term] = equations.map{ case Equals(t1, t2) => Sub(t1, t2) }.toArray
     val nbEqus = lhSides.length
     val allVars: Array[Variable] = equations.map(vars).flatten.distinct.toArray
-    println("list of variables: " + allVars.mkString(" "))
     val nbVars = allVars.length
     val cstsRhs: Vector[Rational] = Vector(lhSides.map(t => -Eval(t, Map(allVars.map(v => (v, Rational(0))): _*))))
     val matrixCoef: Matrix[Rational] = Matrix(lhSides.map(lhs => allVars.map(v => coeffVar(v, lhs))))
     val augmentedMatrixCoef: Matrix[Rational] = matrixCoef.augment(cstsRhs)
-    println("the matrix: " + augmentedMatrixCoef)
     val reducedMatrix = augmentedMatrixCoef.gaussJordanElimination
-    println("Here is the reduced Matrix:\n" + reducedMatrix)
 
     val freeVars = new ListBuffer[Variable]
     val map = new HashMap[Variable, Term]
@@ -62,7 +58,6 @@ object LinearSystemSolver {
             case (coef, i) => 
               if(i != pivot && coef != Rational.zero && i < nbVars) Mul(List(Num(coef), allVars(i))) else Zero()
           }))
-        println("variable " + allVars(pivot) + " is constrained to be: " + constraint)
         map.put(allVars(pivot), constraint)
       }
     }

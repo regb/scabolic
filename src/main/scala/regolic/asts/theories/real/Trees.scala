@@ -197,6 +197,7 @@ object Trees {
   }
   object Add {
     def apply(ts: List[Term]) = FunctionApplication(AddSymbol(ts.size), ts)
+    def apply(ts: Term*) = FunctionApplication(AddSymbol(ts.size), ts.toList)
     def unapply(appli: FunctionApplication): Option[List[Term]] = appli match {
       case FunctionApplication(AddSymbol(_), ts) => Some(ts)
       case _ => None
@@ -369,5 +370,5 @@ object Trees {
     }
   }
 
-  def freshVar(prefix: String): Variable = freshVariable(prefix, RealSort())
+  def freshVar(prefix: String = "x"): Variable = freshVariable(prefix, RealSort())
 }

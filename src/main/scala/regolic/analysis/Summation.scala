@@ -63,12 +63,12 @@ class Summation(
           val upperBound = freshVar("to")
           val clForm = (
             if(expBase == Num(1) && power == 0) 
-              Add(List(upperBound, 1))
+              Add(List(upperBound, Num(1)))
             else if(expBase == Num(1) && power == 1)	
               Div(
                 Mul(List(
                   upperBound,
-                  Add(List(upperBound, 1)))),
+                  Add(List(upperBound, Num(1))))),
                 Num(Rational(2)))
             //else if(expBase == Num(1) && power == 2) (upperBound * (upperBound+1)* ((upperBound*2)+1)) / 6
             //else if(expBase == Num(1) && power == 3) (upperBound*upperBound*(upperBound+1)*(upperBound+1))/4
