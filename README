@@ -15,5 +15,5 @@ There is absolutely no objective to produce any kind of efficient code, the
 only concerns here are to provide correct and clean code. In particular, clean
 and elegant code will (almost) always be chosen before a more efficient, but
 less nice approach. Note that it is advisable to look for alternatives (usually
-writen in low-level C code) when in need for SAT/SMT solvers that can
+written in low-level C code) when in need for SAT/SMT solvers that can
 actually solve real problems.
