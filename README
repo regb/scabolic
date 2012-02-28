@@ -1,0 +1,19 @@
+The aim of this project is to combine in a single tool/library several
+automated reasoning algorithms. In particular this should (soon) support
+SAT/SMT solving as well as computer algebra style features.
+
+The project is using the Scala programming language and provide (well, it will
+provide it in the near future) a nice Domain Specific Language (DSL) to be
+used either as an interactive tool within the Scala REPL or as a library for
+another Scala project.
+
+This is work in progress.
+
+DISCLAIMER
+
+There is absolutely no objective to produce any kind of efficient code, the
+only concerns here are to provide correct and clean code. In particular, clean
+and elegant code will (almost) always be chosen before a more efficient, but
+less nice approach. Note that it is advisable to look for alternatives (usually
+writen in low-level C code) when in need for SAT/SMT solvers that can
+actually solve real problems.
