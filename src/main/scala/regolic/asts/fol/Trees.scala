@@ -88,6 +88,7 @@ object Trees {
   }
   object And {
     def apply(formulas: List[Formula]) = ConnectiveApplication(AndSymbol(formulas.size), formulas)
+    def apply(formulas: Formula*) = ConnectiveApplication(AndSymbol(formulas.size), formulas.toList)
     def unapply(appli: ConnectiveApplication): Option[List[Formula]] = appli match {
       case ConnectiveApplication(AndSymbol(_), formulas) => Some(formulas)
       case _ => None
@@ -103,6 +104,7 @@ object Trees {
   }
   object Or {
     def apply(formulas: List[Formula]) = ConnectiveApplication(OrSymbol(formulas.size), formulas)
+    def apply(formulas: Formula*) = ConnectiveApplication(OrSymbol(formulas.size), formulas.toList)
     def unapply(appli: ConnectiveApplication): Option[List[Formula]] = appli match {
       case ConnectiveApplication(OrSymbol(_), formulas) => Some(formulas)
       case _ => None
