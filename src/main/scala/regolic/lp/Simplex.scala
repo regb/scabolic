@@ -5,7 +5,7 @@ import regolic.algebra.{Matrix, Rational, Vector}
 object Simplex {
 
   sealed trait Result
-  case object Unbounded extends Result
+  case object Unbounded  extends Result
   case object Infeasible extends Result
   case class Optimal(assignment: Vector[Rational]) extends Result
 
@@ -15,10 +15,12 @@ object Simplex {
       case None => Unbounded
       case Some(tableau) => {
         //this is an optimal tableau
-        Optimal(Vector((0 until tableau.systemMatrix.nbCol).map(i => 
+        val assignment = Vector((0 until tableau.systemMatrix.nbCol).map(i => 
             if(tableau.basis.contains(i)) tableau.basisSolution(tableau.basis.indexOf(i)) else Rational(0)
-        ).toArray))
+        ).toArray)
+        Optimal(assignment)
       }
+      
     }
   }
 
