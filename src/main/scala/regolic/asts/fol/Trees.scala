@@ -26,6 +26,7 @@ object Trees {
       case _ => None
     }
   }
+  //TODO: maybe this Equals Object could be used in every theories
   object Equals {
     def apply(t1: Term, t2: Term): PredicateApplication = PredicateApplication(EqualsSymbol(t1.sort), List(t1, t2))
     def unapply(pApply: PredicateApplication): Option[(Term, Term)] = pApply match {
