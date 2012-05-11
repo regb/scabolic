@@ -3,6 +3,7 @@ package regolic.sat
 import regolic.asts.core.Trees._
 import regolic.asts.core.Manip._
 import regolic.asts.fol.Trees._
+import regolic.sat.Solver._
 
 object DPLL extends Solver {
 

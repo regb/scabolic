@@ -8,7 +8,7 @@ import regolic.asts.fol.Manip._
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.ListBuffer
 
-trait Solver {
+object Solver {
 
   object Var {
     def apply(name: String): PredicateApplication = PredicateApplication(PredicateSymbol(name, List()), List())
@@ -19,6 +19,13 @@ trait Solver {
       case _ => None
     }
   }
+
+}
+
+trait Solver {
+
+  import Solver._
+
 
   private var freshVarCount = -1
   def freshVar(): PredicateApplication = { freshVarCount += 1; Var("p_" + freshVarCount) }
