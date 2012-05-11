@@ -15,7 +15,6 @@ object DPLL extends Solver {
     else if(clauses2.exists(isFalse))
       None
     else {
-      println(clauses2)
       val chosenVar = clauses2.flatMap(f => predicateVars(f)).head
       val left = isSat(clauses2.map(f => subst(f, chosenVar, True())))
       val right = isSat(clauses2.map(f => subst(f, chosenVar, False())))

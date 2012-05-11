@@ -38,15 +38,12 @@ object Main {
   def main(args: Array[String]) {
     val (options0, trueArgs) = args.partition(str => str.startsWith("--"))
     val options = options0.map(str => str.substring(2))
-    println("Here are the options: " + options.mkString)
-    println("Here are the args: " + trueArgs.mkString)
     processOptions(options)
     val inputFile = trueArgs(0)
     val is = new java.io.FileInputStream(inputFile)
 
     if(dimacs) {
       val satInstance: List[Formula] = regolic.parsers.Dimacs(is)
-      println("Parsed CNF formula is: " + satInstance)
       val res = regolic.sat.DPLL.isSat(satInstance)
       println(res)
     }
