@@ -17,7 +17,7 @@ object Dimacs {
 
     for(line <- Source.fromInputStream(input).getLines()) {
       val length = line.size
-      if(length > 0 && line(0) != 'c') {
+      if(length > 0 && line(0) != 'c' && line(0) != '%') {
         if(line.startsWith("p cnf")) {
 
           if(vars != null || nbClauses != None)
@@ -31,6 +31,8 @@ object Dimacs {
             val nbVariables = restInts(0)
             nbClauses = Some(restInts(1))
             vars = new Array(nbVariables)
+            for(i <- 0 until nbVariables)
+              vars(i) = Var("x" + i)
           } catch {
             case (_: NumberFormatException) => throw FileFormatException("")
           }
@@ -40,12 +42,13 @@ object Dimacs {
             throw new FileFormatException("A line starting with 'p cnf' should occur before any clauses")
 
           try {
-            val numbers = line.substring("p cnf".length, length).split(' ').filterNot(_ == "").map(_.toInt)
+            val numbers = line.split(' ').filterNot(_ == "").map(_.toInt)
             if(numbers.last != 0)
               throw new FileFormatException("A clause line should end with a 0")
 
             val varNumbers = numbers.init
-            formulas ::= And(varNumbers.map(i => vars(i-1)).toList)
+            if(!varNumbers.isEmpty)
+              formulas ::= Or(varNumbers.map(i => if(i > 0) vars(i-1) else Not(vars(-i-1))).toList)
 
           } catch {
             case (_: NumberFormatException) => throw FileFormatException("")
