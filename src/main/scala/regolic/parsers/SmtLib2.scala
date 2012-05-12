@@ -17,14 +17,15 @@ object SmtLib2 {
 
   object Trees {
     sealed abstract class Command
+    case class SetLogic(logic: Logic) extends Command
     case class Assert(formula: Formula) extends Command
     case class Push(n: Int) extends Command
     case class Pop(n: Int) extends Command
     case object CheckSat extends Command
-    case class SetLogic(logic: Logic) extends Command
 
     sealed abstract trait Logic
     case object QF_UF extends Logic
+    case object QF_LRA extends Logic
   }
 
   import Trees._
@@ -72,12 +73,11 @@ object SmtLib2 {
         val logicString = asString(log.symbol_)
         val logic = logicString match {
           case "QF_UF" => QF_UF
+          case "QF_LRA" => QF_LRA
           case _ => sys.error("Unsupported logic: " + logicString)
         }
         cmds.append(SetLogic(logic))
       }
-
-
       case _ => //do nothing
     }
 

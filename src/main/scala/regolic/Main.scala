@@ -45,7 +45,7 @@ object Main {
       println(res)
     } else if(smtlib) {
       val smtInstance = regolic.parsers.SmtLib2(is)
-      println(smtInstance)
+      regolic.smt.Solver.execute(smtInstance)
     }
 
   }

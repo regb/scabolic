@@ -7,12 +7,17 @@ import regolic.asts.fol.Manip.disjunctiveNormalForm
 import regolic.asts.theories.real.Trees._
 import regolic.asts.theories.real.Manip.simplify
 import regolic.asts.theories.real.Eval
+
 import regolic.lp.Solver._
 import regolic.algebra.Rational
 
-object Solver extends regolic.smt.Solver {
+import regolic.parsers.SmtLib2.Trees.QF_LRA
 
-  def isSat(f: Formula): Option[Map[Variable, Term]] = {
+object SimplexSolver extends regolic.smt.Solver {
+
+  val logic = QF_LRA
+
+  def isSat(f: Formula): Option[Map[FunctionSymbol, Term]] = {
     val Or(ands) = disjunctiveNormalForm(f)
 
     var modelFound = false
@@ -92,7 +97,7 @@ object Solver extends regolic.smt.Solver {
     }
 
     if(modelFound) {
-      Some(model)
+      Some(Map())//model)
     } else None
   }
 

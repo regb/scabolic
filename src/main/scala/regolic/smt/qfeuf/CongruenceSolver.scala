@@ -5,12 +5,15 @@ import regolic.asts.core.Trees._
 import regolic.asts.core.Manip._
 import regolic.asts.fol.Trees._
 import regolic.asts.fol.Manip._
+import regolic.parsers.SmtLib2.Trees.QF_UF
 
 import scala.collection.mutable.HashMap
 
 object CongruenceSolver extends Solver {
 
-  def isSat(f: Formula): Option[Map[Variable, Term]] = {
+  val logic = QF_UF
+
+  def isSat(f: Formula): Option[Map[FunctionSymbol, Term]] = {
 
     val Or(ands) = disjunctiveNormalForm(f)
 
