@@ -9,6 +9,7 @@ import regolic.asts.core.Trees._
 import regolic.asts.fol.Trees._
 import regolic.asts.theories.int.{Trees => IntTrees}
 import regolic.asts.theories.real.{Trees => RealTrees}
+import regolic.asts.theories.array.{Trees => ArrayTrees}
 
 import smtlib._
 import smtlib.Absyn.{Term => PTerm, Sort => PSort, AssertCommand => PAssertCommand, _}
@@ -145,6 +146,11 @@ object SmtLib2 {
       }
       case "mod" => IntTrees.ModSymbol()
       case "abs" => IntTrees.AbsSymbol()
+      case "select" => {
+        val ArrayTrees.ArraySort(from, to) = args(0).sort
+        ArrayTrees.SelectSymbol(from, to)
+      }
+      case "store" => ArrayTrees.StoreSymbol(args(1).sort, args(2).sort)
       case _ => funSymbols(sym)
     }
 
@@ -190,7 +196,7 @@ object SmtLib2 {
 
   def translateSort(sort: PSort): Sort = sort match {
     case (s: IdentSort) => Sort(asString(s.identifier_), List())
-    case _ => sys.error("not supported")
+    case (s: CompositeSort) => Sort(asString(s.identifier_), s.listsort_.toList.map(translateSort))
   }
   def asSortsList(sorts: MESorts): Seq[PSort] = sorts match {
     case (noSorts: NoSorts) => Seq()

@@ -4,7 +4,7 @@ import Trees._
 
 object TestValues {
 
-  val sort = Sort("sort")
+  val sort = Sort("sort", List())
 
   val nSymbol = FunctionSymbol("n", List(), sort)
   val mSymbol = FunctionSymbol("m", List(), sort)

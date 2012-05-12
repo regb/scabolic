@@ -1,4 +1,4 @@
-package regolic.smt.qfax
+package regolic.smt.qfa
 
 import regolic.asts.core.Trees._
 import regolic.asts.core.Manip._
@@ -6,14 +6,14 @@ import regolic.asts.fol.Trees._
 import regolic.asts.fol.Manip._
 import regolic.asts.theories.array.Trees._
 
-import regolic.parsers.SmtLib2.Trees.QF_AX
+import regolic.parsers.SmtLib2.Trees.QF_A
 
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.ListBuffer
 
 object Solver extends regolic.smt.Solver {
 
-  val logic = QF_AX
+  val logic = QF_A
 
   def isSat(f: Formula): Option[Map[FunctionSymbol, Term]] = {
     val Or(ands) = disjunctiveNormalForm(f)
@@ -52,8 +52,8 @@ object Solver extends regolic.smt.Solver {
         case None => {
           val (And(newLits), _) = findAndMapFeedback(And(and), (f: Formula) => false, isReadOverWrite _, (f: Formula) => f, (t: Term) => {
             val Select(Store(a, i, v), j) = t
-            additionalCnstr = Equals(i, j)
-            v
+            additionalCnstr = Not(Equals(i, j))
+            Select(a, j)
           }, List())
           isSat(additionalCnstr :: newLits)
         }
@@ -77,6 +77,7 @@ object Solver extends regolic.smt.Solver {
       case t => t
     }
     val And(cleanTerms) = mapPreorder(And(and), (f: Formula) => f, removeStore _)
+    println("Sending to euf: " + cleanTerms)
     regolic.smt.qfeuf.CongruenceSolver.isSat(cleanTerms)
   }
 

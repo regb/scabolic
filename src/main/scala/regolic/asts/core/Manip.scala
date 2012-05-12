@@ -252,9 +252,9 @@ object Manip {
       case TermQuantifierApplication(s, v, ts) => sys.error("not supported")
     })
   }
-  private def findAndMap(f: Formula, pf: (Formula) => Boolean, pt: (Term) => Boolean, ff: (Formula) => Formula, ft: (Term) => Term): Formula = 
+  def findAndMap(f: Formula, pf: (Formula) => Boolean, pt: (Term) => Boolean, ff: (Formula) => Formula, ft: (Term) => Term): Formula = 
     findAndMapFeedback(f, pf, pt, ff, ft, List())._1
-  private def findAndMap(t: Term, pf: (Formula) => Boolean, pt: (Term) => Boolean, ff: (Formula) => Formula, ft: (Term) => Term): Term = 
+  def findAndMap(t: Term, pf: (Formula) => Boolean, pt: (Term) => Boolean, ff: (Formula) => Formula, ft: (Term) => Term): Term = 
     findAndMapFeedback(t, pf, pt, ff, ft, List())._1
 
 }

@@ -19,7 +19,7 @@ class ManipSuite extends FunSuite {
   private val s = PredicateApplication(sSymbol, List())
   private val t = PredicateApplication(tSymbol, List())
 
-  val sort = Sort("sort")
+  val sort = Sort("sort", List())
   private val x = Variable("x", sort)
 
 
