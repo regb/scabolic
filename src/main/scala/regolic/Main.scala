@@ -43,9 +43,12 @@ object Main {
     val is = new java.io.FileInputStream(inputFile)
 
     if(dimacs) {
-      val satInstance: List[Formula] = regolic.parsers.Dimacs(is)
+      val satInstance = regolic.parsers.Dimacs(is)
       val res = regolic.sat.DPLL.isSat(satInstance)
       println(res)
+    } else if(smtlib2) {
+      val smtInstance = regolic.parsers.SmtLib2(is)
+      println(smtInstance)
     }
 
   }

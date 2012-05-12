@@ -1,32 +1,67 @@
-package regolic.smt.parser
+package regolic.parsers
 
 import scala.util.parsing.combinator._
 import scala.io.Source
+import java.io.InputStream
+import scala.collection.mutable.ListBuffer
 
 import regolic.asts.fol.Trees.{Equals => FolEquals, _}
 import regolic.asts.core.Trees._
 import regolic.asts.theories.int.Trees._
 
 import smtlib._
-import smtlib.Absyn.{Term => PTerm, Sort => PSort, _}
+import smtlib.Absyn.{Term => PTerm, Sort => PSort, AssertCommand => PAssertCommand, _}
 
-class SMTLIB2Parser(filename: String) {
+object SmtLib2 {
+
+  object Trees {
+    sealed abstract class Command
+    case class Assert(formula: Formula) extends Command
+    case class Push(n: Int) extends Command
+    case class Pop(n: Int) extends Command
+    case object CheckSat extends Command
+  }
+
+  import Trees._
 
   import scala.collection.JavaConversions.{asScalaBuffer, asScalaIterator}
 
-  val l = new Yylex(new java.io.FileReader(filename))
-  val p = new parser(l)
-  val parseTree = p.pScriptC
-  val script = parseTree match {
-    case parseTree : Script => parseTree
-    case _ => throw new Exception("Input is not an SMT-LIB 2 file")
-  }
+  def apply(input: InputStream): List[Command] = {
 
-  for (cmd <- script.listcommand_) cmd match {
-    case cmd : AssertCommand => {
-      println(translateFormula(cmd.term_))
+    val l = new Yylex(input)//new java.io.FileReader(filename))
+    val p = new parser(l)
+    val parseTree = p.pScriptC
+    val script = parseTree match {
+      case (parseTree : Script) => parseTree
+      case _ => throw new FileFormatException("Input is not in valid SMT-LIB 2 format")
     }
-    case _ => //do nothing
+
+    var cmds: ListBuffer[Command] = ListBuffer()
+
+    for (cmd <- script.listcommand_) cmd match {
+      case cmd : PAssertCommand => {
+        cmds.append(Assert(translateFormula(cmd.term_)))
+      }
+      case push: PushCommand => {
+        val n = push.numeral_.toInt
+        cmds.append(Push(n))
+      }
+      case pop: PopCommand => {
+        val n = pop.numeral_.toInt
+        cmds.append(Pop(n))
+      }
+      case check: CheckSatCommand => {
+        cmds.append(CheckSat)
+      }
+      case fundecl: FunctionDeclCommand	=> {
+        val name = asString(fundecl.symbol_)
+        val returnSort = translateSort(fundecl.sort_)
+        val paramSorts = asSortsList(fundecl.mesorts_).map(translateSort).toList
+      }
+      case _ => //do nothing
+    }
+
+    cmds.toList
   }
 
   def translateFormula(t: PTerm): Formula = t match {
@@ -97,6 +132,10 @@ class SMTLIB2Parser(filename: String) {
   def translateSort(sort: PSort): Sort = sort match {
     case (s: IdentSort) => Sort(asString(s.identifier_))
     case _ => sys.error("not supported")
+  }
+  def asSortsList(sorts: MESorts): Seq[PSort] = sorts match {
+    case (noSorts: NoSorts) => Seq()
+    case (someSorts: SomeSorts) => someSorts.listsort_
   }
 
   private object PlainSymbol {
