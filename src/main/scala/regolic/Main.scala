@@ -7,12 +7,10 @@ object Main {
 
   private var dimacs = false
   private var smtlib = false
-  private var smtlib2 = false
 
   private val optionsHelp: String = (
     "  --dimacs             The input file is to be interpreted as a DIMACS CNF SAT problem" + "\n" +
-    "  --smtlib             The input file is to be interpreted as an SMT problem in SMTLIB version 1 format" + "\n" +
-    "  --smtlib2            The input file is to be interpreted as an SMT problem in SMTLIB version 2 format" + "\n" +
+    "  --smtlib             The input file is to be interpreted as an SMT problem in SMTLIB version 2 format" + "\n" +
     "  --debug=[1-5]        Debug level" + "\n" +
     "  --tags=t1:...        Filter out debug information that are not of one of the given tags" 
   )
@@ -22,7 +20,6 @@ object Main {
       option match {
         case "dimacs"        =>                     dimacs = true
         case "smtlib"        =>                     smtlib = true
-        case "smtlib2"       =>                     smtlib2 = true
 
         case s if s.startsWith("debug=") =>         Settings.debugLevel = try { 
                                                       s.substring("debug=".length, s.length).toInt 
@@ -46,7 +43,7 @@ object Main {
       val satInstance = regolic.parsers.Dimacs(is)
       val res = regolic.sat.DPLL.isSat(satInstance)
       println(res)
-    } else if(smtlib2) {
+    } else if(smtlib) {
       val smtInstance = regolic.parsers.SmtLib2(is)
       println(smtInstance)
     }
