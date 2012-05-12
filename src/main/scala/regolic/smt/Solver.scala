@@ -23,7 +23,7 @@ trait Solver {
 
 object Solver {
 
-  val allSolvers: List[Solver] = List(CongruenceSolver, SimplexSolver)
+  val allSolvers: List[Solver] = List(CongruenceSolver, SimplexSolver, regolic.smt.qfax.Solver)
 
   def execute(cmds: List[Command]) {
     println("Executing following script: " + cmds)

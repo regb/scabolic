@@ -21,16 +21,16 @@ object Trees {
       case _ => None
     }
   }
-  object Equals {
-    def apply(t1: Term, t2: Term): PredicateApplication = {
-      val ArraySort(from, to) = t1.sort
-      PredicateApplication(EqualsSymbol(from, to), List(t1, t2))
-    }
-    def unapply(pApply: PredicateApplication): Option[(Term, Term)] = pApply match {
-      case PredicateApplication(EqualsSymbol(_, _), List(t1, t2)) => Some((t1, t2))
-      case _ => None
-    }
-  }
+  //object Equals {
+  //  def apply(t1: Term, t2: Term): PredicateApplication = {
+  //    val ArraySort(from, to) = t1.sort
+  //    PredicateApplication(EqualsSymbol(from, to), List(t1, t2))
+  //  }
+  //  def unapply(pApply: PredicateApplication): Option[(Term, Term)] = pApply match {
+  //    case PredicateApplication(EqualsSymbol(_, _), List(t1, t2)) => Some((t1, t2))
+  //    case _ => None
+  //  }
+  //}
 
   object SelectSymbol {
     def apply(from: Sort, to: Sort): FunctionSymbol = FunctionSymbol("select", List(ArraySort(from, to), from), to)

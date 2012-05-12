@@ -55,6 +55,7 @@ object Manip {
     case QuantifierApplication(s, v, f) => ff(QuantifierApplication(s, v, mapPostorder(f, ff, ft, v :: bv)))
   }
 
+
   def foldPreorder[A](t: Term, z: A)(ff: (A, Formula) => A, ft: (A, Term) => A): A = foldPreorder(t, z, Nil)(ff, ft)
   def foldPreorder[A](t: Term, z: A, bv: List[Variable])(ff: (A, Formula) => A, ft: (A, Term) => A): A = t match {
     case v@Variable(_, _) if bv.contains(v) => z
@@ -182,4 +183,78 @@ object Manip {
 
   def contains(t: Term, elem: Term): Boolean = foldPostorder(t, false)((b, f) => false,(b, t2) => b || elem == t2)
   def contains(f: Formula, elem: Term): Boolean = foldPostorder(f, false)((b, f) => false, (b, t2) => b || elem == t2)
+
+
+  //find a node that verify a predicate and apply a function on it and return. Only find one such element even if several are present
+  def findAndMapFeedback(f: Formula, pf: (Formula) => Boolean, pt: (Term) => Boolean, ff: (Formula) => Formula, ft: (Term) => Term, bv: List[Variable]): (Formula, Boolean) = if(pf(f)) (ff(f), true) else (f match {
+    case PredicateApplication(s, ts) => {
+      var found = false
+      val rts = ts.map(t => {
+        if(found)
+          t
+        else {
+          val (nt, b) = findAndMapFeedback(t, pf, pt, ff, ft, bv)
+          found = b
+          nt
+        }
+      })
+      (PredicateApplication(s, rts), found)
+    }
+    case ConnectiveApplication(s, fs) => {
+      var found = false
+      val rts = fs.map(f => {
+        if(found)
+          f
+        else {
+          val (nf, b) = findAndMapFeedback(f, pf, pt, ff, ft, bv)
+          found = b
+          nf
+        }
+      })
+      (ConnectiveApplication(s, rts), found)
+    }
+    case QuantifierApplication(s, v, f) => {
+      val (nf, found) = findAndMapFeedback(f, pf, pt, ff, ft, v :: bv)
+      (QuantifierApplication(s, v, nf), found)
+    }
+  })
+  def findAndMapFeedback(t: Term, pf: (Formula) => Boolean, pt: (Term) => Boolean, ff: (Formula) => Formula, ft: (Term) => Term, bv: List[Variable]): (Term, Boolean) = t match {
+    case v@Variable(_,_) if (bv.contains(v)) => (v, false)
+    case _ => if(pt(t)) (ft(t), true) else (t match {
+      case v@Variable(_, _) => (v, false)
+      case FunctionApplication(s, ts) => {
+        var found = false
+        val rts = ts.map(t => {
+          if(found)
+            t
+          else {
+            val (nt, b) = findAndMapFeedback(t, pf, pt, ff, ft, bv)
+            found = b
+            nt
+          }
+        })
+        (FunctionApplication(s, rts), found)
+      }
+      case ITE(c, t, e) => {
+        val (newC, b1) = findAndMapFeedback(c, pf, pt, ff, ft, bv)
+        if(b1) 
+          (ITE(newC, t, e), true)
+        else {
+          val (newT, b2) = findAndMapFeedback(t, pf, pt, ff, ft, bv)
+          if(b2)
+            (ITE(newC, newT, e), true)
+          else {
+            val (newE, b3) = findAndMapFeedback(e, pf, pt, ff, ft, bv)
+            (ITE(newC, newT, newE), b3)
+          }
+        }
+      }
+      case TermQuantifierApplication(s, v, ts) => sys.error("not supported")
+    })
+  }
+  private def findAndMap(f: Formula, pf: (Formula) => Boolean, pt: (Term) => Boolean, ff: (Formula) => Formula, ft: (Term) => Term): Formula = 
+    findAndMapFeedback(f, pf, pt, ff, ft, List())._1
+  private def findAndMap(t: Term, pf: (Formula) => Boolean, pt: (Term) => Boolean, ff: (Formula) => Formula, ft: (Term) => Term): Term = 
+    findAndMapFeedback(t, pf, pt, ff, ft, List())._1
+
 }

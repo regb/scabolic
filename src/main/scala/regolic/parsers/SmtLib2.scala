@@ -26,6 +26,8 @@ object SmtLib2 {
     sealed abstract trait Logic
     case object QF_UF extends Logic
     case object QF_LRA extends Logic
+    case object QF_AX extends Logic
+    case object QF_A extends Logic
   }
 
   import Trees._
@@ -74,6 +76,8 @@ object SmtLib2 {
         val logic = logicString match {
           case "QF_UF" => QF_UF
           case "QF_LRA" => QF_LRA
+          case "QF_AX" => QF_AX
+          case "QF_A" => QF_A
           case _ => sys.error("Unsupported logic: " + logicString)
         }
         cmds.append(SetLogic(logic))

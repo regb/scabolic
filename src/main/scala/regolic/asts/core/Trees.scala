@@ -48,8 +48,18 @@ object Trees {
   final case class QuantifierApplication(symbol: QuantifierSymbol, variable: Variable, formula: Formula) extends Formula
 
   private var varCnt = -1
+  private var funSymCnt = -1
 
   def freshVariable(prefix: String, sort: Sort): Variable = { varCnt += 1; Variable(prefix + "_fresh_" + varCnt, sort) }
   def freshVariable(prefix: Variable): Variable = freshVariable(prefix.name, prefix.sort)
+
+  def freshFunctionSymbol(prefix: String, argSorts: List[Sort], returnSort: Sort): FunctionSymbol = {
+    funSymCnt += 1
+    FunctionSymbol(prefix + "_fresh_" + funSymCnt, argSorts, returnSort)
+  }
+  def freshFunctionSymbol(prefix: FunctionSymbol): FunctionSymbol = {
+    val FunctionSymbol(name, argSorts, retSort) = prefix
+    freshFunctionSymbol(name, argSorts, retSort)
+  }
 
 }
