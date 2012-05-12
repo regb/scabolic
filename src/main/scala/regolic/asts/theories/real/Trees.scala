@@ -8,9 +8,9 @@ import regolic.algebra.Rational
 object Trees {
 
   object RealSort {
-    def apply() = Sort("Real")
+    def apply() = Sort("Real", List())
     def unapply(sort: Sort): Boolean = sort match {
-      case Sort("Real") => true
+      case Sort("Real", List()) => true
       case _ => false
     }
   }

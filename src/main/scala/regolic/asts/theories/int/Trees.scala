@@ -7,9 +7,9 @@ import regolic.asts.fol.{Trees => FolT}
 object Trees {
 
   object IntSort {
-    def apply() = Sort("Int")
+    def apply() = Sort("Int", List())
     def unapply(sort: Sort): Boolean = sort match {
-      case Sort("Int") => true
+      case Sort("Int", List()) => true
       case _ => false
     }
   }

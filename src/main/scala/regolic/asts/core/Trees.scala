@@ -8,7 +8,7 @@ object Trees {
   final case class QuantifierSymbol(name: String)
   final case class TermQuantifierSymbol(name: String, argSorts: List[Sort], returnSort: Sort)
 
-  final case class Sort(name: String)
+  final case class Sort(name: String, subSorts: List[Sort])
 
   sealed abstract class Term {
     val sort: Sort 

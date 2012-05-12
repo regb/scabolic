@@ -185,7 +185,7 @@ object SmtLib2 {
   }
 
   def translateSort(sort: PSort): Sort = sort match {
-    case (s: IdentSort) => Sort(asString(s.identifier_))
+    case (s: IdentSort) => Sort(asString(s.identifier_), List())
     case _ => sys.error("not supported")
   }
   def asSortsList(sorts: MESorts): Seq[PSort] = sorts match {

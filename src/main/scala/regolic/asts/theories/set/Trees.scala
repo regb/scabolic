@@ -6,10 +6,11 @@ import regolic.asts.fol.{Trees => FolT}
 
 object Trees {
 
+  //maybe parametric set?
   object SetSort {
-    def apply() = Sort("Set")
+    def apply() = Sort("Set", List())
     def unapply(sort: Sort): Boolean = sort match {
-      case Sort("Set") => true
+      case Sort("Set", List()) => true
       case _ => false
     }
   }
