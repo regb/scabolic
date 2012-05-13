@@ -53,7 +53,7 @@ object Trees {
   object StoreSymbol {
     def apply(from: Sort, to: Sort): FunctionSymbol = FunctionSymbol("store", List(ArraySort(from, to), from, to), ArraySort(from, to))
     def unapply(s: FunctionSymbol): Option[(Sort, Sort)] = s match {
-      case FunctionSymbol("store", List(ArraySort(from, to), from2, to2), to3) if to == to2 && to2 == to3 && from == from2 => Some((from, to))
+      case FunctionSymbol("store", List(ArraySort(from, to), from2, to2), ArraySort(from3, to3)) if to == to2 && to2 == to3 && from == from2 && from2 == from3 => Some((from, to))
       case _ => None
     }
   }
