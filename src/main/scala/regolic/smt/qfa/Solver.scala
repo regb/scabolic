@@ -38,11 +38,11 @@ object Solver extends regolic.smt.Solver {
     }
 
     var additionalCnstr: Formula = null
-    val (And(newLits), found) = findAndMapFeedback(And(and), (f: Formula) => false, isReadOverWrite _, (f: Formula) => f, (t: Term) => {
+    val (And(newLits), found) = findAndMap(And(and), (f: Formula) => false, isReadOverWrite _, (f: Formula) => f, (t: Term) => {
       val Select(Store(a, i, v), j) = t
       additionalCnstr = Equals(i, j)
       v
-    }, List())
+    })
 
     if(!found) {
       isSatNoStore(and)
@@ -50,11 +50,11 @@ object Solver extends regolic.smt.Solver {
       isSat(additionalCnstr :: newLits) match {
         case Some(m) => Some(m)
         case None => {
-          val (And(newLits), _) = findAndMapFeedback(And(and), (f: Formula) => false, isReadOverWrite _, (f: Formula) => f, (t: Term) => {
+          val (And(newLits), _) = findAndMap(And(and), (f: Formula) => false, isReadOverWrite _, (f: Formula) => f, (t: Term) => {
             val Select(Store(a, i, v), j) = t
             additionalCnstr = Not(Equals(i, j))
             Select(a, j)
-          }, List())
+          })
           isSat(additionalCnstr :: newLits)
         }
       }

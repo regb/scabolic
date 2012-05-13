@@ -186,14 +186,14 @@ object Manip {
 
 
   //find a node that verify a predicate and apply a function on it and return. Only find one such element even if several are present
-  def findAndMapFeedback(f: Formula, pf: (Formula) => Boolean, pt: (Term) => Boolean, ff: (Formula) => Formula, ft: (Term) => Term, bv: List[Variable]): (Formula, Boolean) = if(pf(f)) (ff(f), true) else (f match {
+  private def findAndMap(f: Formula, pf: (Formula) => Boolean, pt: (Term) => Boolean, ff: (Formula) => Formula, ft: (Term) => Term, bv: List[Variable]): (Formula, Boolean) = if(pf(f)) (ff(f), true) else (f match {
     case PredicateApplication(s, ts) => {
       var found = false
       val rts = ts.map(t => {
         if(found)
           t
         else {
-          val (nt, b) = findAndMapFeedback(t, pf, pt, ff, ft, bv)
+          val (nt, b) = findAndMap(t, pf, pt, ff, ft, bv)
           found = b
           nt
         }
@@ -206,7 +206,7 @@ object Manip {
         if(found)
           f
         else {
-          val (nf, b) = findAndMapFeedback(f, pf, pt, ff, ft, bv)
+          val (nf, b) = findAndMap(f, pf, pt, ff, ft, bv)
           found = b
           nf
         }
@@ -214,11 +214,11 @@ object Manip {
       (ConnectiveApplication(s, rts), found)
     }
     case QuantifierApplication(s, v, f) => {
-      val (nf, found) = findAndMapFeedback(f, pf, pt, ff, ft, v :: bv)
+      val (nf, found) = findAndMap(f, pf, pt, ff, ft, v :: bv)
       (QuantifierApplication(s, v, nf), found)
     }
   })
-  def findAndMapFeedback(t: Term, pf: (Formula) => Boolean, pt: (Term) => Boolean, ff: (Formula) => Formula, ft: (Term) => Term, bv: List[Variable]): (Term, Boolean) = t match {
+  private def findAndMap(t: Term, pf: (Formula) => Boolean, pt: (Term) => Boolean, ff: (Formula) => Formula, ft: (Term) => Term, bv: List[Variable]): (Term, Boolean) = t match {
     case v@Variable(_,_) if (bv.contains(v)) => (v, false)
     case _ => if(pt(t)) (ft(t), true) else (t match {
       case v@Variable(_, _) => (v, false)
@@ -228,7 +228,7 @@ object Manip {
           if(found)
             t
           else {
-            val (nt, b) = findAndMapFeedback(t, pf, pt, ff, ft, bv)
+            val (nt, b) = findAndMap(t, pf, pt, ff, ft, bv)
             found = b
             nt
           }
@@ -236,15 +236,15 @@ object Manip {
         (FunctionApplication(s, rts), found)
       }
       case ITE(c, t, e) => {
-        val (newC, b1) = findAndMapFeedback(c, pf, pt, ff, ft, bv)
+        val (newC, b1) = findAndMap(c, pf, pt, ff, ft, bv)
         if(b1) 
           (ITE(newC, t, e), true)
         else {
-          val (newT, b2) = findAndMapFeedback(t, pf, pt, ff, ft, bv)
+          val (newT, b2) = findAndMap(t, pf, pt, ff, ft, bv)
           if(b2)
             (ITE(newC, newT, e), true)
           else {
-            val (newE, b3) = findAndMapFeedback(e, pf, pt, ff, ft, bv)
+            val (newE, b3) = findAndMap(e, pf, pt, ff, ft, bv)
             (ITE(newC, newT, newE), b3)
           }
         }
@@ -252,9 +252,9 @@ object Manip {
       case TermQuantifierApplication(s, v, ts) => sys.error("not supported")
     })
   }
-  def findAndMap(f: Formula, pf: (Formula) => Boolean, pt: (Term) => Boolean, ff: (Formula) => Formula, ft: (Term) => Term): Formula = 
-    findAndMapFeedback(f, pf, pt, ff, ft, List())._1
-  def findAndMap(t: Term, pf: (Formula) => Boolean, pt: (Term) => Boolean, ff: (Formula) => Formula, ft: (Term) => Term): Term = 
-    findAndMapFeedback(t, pf, pt, ff, ft, List())._1
+  def findAndMap(f: Formula, pf: (Formula) => Boolean, pt: (Term) => Boolean, ff: (Formula) => Formula, ft: (Term) => Term): (Formula, Boolean) = 
+    findAndMap(f, pf, pt, ff, ft, List())
+  def findAndMap(t: Term, pf: (Formula) => Boolean, pt: (Term) => Boolean, ff: (Formula) => Formula, ft: (Term) => Term): (Term, Boolean) = 
+    findAndMap(t, pf, pt, ff, ft, List())
 
 }
