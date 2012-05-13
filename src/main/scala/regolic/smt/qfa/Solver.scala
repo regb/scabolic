@@ -38,14 +38,11 @@ object Solver extends regolic.smt.Solver {
     }
 
     var additionalCnstr: Formula = null
-    println("Before findandmap: " + and)
     val (And(newLits), found) = findAndMap(And(and), (f: Formula) => false, isReadOverWrite _, (f: Formula) => f, (t: Term) => {
       val Select(Store(a, i, v), j) = t
       additionalCnstr = Equals(i, j)
       v
     })
-    println("After findandmap: " + newLits)
-    println("Found: " + found)
 
     if(!found) {
       isSatNoStore(and)
@@ -53,13 +50,11 @@ object Solver extends regolic.smt.Solver {
       isSat(additionalCnstr :: newLits) match {
         case Some(m) => Some(m)
         case None => {
-    println("Before findandmap: " + and)
           val (And(newLits), _) = findAndMap(And(and), (f: Formula) => false, isReadOverWrite _, (f: Formula) => f, (t: Term) => {
             val Select(Store(a, i, v), j) = t
             additionalCnstr = Not(Equals(i, j))
             Select(a, j)
           })
-    println("After findandmap: " + newLits)
           isSat(additionalCnstr :: newLits)
         }
       }
@@ -82,7 +77,6 @@ object Solver extends regolic.smt.Solver {
       case t => t
     }
     val And(cleanTerms) = mapPreorder(And(and), (f: Formula) => f, removeStore _)
-    println("Sending to euf: " + cleanTerms)
     regolic.smt.qfeuf.CongruenceSolver.isSat(cleanTerms)
   }
 
