@@ -231,6 +231,8 @@ object Manip {
     mapPostorder(formula, inductiveStep, t => t)
   }
 
+  //negation normal form (nnf) only contains quantifier, NOT, AND and OR connectives (basic form) and 
+  //NOT only appears above a predicate 
   def isNegationNormalForm(formula: Formula): Boolean = forall(formula, (f: Formula) => f match {
     case Not(f2) => f2.isInstanceOf[PredicateApplication]
     case Iff(_, _) | Implies(_, _) | IfThenElse(_, _, _) => false
@@ -249,6 +251,24 @@ object Manip {
 
     mapPreorder(basicForm(formula), inductiveStep, t => t)
   }
+
+
+  def clausalNormalForm(formula: Formula): Formula = {
+    null
+  }
+
+
+  //prenex form is with all quantifier at the top level and a quantifier free function inside
+  def isPrenexNormalForm(formula: Formula): Boolean = formula match {
+    case Forall(_, f) => isPrenexNormalForm(f)
+    case Exists(_, f) => isPrenexNormalForm(f)
+	case _ => forall(formula, (f: Formula) => f match {
+	  case Forall(_, _) | Exists(_, _) => false
+	  case _ => true
+	})
+  }
+
+
 
   def isQuantifierFree(f: Formula): Boolean = forall(f, (sf: Formula) => sf match {
       case Forall(_, _) | Exists(_, _) => false
