@@ -222,4 +222,10 @@ class ManipSuite extends FunSuite {
     assert(isNegationNormalForm(negationNormalForm(Not(Or(List(Not(p), True(), Not(False()), And(List(Not(Or(List(p, q))), p))))))))
   }
 
+  test("prenexNormalForm") {
+    val f = And(Forall(x, p), Exists(x, q), r)
+    println(f)
+    println(prenexNormalForm(f))
+  }
+
 }

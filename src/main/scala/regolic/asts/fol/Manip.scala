@@ -4,6 +4,7 @@ import regolic.asts.fol.Trees._
 import regolic.tools.Math.fix
 import regolic.asts.core.Manip._
 import regolic.asts.core.Trees.Formula
+import regolic.asts.core.Trees.Variable
 import regolic.asts.core.Trees.PredicateApplication
 
 object Manip {
@@ -110,16 +111,6 @@ object Manip {
 
     fix(mapSimplify,formula)
   }
-
-  //replace each variable by a new, fresh, and unique name
-//  def uniqueVariables(formula: Formula): Formula = {
-//    var boundVars: Set[Variable] = Set()
-//
-//    mapPreorder(formula, {
-//      case Forall(v, b) => {
-//
-//
-//  }
 
   //a conjunctive normal form, always as an And of Ors (even with single formula)
   def isConjunctiveNormalForm(formula: Formula): Boolean = formula match {
@@ -277,30 +268,53 @@ object Manip {
     })
   }
 
-  //def prenexNormalForm(formula: Formula): Formula = {
-  //  def rec(f: Formula): Formula = findAndMap(f, {
-  //    case And(fs) if(fs.contains(isQuantifier)) => {
-  //      var quant: (Formula => Formula) = null
-  //      var extractedBody: Formula = null
-  //      var res
-  //      fs.foldLeft(Nil){
-  //        case (acc, f) => 
-  //      fs.find{
-  //        case Forall(x, b) => {
-  //          quant = (f2: Formula) => Forall(x, f2)
-  //          extractedBody = b
-  //          true
-  //        }
-  //        case Exists(x, b) => {
-  //          quant = (f2: Formula) => Forall(x, f2)
-  //          extractedBody = b
-  //          true
-  //        }
-  //        case _ => false
-  //      }
+  def prenexNormalForm(formula: Formula): Formula = {
+    def oneStep(f: Formula): Formula = f match {
+      case Or(fs) => {
+        var quants: List[(Boolean, Variable)] = List()
+        val newFs = fs.map{
+          case Forall(x, b) => {
+            quants ::= (true, x)
+            b
+          }
+          case Exists(x, b) => {
+            quants ::= (false, x)
+            b
+          }
+          case f => f
+        }
+        quants.foldLeft(Or(newFs): Formula)((a, q) => if(q._1) Forall(q._2, a) else Exists(q._2, a))
+      }
+      case And(fs) => {
+        var quants: List[(Boolean, Variable)] = List()
+        val newFs = fs.map{
+          case Forall(x, b) => {
+            quants ::= (true, x)
+            b
+          }
+          case Exists(x, b) => {
+            quants ::= (false, x)
+            b
+          }
+          case f => f
+        }
+        quants.foldLeft(And(newFs): Formula)((a, q) => if(q._1) Forall(q._2, a) else Exists(q._2, a))
+      }
+      case Not(Forall(x, b)) => Exists(x, Not(b))
+      case Not(Exists(x, b)) => Forall(x, Not(b))
+      case Implies(Forall(x, b), f) => Exists(x, Implies(b, f))
+      case Implies(Exists(x, b), f) => Forall(x, Implies(b, f))
+      case Implies(f, Forall(x, b)) => Forall(x, Implies(f, b))
+      case Implies(f, Exists(x, b)) => Exists(x, Implies(f, b))
+      case Iff(_, _) => sys.error("TODO")
+      case IfThenElse(_, _, _) => sys.error("TODO")
+      case f => f
+    }
+    def rec(f: Formula): Formula = mapPostorder(f, oneStep, t => t)
 
-
-  //    }
+    val cleanFormula = alphaRenaming(formula)
+    fix(rec, cleanFormula)
+  }
 
   def isQuantifierFree(f: Formula): Boolean = forall(f, (sf: Formula) => sf match {
     case Forall(_, _) | Exists(_, _) => false
