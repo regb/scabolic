@@ -31,6 +31,11 @@ class ManipSuite extends FunSuite {
   val dSymbol = ConnectiveSymbol("d", 2)
   val DSymbol = ConnectiveSymbol("D", 2)
 
+  val aSymbol = QuantifierSymbol("a")
+  val ASymbol = QuantifierSymbol("A")
+  val bSymbol = QuantifierSymbol("b")
+  val BSymbol = QuantifierSymbol("B")
+
   val x = Variable("x", sort)
   val y = Variable("y", sort)
   val z = Variable("z", sort)
@@ -54,6 +59,11 @@ class ManipSuite extends FunSuite {
   def C(f: Formula): Formula = ConnectiveApplication(CSymbol, List(f))
   def d(f1: Formula, f2: Formula): Formula = ConnectiveApplication(dSymbol, List(f1, f2))
   def D(f1: Formula, f2: Formula): Formula = ConnectiveApplication(DSymbol, List(f1, f2))
+
+  def a(v: Variable, b: Formula): Formula = QuantifierApplication(aSymbol, v, b)
+  def A(v: Variable, b: Formula): Formula = QuantifierApplication(ASymbol, v, b)
+  def b(v: Variable, b: Formula): Formula = QuantifierApplication(bSymbol, v, b)
+  def B(v: Variable, b: Formula): Formula = QuantifierApplication(BSymbol, v, b)
 
   def ite(c: Formula, t1: Term, t2: Term): Term = ITE(c, t1, t2)
 
@@ -449,5 +459,10 @@ class ManipSuite extends FunSuite {
   test("foldPostorder: complex over formula") {
     assert(foldPostorder(s2t("ipxiqxynxhxxgnx"), 0)(fvoid, incifx) === 6)
   }
+
+
+  test("alphaRenaming") {
+  }
 }
+
 

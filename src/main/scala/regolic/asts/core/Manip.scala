@@ -257,4 +257,35 @@ object Manip {
   def findAndMap(t: Term, pf: (Formula) => Boolean, pt: (Term) => Boolean, ff: (Formula) => Formula, ft: (Term) => Term): (Term, Boolean) = 
     findAndMap(t, pf, pt, ff, ft, List())
 
+
+  def alphaRenaming(formula: Formula): Formula = {
+    var globalVars: Map[Variable, Variable] = Map()
+    def recForm(f: Formula, bv: Map[Variable, Variable]): Formula = f match {
+      case QuantifierApplication(s, v, b) => {
+        val newName = freshVariable(v)
+        QuantifierApplication(s, newName, recForm(b, bv + (v -> newName)))
+      }
+      case PredicateApplication(s, ts) => PredicateApplication(s, ts.map(t => recTerm(t, bv)))
+      case ConnectiveApplication(s, fs) => ConnectiveApplication(s, fs.map(f => recForm(f, bv)))
+    }
+    def recTerm(t: Term, bv: Map[Variable, Variable]): Term = t match {
+      case v@Variable(_,_) => bv.get(v) match {
+        case Some(nv) => nv
+        case None => globalVars.get(v) match {
+          case Some(nv) => nv
+          case None => {
+            val nv = freshVariable(v)
+            globalVars += (v -> nv)
+            nv
+          }
+        }
+      }
+      case FunctionApplication(s, ts) => FunctionApplication(s, ts.map(t => recTerm(t, bv)))
+      case ITE(c, t, e) => ITE(recForm(c, bv), recTerm(t, bv), recTerm(e, bv))
+      case TermQuantifierApplication(s, v, ts) => sys.error("TODO")
+    }
+
+    recForm(formula, Map())
+  }
+
 }

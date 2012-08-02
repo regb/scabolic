@@ -111,6 +111,16 @@ object Manip {
     fix(mapSimplify,formula)
   }
 
+  //replace each variable by a new, fresh, and unique name
+//  def uniqueVariables(formula: Formula): Formula = {
+//    var boundVars: Set[Variable] = Set()
+//
+//    mapPreorder(formula, {
+//      case Forall(v, b) => {
+//
+//
+//  }
+
   //a conjunctive normal form, always as an And of Ors (even with single formula)
   def isConjunctiveNormalForm(formula: Formula): Boolean = formula match {
     case And(fs) => fs.forall{
@@ -257,23 +267,45 @@ object Manip {
     null
   }
 
-
   //prenex form is with all quantifier at the top level and a quantifier free function inside
   def isPrenexNormalForm(formula: Formula): Boolean = formula match {
     case Forall(_, f) => isPrenexNormalForm(f)
     case Exists(_, f) => isPrenexNormalForm(f)
-	case _ => forall(formula, (f: Formula) => f match {
-	  case Forall(_, _) | Exists(_, _) => false
-	  case _ => true
-	})
-  }
-
-
-
-  def isQuantifierFree(f: Formula): Boolean = forall(f, (sf: Formula) => sf match {
+	  case _ => forall(formula, (f: Formula) => f match {
       case Forall(_, _) | Exists(_, _) => false
       case _ => true
     })
+  }
+
+  //def prenexNormalForm(formula: Formula): Formula = {
+  //  def rec(f: Formula): Formula = findAndMap(f, {
+  //    case And(fs) if(fs.contains(isQuantifier)) => {
+  //      var quant: (Formula => Formula) = null
+  //      var extractedBody: Formula = null
+  //      var res
+  //      fs.foldLeft(Nil){
+  //        case (acc, f) => 
+  //      fs.find{
+  //        case Forall(x, b) => {
+  //          quant = (f2: Formula) => Forall(x, f2)
+  //          extractedBody = b
+  //          true
+  //        }
+  //        case Exists(x, b) => {
+  //          quant = (f2: Formula) => Forall(x, f2)
+  //          extractedBody = b
+  //          true
+  //        }
+  //        case _ => false
+  //      }
+
+
+  //    }
+
+  def isQuantifierFree(f: Formula): Boolean = forall(f, (sf: Formula) => sf match {
+    case Forall(_, _) | Exists(_, _) => false
+    case _ => true
+  })
 
   private def isTrue(f: Formula) = f match {
     case True() => true
@@ -285,6 +317,10 @@ object Manip {
   }
   private def isNot(f: Formula) = f match {
     case Not(_) => true
+    case _ => false
+  }
+  private def isQuantifier(f: Formula) = f match {
+    case Forall(_, _) | Exists(_, _) => true
     case _ => false
   }
 }
