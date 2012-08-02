@@ -42,6 +42,11 @@ object Resolution {
     foundContradiction
   }
 
+  def unify(p1: PredicateApplication, p2: PredicateApplication): Option[Map[Variable, Term]] = {
+    val (PredicateApplication(s1, args1), PredicateApplication(s2, args2)) = (p1, p2)
+    if(s1 != s2) None else args1.zip(args2).foldLeft(Some(Map()): Option[Map[Variable, Term]])((acc, p) => unify(p._1, p._2, acc))
+  }
+
   def unify(t1: Term, t2: Term, osubst: Option[Map[Variable, Term]] = Some(Map())): 
         Option[Map[Variable, Term]] = if(osubst == None) None else {
     val subst: Map[Variable, Term] = osubst.get
@@ -64,8 +69,6 @@ object Resolution {
       }
       case (FunctionApplication(s1, args1), FunctionApplication(s2, args2)) if s1 == s2 =>
         args1.zip(args2).foldLeft(Some(subst): Option[Map[Variable, Term]])((acc, p) => unify(p._1, p._2, acc))
-      //case (PredicateApplication(s1, args1), PredicateApplication(s2, args2)) if s1 == s2 =>
-      //  args1.zip(args2).foldLeft(subst)((acc, p) => unify(p._1, p._2, acc))
       case _ => None
     }
   }
@@ -75,10 +78,16 @@ object Resolution {
     def rec(leftClause1: List[Formula], rightClause1: List[Formula],
             leftClause2: List[Formula], rightClause2: List[Formula]): Option[List[Formula]] = {
       (rightClause1, rightClause2) match {
-        case (lit1 :: rest1, Not(lit2) :: rest2) if lit1 == lit2 => 
-          Some(leftClause1 ::: leftClause2 ::: rest1 ::: rest2)
-        case (Not(lit1) :: rest1, lit2 :: rest2) if lit1 == lit2 => 
-          Some(leftClause1 ::: leftClause2 ::: rest1 ::: rest2)
+        case ((lit1@PredicateApplication(_, _)) :: rest1, Not(lit2@PredicateApplication(_, _)) :: rest2) => 
+          unify(lit1, lit2) match {
+            case None => rec(lit1 :: leftClause1, rest1, leftClause2, Not(lit2) :: rest2)
+            case Some(subst) =>  Some((leftClause1 ::: leftClause2 ::: rest1 ::: rest2).map(substitute(_, subst)))
+          }
+        case (Not(lit1@PredicateApplication(_, _)) :: rest1, (lit2@PredicateApplication(_, _)) :: rest2) => 
+          unify(lit1, lit2) match {
+            case None => rec(lit1 :: leftClause1, rest1, leftClause2, Not(lit2) :: rest2)
+            case Some(subst) =>  Some((leftClause1 ::: leftClause2 ::: rest1 ::: rest2).map(substitute(_, subst)))
+          }
         case (head :: rest1, rest2) => rec(head :: leftClause1, rest1, leftClause2, rest2)
         case (Nil, head::rest2) => rec(Nil, clause1, head :: leftClause2, rest2)
         case (Nil, Nil) => None
