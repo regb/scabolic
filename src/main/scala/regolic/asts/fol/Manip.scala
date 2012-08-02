@@ -6,6 +6,8 @@ import regolic.asts.core.Manip._
 import regolic.asts.core.Trees.Formula
 import regolic.asts.core.Trees.Variable
 import regolic.asts.core.Trees.PredicateApplication
+import regolic.asts.core.Trees.FunctionApplication
+import regolic.asts.core.Trees.freshFunctionSymbol
 
 object Manip {
 
@@ -314,6 +316,31 @@ object Manip {
 
     val cleanFormula = alphaRenaming(formula)
     fix(rec, cleanFormula)
+  }
+
+
+  //prenex normal form and only universal quantifier: \forall x1, x2, ... F, where F is quant. free
+  def isSkolemNormalForm(formula: Formula): Boolean = formula match {
+    case Forall(_, f) => isPrenexNormalForm(f)
+	  case _ => forall(formula, (f: Formula) => f match {
+      case Forall(_, _) | Exists(_, _) => false
+      case _ => true
+    })
+  }
+
+  def skolemNormalForm(formula: Formula): Formula = {
+    def rec(formula: Formula, scope: List[Variable]): Formula = formula match {
+      case Exists(v, rest) => {
+        val skolemFunction = freshFunctionSymbol("f", scope.map(_.sort), v.sort)
+        val skolemTerm = FunctionApplication(skolemFunction, scope)
+        val freshRest = substitute(rest, v, skolemTerm)
+        rec(freshRest, scope)
+      }
+      case Forall(v, rest) => Forall(v, rec(rest, v :: scope))
+      case f => f
+    }
+    val prenexFormula = prenexNormalForm(formula)
+    rec(prenexFormula, Nil)
   }
 
   def isQuantifierFree(f: Formula): Boolean = forall(f, (sf: Formula) => sf match {
