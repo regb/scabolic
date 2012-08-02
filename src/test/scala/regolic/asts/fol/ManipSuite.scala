@@ -21,6 +21,7 @@ class ManipSuite extends FunSuite {
 
   val sort = Sort("sort", List())
   private val x = Variable("x", sort)
+  private val y = Variable("y", sort)
 
 
   test("isBasicForm: trivial formulas") {
@@ -223,9 +224,16 @@ class ManipSuite extends FunSuite {
   }
 
   test("prenexNormalForm") {
-    val f = And(Forall(x, p), Exists(x, q), r)
+    //val f = And(Forall(x, p), Exists(x, q), r)
+    //println(f)
+    //println(prenexNormalForm(f))
+  }
+
+
+  test("clausalNormalForm") {
+    val f = Forall(x, Exists(y, Equals(x, y)))
     println(f)
-    println(prenexNormalForm(f))
+    println(clausalNormalForm(f))
   }
 
 }

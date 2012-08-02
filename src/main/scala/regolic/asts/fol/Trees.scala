@@ -2,6 +2,8 @@ package regolic.asts.fol
 
 import regolic.asts.core.Trees._
 
+//True and False: predicate or connective?
+
 object Trees {
 
   object ConstantSymbol {

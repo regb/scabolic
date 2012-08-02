@@ -256,10 +256,6 @@ object Manip {
   }
 
 
-  def clausalNormalForm(formula: Formula): Formula = {
-    null
-  }
-
   //prenex form is with all quantifier at the top level and a quantifier free function inside
   def isPrenexNormalForm(formula: Formula): Boolean = formula match {
     case Forall(_, f) => isPrenexNormalForm(f)
@@ -328,6 +324,7 @@ object Manip {
     })
   }
 
+  //skolemization only maintains equisatisfiability, not equivalence.
   def skolemNormalForm(formula: Formula): Formula = {
     def rec(formula: Formula, scope: List[Variable]): Formula = formula match {
       case Exists(v, rest) => {
@@ -341,6 +338,18 @@ object Manip {
     }
     val prenexFormula = prenexNormalForm(formula)
     rec(prenexFormula, Nil)
+  }
+
+  def clausalNormalForm(formula: Formula): Formula = {
+    def dropQuant(f: Formula): Formula = f match {
+      case Forall(x, f) => dropQuant(f)
+      case _ => f
+    }
+
+    val skolemForm = skolemNormalForm(formula)
+    val body = dropQuant(skolemForm)
+    val cnf = conjunctiveNormalForm(body) //This should be ok to use the equisat version without exponential blowup
+    cnf
   }
 
   def isQuantifierFree(f: Formula): Boolean = forall(f, (sf: Formula) => sf match {
