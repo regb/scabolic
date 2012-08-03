@@ -94,7 +94,7 @@ object Resolution {
       }
     }
 
-    val resolv = rec(Nil, clause1, Nil, clause2).map(_.distinct)
+    val resolv = rec(Nil, clause1, Nil, clause2).map(_.distinct) //note the distinct should now become the factoring rule
 
     resolv match {
       case Some(clause) => 
