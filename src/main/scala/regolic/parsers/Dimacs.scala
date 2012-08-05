@@ -54,7 +54,7 @@ object Dimacs {
               throw FileFormatException("")
             val nbVariables = restInts(0)
             nbClauses = Some(restInts(1))
-            assert(nbClauses.get > 0 && nbVariables > 9)
+            assert(nbClauses.get > 0 && nbVariables > 0)
             vars = new Array(nbVariables)
             for(i <- 0 until nbVariables)
               vars(i) = Var("x" + i)
@@ -78,9 +78,9 @@ object Dimacs {
                   currentClause ::= i
               })
 
-            val varNumbers = numbers.init
-            if(!varNumbers.isEmpty)
-              formulas ::= Or(varNumbers.map(i => if(i > 0) vars(i-1) else Not(vars(-i-1))).toList)
+            //val varNumbers = numbers.init
+            //if(!varNumbers.isEmpty)
+            //  formulas ::= Or(varNumbers.map(i => if(i > 0) vars(i-1) else Not(vars(-i-1))).toList)
 
           } catch {
             case (_: NumberFormatException) => throw FileFormatException("")
