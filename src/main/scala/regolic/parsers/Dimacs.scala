@@ -7,6 +7,28 @@ import regolic.sat.Solver.Var
 import regolic.asts.core.Trees._
 import regolic.asts.fol.Trees._
 
+
+/*
+ * This DIMACS parser might not exactly follow the standard, but since I am not sure where the
+ * actual standard is, I figured out the best would be to just be able to support at least the format
+ * used in some standard benchmark.
+ *
+ * First a comment line can occur at any point, and is simply ignored. It still has
+ * to be a complete line starting with 'c'.
+
+ * The problem line has to appear before any clause definition, else the input will
+ * be rejected. The problem line is:
+ * p cnf N M
+ * where N and M are > 0 integer and N is the number of variables and M is the number of clauses
+
+ * The clauses can span several lines and different clauses can be on the same line. Space and new lines
+ * are basically ignored. The only separator that matters for clause is '0', which indicate the end of a clause.
+ * If the last clause is not terminated by '0', then it will simply be ignored.
+
+ * At the end, we verified that the number of clauses indead match the declared, and reject any output
+ * that does not have enough clause. Actually, we don't do that yet, but we might in the future.
+ */
+
 object Dimacs {
   
   def apply(input: InputStream): List[Formula] = {
@@ -14,6 +36,8 @@ object Dimacs {
     var formulas: List[Formula] = List()
     var vars: Array[PredicateApplication] = null
     var nbClauses: Option[Int] = None
+
+    var currentClause: List[Int] = Nil
 
     for(line <- Source.fromInputStream(input).getLines()) {
       val length = line.size
@@ -30,6 +54,7 @@ object Dimacs {
               throw FileFormatException("")
             val nbVariables = restInts(0)
             nbClauses = Some(restInts(1))
+            assert(nbClauses.get > 0 && nbVariables > 9)
             vars = new Array(nbVariables)
             for(i <- 0 until nbVariables)
               vars(i) = Var("x" + i)
@@ -43,8 +68,15 @@ object Dimacs {
 
           try {
             val numbers = line.split(' ').filterNot(_ == "").map(_.toInt)
-            if(numbers.last != 0)
-              throw new FileFormatException("A clause line should end with a 0")
+
+            if(!numbers.isEmpty)
+              numbers.map(i => {
+                if(i == 0 && currentClause != Nil) {
+                  formulas ::= Or(currentClause.reverse.map(i => if(i > 0) vars(i-1) else Not(vars(-i-1))).toList)
+                  currentClause = Nil
+                } else
+                  currentClause ::= i
+              })
 
             val varNumbers = numbers.init
             if(!varNumbers.isEmpty)
