@@ -36,3 +36,27 @@ a very specific part of the tree. This forces to use dynamic check everywhere.
 I believe this is not foundamentally a performence issue because the dynamic
 check can simply be ignore once the code is sufficiently tested and every
 function is used with the correct kind of arguments.
+
+-- How to use
+
+The idea is to support many different ways of using the solver. In particular, we
+will support several standard file format. For now, we identified 3 file formats
+that we aim at supporting:
+- DIMACS cnf
+  Our support will be very basic: each line starting with a 'c' is ignored. The problem
+  line must appear before any clauses and will be of the form 'p cnf N M' where N and M are
+  positive integers. Finally clauses can span several lines and are ended by a '0'.
+- SMTLIB version 2
+  There is a very complete documentation online (smtlib.org). We aim at full support.
+- TPTP
+
+The behaviour of the tool will depend on the kind of input file. On a DIMACS problem, this
+will act as a SAT solver for the given problem. On the smtlib, it will execute the smtlib2 
+script from the input file. On TPTP, this will try to solve the TPTP file.
+
+Another mode is as a DSL in the Scala REPL. This is expected to provide many primitive to
+do symbolic manipulations of formulas and terms and, combined with the powerful programming
+environment of Scala, should make a solid tool to solve various problems. Potentially this could
+look like an interactive theorem prover in that mode ?
+
+A third alternative to use the tool is as a API for Scala programs.
