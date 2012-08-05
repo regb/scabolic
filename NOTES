@@ -10,6 +10,10 @@ sensitive point in the project.
 The difference is not clear, especially in SMTLIB where it is necessary to
 collect uninterpreted symbol as free variables.
 
+Now it seems that in satisfiability type problems, we should be using uninterpreted
+symbol instead of variable. An interpretation/assignment would then be a mapping from
+uninterpreted symbols to Terms.
+
 -- Formula + Term vs all terms with boolean sort used to build formulas 
 
 Having a static type distinction can allow some static checking by the
