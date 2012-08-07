@@ -412,7 +412,7 @@ object Manip {
 
 
   def substitutePropVar(f: Formula, m: Map[PredicateApplication, Formula]): Formula = mapPostorder(f, {
-    case p2@PredicateApplication(_, Nil) => m.get(p2) match {
+    case p2@PropositionalVariable(_) => m.get(p2) match {
       case Some(nf) => nf
       case None => p2
     }
@@ -421,19 +421,19 @@ object Manip {
   def substitutePropVar(f: Formula, p: PredicateApplication, newF: Formula): Formula = substitutePropVar(f, Map(p -> newF))
 
   def substituteConst(f: Formula, m: Map[FunctionApplication, Term]): Formula = mapPostorder(f, f => f, {
-    case f2@FunctionApplication(_, Nil) => m.get(f2) match {
+    case c2@Constant(_, _) => m.get(c2) match {
       case Some(nt) => nt
-      case None => f2
+      case None => c2
     }
-    case f@_ => f
+    case t@_ => t
   })
   def substituteConst(f: Formula, fun: FunctionApplication, nt: Term): Formula = substituteConst(f, Map(fun -> nt))
   def substituteConst(t: Term, m: Map[FunctionApplication, Term]): Term = mapPostorder(t, f => f, {
-    case f2@FunctionApplication(_, Nil) => m.get(f2) match {
+    case c2@Constant(_, _) => m.get(c2) match {
       case Some(nt) => nt
-      case None => f2
+      case None => c2
     }
-    case f@_ => f
+    case t@_ => t
   })
   def substituteConst(t: Term, fun: FunctionApplication, nt: Term): Term = substituteConst(t, Map(fun -> nt))
 
