@@ -41,7 +41,7 @@ object SimplexSolver extends regolic.smt.Solver {
        * the end of the run then it was impossible to SAT the problem
        */
 
-      println(preprocessLits)
+      //println(preprocessLits)
       val allVars: Set[Variable] = lits.flatMap(vars).toSet
       val vars2zero: Map[Variable, Rational] = allVars.map(v => (v, Rational.zero)).toMap
       if(!preprocessLits.exists{ case LessThan(_, _) => true case _ => false }) { //if no strict inequality
@@ -72,7 +72,7 @@ object SimplexSolver extends regolic.smt.Solver {
             LessEqual(simplify(Neg(Sub(newTerm, Num(cstValue)))), Num(cstValue))
           }
         }
-        println(finalLits)
+        //println(finalLits)
         maximize(checkVar, finalLits) match {
           case Infeasible => ()
           case Optimal(map) => {

@@ -38,8 +38,8 @@ object Trees {
   object PropositionalVariable {
     def apply(name: String) = PredicateApplication(PropositionalVariableSymbol(name), Nil)
     def unapply(apply: PredicateApplication): Option[String] = apply match {
-      case True() => None //TODO: this is not good, we should have True a connective I guess
-      case False() => None
+      //case True() => None //TODO: this is not good, we should have True a connective I guess
+      //case False() => None
       case PredicateApplication(PropositionalVariableSymbol(n), Nil) => Some(n)
       case _ => None
     }
@@ -68,31 +68,31 @@ object Trees {
   }
 
   object TrueSymbol {
-    def apply() = PredicateSymbol("true", List())
-    def unapply(symbol: PredicateSymbol): Boolean = symbol match {
-      case PredicateSymbol("true", List()) => true 
+    def apply() = ConnectiveSymbol("true", 0)
+    def unapply(symbol: ConnectiveSymbol): Boolean = symbol match {
+      case ConnectiveSymbol("true", 0) => true 
       case _ => false
     }
   }
   object True {
-    def apply() = PredicateApplication(TrueSymbol(), Nil)
-    def unapply(appli: PredicateApplication): Boolean = appli match {
-      case PredicateApplication(TrueSymbol(), Nil) => true
+    def apply() = ConnectiveApplication(TrueSymbol(), Nil)
+    def unapply(appli: ConnectiveApplication): Boolean = appli match {
+      case ConnectiveApplication(TrueSymbol(), Nil) => true
       case _ => false
     }
   }
 
   object FalseSymbol {
-    def apply() = PredicateSymbol("false", List())
-    def unapply(symbol: PredicateSymbol): Boolean = symbol match {
-      case PredicateSymbol("false", List()) => true 
+    def apply() = ConnectiveSymbol("false", 0)
+    def unapply(symbol: ConnectiveSymbol): Boolean = symbol match {
+      case ConnectiveSymbol("false", 0) => true 
       case _ => false
     }
   }
   object False {
-    def apply() = PredicateApplication(FalseSymbol(), Nil)
-    def unapply(appli: PredicateApplication): Boolean = appli match {
-      case PredicateApplication(FalseSymbol(), Nil) => true
+    def apply() = ConnectiveApplication(FalseSymbol(), Nil)
+    def unapply(appli: ConnectiveApplication): Boolean = appli match {
+      case ConnectiveApplication(FalseSymbol(), Nil) => true
       case _ => false
     }
   }

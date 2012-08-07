@@ -95,6 +95,7 @@ class ManipSuite extends FunSuite {
   }
 
   test("conjunctiveNormalForm: composed formulas") {
+    println("ICI: " + conjunctiveNormalForm(Or(List(And(List(Or(List(Not(p), True(), q)), p, Not(Or(List(p, Implies(r, t)))), Not(False()))), p, t, Not(r)))))
     assert(isConjunctiveNormalForm(conjunctiveNormalForm(Or(List(And(List(Or(List(Not(p), True(), q)), p, Not(Or(List(p, Implies(r, t)))), Not(False()))), p, t, Not(r))))))
     assert(isConjunctiveNormalForm(conjunctiveNormalForm(And(List(And(List(Or(List(Not(p), True(), q)), p, Not(Or(List(p, Implies(r, t)))), Not(False()))), p, t, Not(r))))))
   }
@@ -196,9 +197,9 @@ class ManipSuite extends FunSuite {
   }
 
   test("isNegationNormalForm: composed term") {
-    assert(isNegationNormalForm(Or(List(Not(p), True(), Not(False()), And(List(Not(q), p))))))
-    assert(!isNegationNormalForm(Or(List(Not(p), True(), Not(False()), And(List(Not(Or(List(p, q))), p))))))
-    assert(!isNegationNormalForm(Not(Or(List(Not(p), True(), Not(False()), And(List(Or(List(p, q)), p)))))))
+    assert(isNegationNormalForm(Or(List(Not(p), True(), False(), And(List(Not(q), p))))))
+    assert(!isNegationNormalForm(Or(List(Not(p), True(), False(), And(List(Not(Or(List(p, q))), p))))))
+    assert(!isNegationNormalForm(Not(Or(List(Not(p), True(), False(), And(List(Or(List(p, q)), p)))))))
   }
 
   test("negationNormalForm: trivial term") {

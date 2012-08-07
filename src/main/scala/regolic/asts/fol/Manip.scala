@@ -115,9 +115,11 @@ object Manip {
   }
 
   //a conjunctive normal form, always as an And of Ors (even with single formula)
+  //literals are either predicate, negation of predicate or true/false
   def isConjunctiveNormalForm(formula: Formula): Boolean = formula match {
     case And(fs) => fs.forall{
       case Or(fs2) => fs2.forall(f => f match {
+        case True() | False() => true
         case Not(PredicateApplication(_, _)) => true
         case PredicateApplication(_, _) => true
         case _ => false
@@ -157,13 +159,13 @@ object Manip {
         })
       }))
 
-      case p@PredicateApplication(_, _) => And(List(Or(List(p))))
+      case PredicateApplication(_, _) | True() | False() => And(List(Or(List(f))))
 
       case _ => sys.error("unexpected formula: " + f)
 
     }
 
-    mapPostorder(basicForm(formula), inductiveStep, t => t)
+    cleanTrueFalseCNF(mapPostorder(basicForm(formula), inductiveStep, t => t))
   }
   //this transformation generate a much smaller formula, but the formula is only equisatisfiable to the original one
   def conjunctiveNormalFormEquisat(formula: Formula): Formula = {
@@ -216,13 +218,34 @@ object Manip {
     val repr = mapPostorder(formula, inductionStep _, (t: Term) => t)
     constraints += repr
      
-    And(constraints.toList)
+    cleanTrueFalseCNF(And(constraints.toList))
+  }
+
+  private def cleanTrueFalseCNF(and: Formula): Formula = {
+    val And(ors) = and
+    var falseOccurs = false
+    val newOrs = ors.flatMap(or => {
+      val Or(lits) = or
+      var trueOccurs = false
+      val newLits = lits.flatMap{
+        case False() | Not(True()) => Nil
+        case True() | Not(False()) => trueOccurs = true; Nil
+        case lit => List(lit)
+      }
+      if(trueOccurs) Nil 
+      else if(newLits == Nil) { falseOccurs = true; Nil }
+      else List(Or(newLits))
+    })
+    if(falseOccurs) And(Or(False())) 
+    else if(newOrs == Nil) And(Or(True()))
+    else And(newOrs)
   }
 
   //a disjunctive normal form, always as an Or of Ands (even with single formula)
   def isDisjunctiveNormalForm(formula: Formula): Boolean = formula match {
     case Or(fs) => fs.forall{
       case And(fs2) => fs2.forall(f => f match {
+        case True() | False() => true
         case Not(PredicateApplication(_, _)) => true
         case PredicateApplication(_, _) => true
         case _ => false
@@ -239,6 +262,26 @@ object Manip {
       Or(fs1.flatMap{ case And(fss1) =>
         fs2.map{ case And(fss2) => And(fss1 ::: fss2) }
       })
+    }
+
+    def cleanTrueFalse(or: Formula): Formula = {
+      val Or(ands) = or
+      var trueOccurs = false
+      val newAnds = ands.flatMap(and => {
+        val And(lits) = and
+        var falseOccurs = false
+        val newLits = lits.flatMap{
+          case True() | Not(False()) => Nil
+          case False() | Not(True()) => falseOccurs = true; Nil
+          case lit => List(lit)
+        }
+        if(falseOccurs) Nil 
+        else if(newLits == Nil) { trueOccurs = true; Nil }
+        else List(And(newLits))
+      })
+      if(trueOccurs) Or(And(True())) 
+      else if(newAnds == Nil) Or(And(False()))
+      else Or(newAnds)
     }
 
     def inductiveStep(f: Formula): Formula = f match {
@@ -262,13 +305,13 @@ object Manip {
         })
       }))
 
-      case p@PredicateApplication(_, _) => Or(List(And(List(p))))
+      case PredicateApplication(_, _) | True() | False()  => Or(List(And(List(f))))
 
       case _ => sys.error("unexpected formula: " + f)
 
     }
 
-    mapPostorder(basicForm(formula), inductiveStep, t => t)
+    cleanTrueFalse(mapPostorder(basicForm(formula), inductiveStep, t => t))
   }
 
   //basic form is form containing only quantifiers with And, Or and Not connectives
@@ -302,6 +345,8 @@ object Manip {
       case Not(Forall(x, f)) => Exists(x, Not(f))
       case Not(Exists(x, f)) => Forall(x, Not(f))
       case Not(Not(f)) => f
+      case Not(True()) => False()
+      case Not(False()) => True()
       case _ => f
     }
 

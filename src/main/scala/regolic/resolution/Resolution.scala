@@ -20,7 +20,7 @@ object Resolution {
 
 	
     while(newDerivation && !foundContradiction) {
-      println("Base of knowledge is: " + base)
+      //println("Base of knowledge is: " + base)
       newDerivation = false
 
       base.flatMap(l1 => base.map(l2 => (l1, l2))).foreach{ case (cl1, cl2) => {
@@ -37,7 +37,7 @@ object Resolution {
       
     }
 
-    println("Final Base: " + base)
+    //println("Final Base: " + base)
 
     foundContradiction
   }
