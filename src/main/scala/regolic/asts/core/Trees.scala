@@ -49,13 +49,11 @@ object Trees {
 
   private var varCnt = -1
   private var funSymCnt = -1
+  private var predSymCnt = -1
 
   //these function return fresh names with respect to all the previously returned fresh names. It could be the case,
   //if one is unlucky, that an existing name will clash with a name returned by these functions. They can be trusted
   //if all names are set via these.
-  def freshVariable(prefix: String, sort: Sort): Variable = { varCnt += 1; Variable(prefix + "_" + varCnt, sort) }
-  def freshVariable(prefix: Variable): Variable = freshVariable(prefix.name, prefix.sort)
-
   def freshFunctionSymbol(prefix: String, argSorts: List[Sort], returnSort: Sort): FunctionSymbol = {
     funSymCnt += 1
     FunctionSymbol(prefix + "_" + funSymCnt, argSorts, returnSort)
@@ -64,5 +62,16 @@ object Trees {
     val FunctionSymbol(name, argSorts, retSort) = prefix
     freshFunctionSymbol(name, argSorts, retSort)
   }
+  def freshPredicateSymbol(prefix: String, argSorts: List[Sort]): PredicateSymbol = {
+    predSymCnt += 1
+    PredicateSymbol(prefix + "_" + predSymCnt, argSorts)
+  }
+  def freshPredicateSymbol(prefix: PredicateSymbol): PredicateSymbol = {
+    val PredicateSymbol(name, argSorts) = prefix
+    freshPredicateSymbol(name, argSorts)
+  }
+
+  def freshVariable(prefix: String, sort: Sort): Variable = { varCnt += 1; Variable(prefix + "_" + varCnt, sort) }
+  def freshVariable(prefix: Variable): Variable = freshVariable(prefix.name, prefix.sort)
 
 }

@@ -3,7 +3,6 @@ package regolic.parsers
 import scala.io.Source
 import java.io.InputStream
 
-import regolic.sat.Solver.Var
 import regolic.asts.core.Trees._
 import regolic.asts.fol.Trees._
 
@@ -57,7 +56,7 @@ object Dimacs {
             assert(nbClauses.get > 0 && nbVariables > 0)
             vars = new Array(nbVariables)
             for(i <- 0 until nbVariables)
-              vars(i) = Var("x" + i)
+              vars(i) = PropositionalVariable("x" + i)
           } catch {
             case (_: NumberFormatException) => throw FileFormatException("")
           }

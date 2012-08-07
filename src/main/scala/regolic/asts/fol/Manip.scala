@@ -3,11 +3,11 @@ package regolic.asts.fol
 import regolic.asts.fol.Trees._
 import regolic.tools.Math.fix
 import regolic.asts.core.Manip._
-import regolic.asts.core.Trees.Formula
-import regolic.asts.core.Trees.Variable
-import regolic.asts.core.Trees.PredicateApplication
-import regolic.asts.core.Trees.FunctionApplication
-import regolic.asts.core.Trees.freshFunctionSymbol
+import regolic.asts.core.Trees._
+//import regolic.asts.core.Trees.Variable
+//import regolic.asts.core.Trees.PredicateApplication
+//import regolic.asts.core.Trees.FunctionApplication
+//import regolic.asts.core.Trees.freshFunctionSymbol
 
 object Manip {
 
@@ -164,6 +164,59 @@ object Manip {
     }
 
     mapPostorder(basicForm(formula), inductiveStep, t => t)
+  }
+  //this transformation generate a much smaller formula, but the formula is only equisatisfiable to the original one
+  def conjunctiveNormalFormEquisat(formula: Formula): Formula = {
+    import scala.collection.mutable.HashMap
+    import scala.collection.mutable.ListBuffer
+
+    val representations = new HashMap[Formula, PredicateApplication]
+    val constraints = new ListBuffer[Formula]
+
+    //for each subformula, create a new representation and add the constraints while returning the representation
+    def inductionStep(subForm: Formula): Formula = subForm match {
+      case Not(f) => {
+        val repr = freshPropositionalVariable("P")
+        constraints += Or(Not(repr), Not(f))
+        constraints += Or(repr, f)
+        repr
+      }
+      case And(fs) => {
+        val repr = freshPropositionalVariable("P")
+        for(f <- fs)
+          constraints += Or(Not(repr), f)
+        constraints += Or(repr :: fs.map(Not(_)))
+        repr
+      }
+      case Or(fs) => {
+        val repr = freshPropositionalVariable("P")
+        constraints += Or(Not(repr) :: fs)
+        for(f <- fs)
+          constraints += Or(repr, Not(f))
+        repr
+      }
+      case Implies(f1, f2) => {
+        val repr = freshPropositionalVariable("P")
+        constraints += Or(Not(repr), Not(f1), f2)
+        constraints += Or(repr, f1)
+        constraints += Or(repr, Not(f2))
+        repr
+      }
+      case Iff(f1, f2) => {
+        val repr = freshPropositionalVariable("P")
+        constraints += Or(Not(repr), Not(f1), f2)
+        constraints += Or(Not(repr), f1, Not(f2))
+        constraints += Or(repr, Not(f1), Not(f2))
+        constraints += Or(repr, f1, f2)
+        repr
+      }
+      case _ => subForm
+    }
+
+    val repr = mapPostorder(formula, inductionStep _, (t: Term) => t)
+    constraints += repr
+     
+    And(constraints.toList)
   }
 
   //a disjunctive normal form, always as an Or of Ands (even with single formula)
@@ -356,6 +409,52 @@ object Manip {
     case Forall(_, _) | Exists(_, _) => false
     case _ => true
   })
+
+
+  def substitutePropVar(f: Formula, m: Map[PredicateApplication, Formula]): Formula = mapPostorder(f, {
+    case p2@PredicateApplication(_, Nil) => m.get(p2) match {
+      case Some(nf) => nf
+      case None => p2
+    }
+    case f@_ => f
+  }, t => t)
+  def substitutePropVar(f: Formula, p: PredicateApplication, newF: Formula): Formula = substitutePropVar(f, Map(p -> newF))
+
+  def substituteConst(f: Formula, m: Map[FunctionApplication, Term]): Formula = mapPostorder(f, f => f, {
+    case f2@FunctionApplication(_, Nil) => m.get(f2) match {
+      case Some(nt) => nt
+      case None => f2
+    }
+    case f@_ => f
+  })
+  def substituteConst(f: Formula, fun: FunctionApplication, nt: Term): Formula = substituteConst(f, Map(fun -> nt))
+  def substituteConst(t: Term, m: Map[FunctionApplication, Term]): Term = mapPostorder(t, f => f, {
+    case f2@FunctionApplication(_, Nil) => m.get(f2) match {
+      case Some(nt) => nt
+      case None => f2
+    }
+    case f@_ => f
+  })
+  def substituteConst(t: Term, fun: FunctionApplication, nt: Term): Term = substituteConst(t, Map(fun -> nt))
+
+  def propVars(t: Term): Set[PredicateApplication] = foldPostorder(t, Set[PredicateApplication]())((a, f) => f match {
+      case v@PropositionalVariable(_) => a + v
+      case _ => a
+    }, (a, t) => a)
+  def propVars(f: Formula): Set[PredicateApplication] = foldPostorder(f, Set[PredicateApplication]())((a, f) => f match {
+      case v@PropositionalVariable(_) => a + v
+      case _ => a
+    }, (a, t) => a)
+  def consts(t: Term): Set[FunctionApplication] = foldPostorder(t, Set[FunctionApplication]())((a, f) => a, (a, t) => t match {
+      case c@Constant(_, _) => a + c
+      case _ => a
+    })
+  def consts(f: Formula): Set[FunctionApplication] = foldPostorder(f, Set[FunctionApplication]())((a, f) => a, (a, t) => t match {
+      case c@Constant(_, _) => a + c
+      case _ => a
+    })
+
+
 
   private def isTrue(f: Formula) = f match {
     case True() => true

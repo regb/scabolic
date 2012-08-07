@@ -20,6 +20,36 @@ object Trees {
       case _ => None
     }
   }
+  def freshConstant(prefix: String, sort: Sort): FunctionApplication =
+    FunctionApplication(freshFunctionSymbol(prefix, List(), sort), List())
+  def freshConstant(prefix: FunctionApplication, sort: Sort): FunctionApplication = {
+    require(prefix.terms == List())
+    freshConstant(prefix.fSymbol.name, prefix.sort)
+  }
+
+
+  object PropositionalVariableSymbol {
+    def apply(name: String) = PredicateSymbol(name, Nil)
+    def unapply(symbol: PredicateSymbol): Option[String] = symbol match {
+      case PredicateSymbol(n, Nil) => Some(n)
+      case _ => None
+    }
+  }
+  object PropositionalVariable {
+    def apply(name: String) = PredicateApplication(PropositionalVariableSymbol(name), Nil)
+    def unapply(apply: PredicateApplication): Option[String] = apply match {
+      case True() => None //TODO: this is not good, we should have True a connective I guess
+      case False() => None
+      case PredicateApplication(PropositionalVariableSymbol(n), Nil) => Some(n)
+      case _ => None
+    }
+  }
+  def freshPropositionalVariable(prefix: String): PredicateApplication =
+    PredicateApplication(freshPredicateSymbol(prefix, List()), List())
+  def freshPropositionalVariable(prefix: PredicateApplication): PredicateApplication = {
+    require(prefix.terms == List())
+    freshPropositionalVariable(prefix.symbol.name)
+  }
 
   object EqualsSymbol {
     def apply(sort: Sort): PredicateSymbol = PredicateSymbol("=", List(sort, sort))

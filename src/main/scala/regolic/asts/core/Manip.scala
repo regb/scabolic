@@ -170,6 +170,7 @@ object Manip {
     }
     case t@_ => t
   })
+  def substitute(t: Term, oldVar: Variable, newT: Term): Term = substitute(t, Map(oldVar -> newT))
   def substitute(f: Formula, m: Map[Variable, Term]): Formula = mapPostorder(f, f => f, t => t match {
     case v@Variable(_, _) => m.get(v) match {
       case Some(a) => a
@@ -177,8 +178,6 @@ object Manip {
     }
     case t@_ => t
   })
-
-  def substitute(t: Term, oldVar: Variable, newT: Term): Term = substitute(t, Map(oldVar -> newT))
   def substitute(f: Formula, oldVar: Variable, newT: Term): Formula = substitute(f, Map(oldVar -> newT))
 
   def contains(t: Term, elem: Term): Boolean = foldPostorder(t, false)((b, f) => false,(b, t2) => b || elem == t2)
