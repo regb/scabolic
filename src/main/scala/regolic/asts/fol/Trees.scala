@@ -2,8 +2,6 @@ package regolic.asts.fol
 
 import regolic.asts.core.Trees._
 
-//True and False: predicate or connective?
-
 object Trees {
 
   object ConstantSymbol {
@@ -38,8 +36,6 @@ object Trees {
   object PropositionalVariable {
     def apply(name: String) = PredicateApplication(PropositionalVariableSymbol(name), Nil)
     def unapply(apply: PredicateApplication): Option[String] = apply match {
-      //case True() => None //TODO: this is not good, we should have True a connective I guess
-      //case False() => None
       case PredicateApplication(PropositionalVariableSymbol(n), Nil) => Some(n)
       case _ => None
     }
