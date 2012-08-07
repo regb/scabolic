@@ -42,7 +42,10 @@ object Main {
     if(dimacs) {
       val satInstance = regolic.parsers.Dimacs(is)
       val res = regolic.sat.DPLL.isSat(satInstance)
-      println(res)
+      res match {
+        case Some(_) => println("sat")
+        case None => println("unsat")
+      }
     } else if(smtlib) {
       val smtInstance = regolic.parsers.SmtLib2(is)
       regolic.smt.Solver.execute(smtInstance)
