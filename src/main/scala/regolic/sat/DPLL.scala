@@ -142,12 +142,37 @@ object DPLL extends Solver {
   }
 
   //if a var only appear with the same polarity then set it to be true
+  //all unit clause are eliminated and the corresponding variables deleted
+  //keep a map from original var id to new ones
+  //must also ensure that in each clause at most one occurence of the same variable can occur
   def preprocess(cnf: CNFFormula): CNFFormula = {
+    val varsCounters: Array[(Int, Int)] = Array.fill(cnf.nbVar)((0, 0))
+    var conflictDetected = false
+
+    var forcedVars: Array[Option[Boolean]] = Array.fill(cnf.nbVar)(None) //list of variable that are forced to some value
+    //force a var to a pol, record the information into the forcedVars array, may detect a conflict
+    def force(id: Int, pol: Boolean) {
+      forcedVars(id) match {
+        case None => varsInUnitClauses(id) = Some(pol)
+        case Some(p) if(p != newLits.head.polarity) => conflictDetected = true
+        case _ => //here it was already forced at the same polarity
+      }
+    }
+    def isForced(id: Int): Boolean = forcedVars(id) != None
+
     var newClauses: List[Clause] = Nil
     for(clause <- cnf.clauses) {
       var newLits: List[Literal] = Nil
       var canIgnore = false
+      var nbLits = 0
       for(lit <- clause.lits) {
+
+        val counters = varCounter(lit.id)
+        if(lit.polarity)
+          varCounter(lit.id) = (counters._1 + 1, counters._2)
+        else
+          varCounter(lit.id) = (counters._1, counters._2 + 1)
+
         var isRedundant = false
         for(seen <- newLits) {
           if(seen.id == lit.id) {
@@ -157,12 +182,56 @@ object DPLL extends Solver {
               isRedundant = true
           }
         }
-        if(!isRedundant)
+        if(!isRedundant) {
           newLits ::= lit
+          nbLits += 1
+        }
       }
       if(!canIgnore)
         newClauses ::= new Clause(newLits)
+
+      if(nbLits == 1) 
+        force(newLits.head.id, newLits.head.polarity)
+
     }
+
+    val oldVarToNewVar: Array[Int] = new Array(cnf.nbVar)
+    var nbVarsRemoved = 0 //will be used as a shifter for the variable id
+
+    //here we detect the same polarity occurence and fill the old->new mapping, we do not replace any variable yet
+    varCounter.zipWithIndex.foreach(arg => {
+      val ((posCount, negCount), oldId) = arg
+      val newId = oldId - nbVarsRemoved
+
+      if(negCount == 0)
+        force(oldId, true)
+      else if(posCount == 0)
+        force(oldId, false)
+
+      if(isForced(oldId))
+        nbVarsRemoved += 1
+
+      oldVarToNewVar(oldId) = newId
+    })
+
+    var finalClauses: List[Literal] = Nil
+    for(clause <- newClauses) {
+      var newLits: List[Literal] = Nil
+      var canIgnore = false
+      for(lit <- clause.lits) {
+        val oldId = lit.id
+        forcedVars(oldId) match {
+          case None =>
+            val newId = oldVarToNewVar(oldId)
+            val newLit = new Literal(newId, lit.polarity)
+            newLits ::= newLit
+          case Some(true) => canIgnore = true
+          case Some(false) => //just ignore the literal
+        }
+      }
+    }
+
+
     new CNFFormula(newClauses, cnf.nbVar)
   }
 
