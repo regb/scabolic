@@ -28,7 +28,63 @@ import regolic.asts.fol.Trees._
  * that does not have enough clause. Actually, we don't do that yet, but we might in the future.
  */
 
+ import regolic.sat.DPLL._
+
 object Dimacs {
+
+  def cnf(input: InputStream): CNFFormula = {
+
+    var clauses: List[Clause] = Nil
+    var nbClauses: Option[Int] = None
+    var currentClause: List[Int] = Nil
+    var nbVariables = 0
+
+    for(line <- Source.fromInputStream(input).getLines()) {
+      val length = line.size
+      if(length > 0 && line(0) != 'c' && line(0) != '%') {
+        if(line.startsWith("p cnf")) {
+
+          if(nbClauses != None)
+            throw new FileFormatException("A line starting with 'p cnf' is defined twice")
+
+          val rest = line.substring("p cnf".length, length).split(' ').filterNot(_ == "")
+          try {
+            val restInts = rest.map(_.toInt)
+            if(restInts.size != 2)
+              throw FileFormatException("")
+            nbVariables = restInts(0)
+            nbClauses = Some(restInts(1))
+            assert(nbClauses.get > 0 && nbVariables > 0)
+          } catch {
+            case (_: NumberFormatException) => throw FileFormatException("")
+          }
+
+        } else { //should be a clause
+          if(nbClauses == None)
+            throw new FileFormatException("A line starting with 'p cnf' should occur before any clauses")
+
+          try {
+            val numbers = line.split(' ').filterNot(_ == "").map(_.toInt)
+
+            if(!numbers.isEmpty)
+              numbers.map(i => {
+                if(i == 0 && currentClause != Nil) {
+                  clauses ::= new Clause(currentClause.map(i => if(i > 0) new Literal(i-1, true) else new Literal(-i-1, false)))
+                  currentClause = Nil
+                } else
+                  currentClause ::= i
+              })
+          } catch {
+            case (_: NumberFormatException) => throw FileFormatException("")
+          }
+        }
+      } //else simply ignore the line, don't need to reject the input file for that
+    }
+
+    new CNFFormula(clauses, nbVariables)
+  }
+
+
   
   def apply(input: InputStream): List[Formula] = {
 

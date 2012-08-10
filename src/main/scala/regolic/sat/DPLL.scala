@@ -18,12 +18,15 @@ object DPLL extends Solver {
 
     def set(b: Boolean) {
       require(isUnassigned)
-      value = Some(b)
-      val clauses = adjacencyLists(id)
-      for(clause <- clauses) {
-        for(lit <- clause.lits) {
+
+      for(clause <- adjacencyLists(id)) {
+        val wasSat = clause.isSat
+        //println("set in clause: " + clause)
+
+        clause.lits.find(lit => { //assume only one occurence of each lit
           if(lit.id == id) {
-            require(lit.isUnassigned)
+            if(lit != this)
+              require(lit.isUnassigned)
             lit.value = Some(b)
 
             if(lit.isUnsat)
@@ -33,35 +36,51 @@ object DPLL extends Solver {
 
             if(clause.isUnit)
               unitClauses ::= clause
-            if(clause.isSat)
-              cnfFormula.nbSat += 1
-          }
-        }
+            else if(clause.isUnsat)
+              status = Conflict
+            else if(clause.isSat && !wasSat) {
+              cnfFormula.incSat()
+              if(cnfFormula.isSat)
+                status = Satisfiable
+            }
+            true
+          } else false
+        })
+        //println("end set in clause: " + clause)
       }
     }
 
     def unset() {
       require(isAssigned)
-      value = None
       val clauses = adjacencyLists(id)
       for(clause <- clauses) {
         for(lit <- clause.lits) {
           if(lit.id == id) {
-            require(lit.isAssigned)
-            lit.value = None
+            if(lit != this)
+              require(lit.isAssigned)
 
             if(clause.isSat)
-              cnfFormula.nbSat -= 1
+              cnfFormula.decSat()
+
+            if(status == Conflict && clause.isUnsat)
+              status = Unknown
 
             if(lit.isUnsat)
               clause.nbFalse -= 1
             else
               clause.nbTrue -= 1
 
-            if(clause.isSat)
-              cnfFormula.nbSat += 1
+            lit.value = None
+
             if(clause.isUnit)
               unitClauses ::= clause
+            else if(clause.isUnsat)
+              status = Conflict
+            else if(clause.isSat) {
+              cnfFormula.incSat()
+              if(cnfFormula.isSat)
+                status = Satisfiable
+            }
           }
         }
       }
@@ -71,13 +90,15 @@ object DPLL extends Solver {
     def isUnassigned = value == None
 
     def isSat = {
-      require(isUnassigned)
+      require(isAssigned)
       !(value.get ^ polarity)
     }
     def isUnsat = {
-      require(isUnassigned)
+      require(isAssigned)
       value.get ^ polarity
     }
+
+    override def toString: String = (if(!polarity) "-" else "") + "v" + id
   }
 
   class Clause(val lits: List[Literal]) {
@@ -91,22 +112,58 @@ object DPLL extends Solver {
     def isUnit = nbFalse == nbLits - 1 && nbTrue == 0
     def isConflict = nbFalse == nbLits
 
+    override def toString: String = lits.mkString(", ")
+
   }
 
   class CNFFormula(val clauses: List[Clause], val nbVar: Int) {
     //TODO: require nbVar is correct
 
     val nbClauses = clauses.size
-    var nbSat = 0
+    private var _nbSat = 0
+
+    def isSat = _nbSat == nbClauses
+
+    def incSat() {
+      assert(_nbSat < nbClauses)
+      _nbSat += 1
+      //println("nbSat: " + _nbSat)
+    }
+
+    def decSat() {
+      assert(_nbSat > 0)
+      _nbSat -= 1
+      //println("nbSat: " + _nbSat)
+    }
+
+    def nbSat = _nbSat
+
+    override def toString: String = clauses.mkString("{\n", "\n", "\n}")
   }
 
   //if a var only appear with the same polarity then set it to be true
   def preprocess(cnf: CNFFormula): CNFFormula = {
-    null
-  }
-
-  def deduce() {
-    
+    var newClauses: List[Clause] = Nil
+    for(clause <- cnf.clauses) {
+      var newLits: List[Literal] = Nil
+      var canIgnore = false
+      for(lit <- clause.lits) {
+        var isRedundant = false
+        for(seen <- newLits) {
+          if(seen.id == lit.id) {
+            if(seen.polarity != lit.polarity)
+              canIgnore = true
+            else
+              isRedundant = true
+          }
+        }
+        if(!isRedundant)
+          newLits ::= lit
+      }
+      if(!canIgnore)
+        newClauses ::= new Clause(newLits)
+    }
+    new CNFFormula(newClauses, cnf.nbVar)
   }
 
   private sealed trait Status
@@ -118,64 +175,113 @@ object DPLL extends Solver {
     val i = model.indexWhere(_ == None)
     assert(i >= 0)
     val lit = literalRep(i)
+    //println("decide: " + lit)
 
     lit.set(true)
     model(i) = Some(true)
     assignment ::= (i, true)
+    visitedAtLevel ::= Nil //add a new layer for this level
   }
 
   def backtrack() {
+    //println("backtracking")
     var b = false
-    while(assignment != Nil || b) {
+    while(assignment != Nil && !b) {
+      //println("visitedAtLevel: " + visitedAtLevel)
       val h = assignment.head
       val id = h._1
       val lit = literalRep(id)
+      //println("Unset " + lit)
       lit.unset()
       model(id) = None
+
+      var currentLevel = visitedAtLevel.head
+      while(currentLevel != Nil) {
+        val toUnset = literalRep(currentLevel.head)
+        //println("Unset " + toUnset)
+        toUnset.unset()
+        model(currentLevel.head) = None
+        currentLevel = currentLevel.tail
+      }
+
+      visitedAtLevel = visitedAtLevel.tail
       b = h._2
       assignment = assignment.tail
+
       if(b) {
+        //println("set " + lit + " to false")
         lit.set(false)
         model(id) = Some(false)
         assignment ::= (id, false)
+        visitedAtLevel ::= Nil
       }
+
     }
+    if(assignment == Nil)
+      status = Conflict
+    //println("status: " + status)
   }
 
-  private var visitedAtLevel: List[List[Int]] = List()
-  private var assignment: List[(Int, Boolean)] = List()
+  private var visitedAtLevel: List[List[Int]] = List(Nil) //we explicitly represent layer -1 so that we can apply the deduce immediately
+  private var assignment: List[(Int, Boolean)] = Nil
   private var model: Array[Option[Boolean]] = null
   private var adjacencyLists: Array[List[Clause]] = null
   private var literalRep: Array[Literal] = null
   private var cnfFormula: CNFFormula = null
   private var status: Status = Unknown
 
-  def isSat(clauses: CNFFormula): Option[Array[Boolean]] = {
+  def isSat(cnf: CNFFormula): Option[Array[Boolean]] = {
+    val clauses = preprocess(cnf)
+    //println("isSat called on: " + clauses)
     cnfFormula = clauses
-    adjacencyLists = new Array(clauses.nbVar)
+    adjacencyLists = Array.fill(clauses.nbVar)(Nil)
     literalRep = new Array(clauses.nbVar)
     model = Array.fill(cnfFormula.nbVar)(None)
 
     for(clause <- cnfFormula.clauses)
       for(lit <- clause.lits) {
-        adjacencyLists(lit.id) ::= clause
+        adjacencyLists(lit.id) = (clause :: adjacencyLists(lit.id))
         if(literalRep(lit.id) == null)
           literalRep(lit.id) = lit
       }
 
 
     while(status == Unknown) {
-      decide()
+      //println("loop")
+      //println("assignments: " + assignment)
+      //println("unitClauses: " + unitClauses.mkString("[", "\n", "]"))
+      //println("model: " + model.mkString(","))
+      //println("visitedAtLevel: " + visitedAtLevel)
+
+      while(unitClauses != Nil) {
+        val unitClause = unitClauses.head
+        if(unitClause.isUnit) { //could no longer be true since many variables are forwarded
+          val forcedLit = unitClause.lits.find(_.isUnassigned).get
+          //println("Force: " + forcedLit)
+          forcedLit.set(forcedLit.polarity)
+          model(forcedLit.id) = Some(forcedLit.polarity)
+
+          val currentLevel = visitedAtLevel.head
+          val newCurrentLevel = forcedLit.id :: currentLevel
+          visitedAtLevel = newCurrentLevel :: visitedAtLevel.tail
+        }
+        unitClauses = unitClauses.tail
+      }
+
+      if(status == Unknown)
+        decide()
+
       while(status == Conflict && assignment != Nil)
         backtrack()
     }
 
-    status match {
+    val res = status match {
       case Unknown => sys.error("unexpected")
       case Satisfiable => Some(model.map(v => v.getOrElse(true)))
       case Conflict => None
     }
-
+    //println(res.map(m => m.mkString(", ")))
+    res
   }
 
   def isSat(clauses: List[Formula]): Option[Map[PredicateApplication, Boolean]] = {

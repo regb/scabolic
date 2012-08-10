@@ -40,7 +40,7 @@ object Main {
     val is = new java.io.FileInputStream(inputFile)
 
     if(dimacs) {
-      val satInstance = regolic.parsers.Dimacs(is)
+      val satInstance = regolic.parsers.Dimacs.cnf(is)
       val res = regolic.sat.DPLL.isSat(satInstance)
       res match {
         case Some(_) => println("sat")
