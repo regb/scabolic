@@ -1,4 +1,14 @@
-V1 is counter based
+Results are collect using 'time ./regolic --dimacs filename'.
+Usually we run 3 times and take the best results, sometimes, when
+the time is long (1 minute or more) we only run 1 or 2 times.
+Output is sat/unsat.
+---- means that test was not run for this version.
+>time means that we timeout after time
+
+Naive only use the formula data strcture and naive map/substitute and recursion for backtracking
+
+V1 is counter based with dedicaced data structure and adjacency list. No heuristics are used and
+no long backtracking (conflict analysis).
 
 benchmark         Naive   V1
 uf20-0150.cnf     0.843   0.363
@@ -7,8 +17,22 @@ uf50-0250.cnf     2.379   0.489
 uf50-0350.cnf     1.582   0.481
 uf75-012.cnf      5.570   0.969
 uf75-018.cnf      5.816   0.541
+uf100-0104.cnf    ----    7.533
+uf100-0232.cnf    ----    0.810
+uf100-0444.cnf    ----    10.84
+uf100-0777.cnf    ----    0.324
+uf100-0801.cnf    ----    0.330
+uf125-034.cnf     ----    22.49
+uf125-032.cnf     ----    >4m14
+uf125-077.cnf     ----    1.675
+uf125-063.cnf     ----    3.246
 
 uuf50-0321.cnf    1.931   0.720
 uuf50-0327.cnf    1.601   0.616
-uuf100-0123.cnf   ~2m37   9.876
-uuf100-0129.cnf   ~47s    10.38
+uuf100-0123.cnf   2m37    9.876
+uuf100-0129.cnf   47.00   10.38
+uuf100-0334.cnf   ----    25.53
+uuf100-0722.cnf   ----    21.12
+uuf125-012.cnf    ----    1m46
+uuf125-055.cnf    ----    3m54
+uuf125-074.cnf    ----    1m9
