@@ -145,94 +145,128 @@ object DPLL extends Solver {
   //all unit clause are eliminated and the corresponding variables deleted
   //keep a map from original var id to new ones
   //must also ensure that in each clause at most one occurence of the same variable can occur
-  def preprocess(cnf: CNFFormula): CNFFormula = {
-    val varsCounters: Array[(Int, Int)] = Array.fill(cnf.nbVar)((0, 0))
+  private def preprocess(cnf: CNFFormula): (Status, CNFFormula, Array[Option[Boolean]], Array[Int]) = {
     var conflictDetected = false
-
     var forcedVars: Array[Option[Boolean]] = Array.fill(cnf.nbVar)(None) //list of variable that are forced to some value
     //force a var to a pol, record the information into the forcedVars array, may detect a conflict
     def force(id: Int, pol: Boolean) {
+      //println("Forcing " + id + " to " + pol)
       forcedVars(id) match {
-        case None => varsInUnitClauses(id) = Some(pol)
-        case Some(p) if(p != newLits.head.polarity) => conflictDetected = true
+        case None => forcedVars(id) = Some(pol)
+        case Some(p) if(p != pol) => conflictDetected = true
         case _ => //here it was already forced at the same polarity
       }
     }
     def isForced(id: Int): Boolean = forcedVars(id) != None
 
-    var newClauses: List[Clause] = Nil
-    for(clause <- cnf.clauses) {
+    var oldClauses: List[List[Literal]] = cnf.clauses.map(_.lits)
+    var newClauses: List[List[Literal]] = Nil
+
+    //first we eliminate duplicate in the same clause as well as clauses containing both polarity
+    //of same variable. This is only needed once
+    for(clause <- oldClauses) {
+      val varOccurences: Array[Option[Boolean]] = Array.fill(cnf.nbVar)(None)
       var newLits: List[Literal] = Nil
-      var canIgnore = false
-      var nbLits = 0
-      for(lit <- clause.lits) {
+      var ignoreClause = false
+      for(lit <- clause) {
+        varOccurences(lit.id) match {
+          case None => 
+            varOccurences(lit.id) = Some(lit.polarity)
+            newLits ::= lit
+          case Some(p) if(p != lit.polarity) => ignoreClause = true
+          case _ => //ignore lit
+        }
+      }
+      if(!ignoreClause)
+        newClauses ::= newLits
+    }
 
-        val counters = varCounter(lit.id)
-        if(lit.polarity)
-          varCounter(lit.id) = (counters._1 + 1, counters._2)
-        else
-          varCounter(lit.id) = (counters._1, counters._2 + 1)
 
-        var isRedundant = false
-        for(seen <- newLits) {
-          if(seen.id == lit.id) {
-            if(seen.polarity != lit.polarity)
-              canIgnore = true
-            else
-              isRedundant = true
+    oldClauses = newClauses
+    newClauses = Nil
+    var needRecheck = true
+    while(needRecheck && !conflictDetected) {
+      //println("loop")
+      //println(forcedVars.mkString(", "))
+      needRecheck = false //this flag is only set to true when a change really require to redo the counting and everything
+      //println(oldClauses)
+
+      //first we count all occurence in the current situation and the unit clauses
+      val varsCounters: Array[(Int, Int)] = Array.fill(cnf.nbVar)((0, 0))
+      for(clause <- oldClauses) {
+        var nbLits = 0
+        for(lit <- clause) {
+          nbLits += 1
+          val counters = varsCounters(lit.id)
+          if(lit.polarity)
+            varsCounters(lit.id) = (counters._1 + 1, counters._2)
+          else
+            varsCounters(lit.id) = (counters._1, counters._2 + 1)
+        }
+        if(nbLits == 1)
+          force(clause.head.id, clause.head.polarity)
+      }
+      //println(varsCounters.mkString(", "))
+
+      //here we detect the same polarity occurence and fill forcedVariables
+      varsCounters.zipWithIndex.foreach(arg => {
+        val ((posCount, negCount), id) = arg
+        if(posCount == 0 && negCount == 0)
+          forcedVars(id) = Some(forcedVars(id).getOrElse(true))
+        else if(negCount == 0)
+          force(id, true)
+        else if(posCount == 0)
+          force(id, false)
+      })
+
+      //finally we apply all forced variables
+      for(clause <- oldClauses) {
+        var newLits: List[Literal] = Nil
+        var ignoreClause = false
+        for(lit <- clause) {
+          forcedVars(lit.id) match {
+            case None => newLits ::= lit
+            case Some(p) if(p == lit.polarity) => ignoreClause = true
+            case _ => //just ignore the literal
           }
         }
-        if(!isRedundant) {
-          newLits ::= lit
-          nbLits += 1
+        if(ignoreClause) {
+          //println("ignore clause: " + clause)
+          //the clause can be remove, we will need to recheck for global effects
+          needRecheck = true
+        } else {
+          newLits match {
+            case Nil => conflictDetected = true //each literal of the clause were set to false
+            case lit::Nil => //we identified a new unit clause, we need to redo the loop
+              needRecheck = true
+              newClauses ::= newLits
+            case _ => newClauses ::= newLits
+          }
         }
       }
-      if(!canIgnore)
-        newClauses ::= new Clause(newLits)
+      //println(newClauses)
+      //println("conflict: " + conflictDetected)
 
-      if(nbLits == 1) 
-        force(newLits.head.id, newLits.head.polarity)
-
+      oldClauses = newClauses
+      newClauses = Nil
     }
 
-    val oldVarToNewVar: Array[Int] = new Array(cnf.nbVar)
-    var nbVarsRemoved = 0 //will be used as a shifter for the variable id
-
-    //here we detect the same polarity occurence and fill the old->new mapping, we do not replace any variable yet
-    varCounter.zipWithIndex.foreach(arg => {
-      val ((posCount, negCount), oldId) = arg
-      val newId = oldId - nbVarsRemoved
-
-      if(negCount == 0)
-        force(oldId, true)
-      else if(posCount == 0)
-        force(oldId, false)
-
-      if(isForced(oldId))
-        nbVarsRemoved += 1
-
-      oldVarToNewVar(oldId) = newId
-    })
-
-    var finalClauses: List[Literal] = Nil
-    for(clause <- newClauses) {
-      var newLits: List[Literal] = Nil
-      var canIgnore = false
-      for(lit <- clause.lits) {
-        val oldId = lit.id
-        forcedVars(oldId) match {
-          case None =>
-            val newId = oldVarToNewVar(oldId)
-            val newLit = new Literal(newId, lit.polarity)
-            newLits ::= newLit
-          case Some(true) => canIgnore = true
-          case Some(false) => //just ignore the literal
-        }
-      }
+    if(conflictDetected)
+      (Conflict, null, null, null)
+    else if(oldClauses.isEmpty)
+      (Satisfiable, null, forcedVars, null)
+    else {
+      val oldVarToNewVar: Array[Int] = new Array(cnf.nbVar)
+      val newVarToOldVar = new scala.collection.mutable.ArrayBuffer[Int]
+      var nbVarsRemoved = 0 //will be used as a shifter for the variable id
+      (0 until cnf.nbVar).foreach(i => if(isForced(i)) nbVarsRemoved += 1 else {
+        oldVarToNewVar(i) = i - nbVarsRemoved
+        newVarToOldVar += i
+      })
+      val finalClauses: List[Clause] = oldClauses.map(clause => new Clause(clause.map(lit => new Literal(oldVarToNewVar(lit.id), lit.polarity))))
+      val newNbVars = cnf.nbVar - nbVarsRemoved
+      (Unknown, new CNFFormula(finalClauses, newNbVars), forcedVars, oldVarToNewVar)
     }
-
-
-    new CNFFormula(newClauses, cnf.nbVar)
   }
 
   private sealed trait Status
@@ -300,53 +334,69 @@ object DPLL extends Solver {
   private var status: Status = Unknown
 
   def isSat(cnf: CNFFormula): Option[Array[Boolean]] = {
-    val clauses = preprocess(cnf)
-    //println("isSat called on: " + clauses)
-    cnfFormula = clauses
-    adjacencyLists = Array.fill(clauses.nbVar)(Nil)
-    literalRep = new Array(clauses.nbVar)
-    model = Array.fill(cnfFormula.nbVar)(None)
+    //println("isSat called on: " + cnf)
+    val (st, clauses, forcedVars, oldVarToNewVar) = preprocess(cnf)
+    //println("After preprocessing: " + clauses)
+    //println("Status: " + st)
+    //println("focedVars: " + forcedVars.mkString(", "))
+    //println("old->new: " + oldVarToNewVar)
 
-    for(clause <- cnfFormula.clauses)
-      for(lit <- clause.lits) {
-        adjacencyLists(lit.id) = (clause :: adjacencyLists(lit.id))
-        if(literalRep(lit.id) == null)
-          literalRep(lit.id) = lit
-      }
+    status = st
+    if(status == Unknown) {
+      cnfFormula = clauses
+      adjacencyLists = Array.fill(clauses.nbVar)(Nil)
+      literalRep = new Array(clauses.nbVar)
+      model = Array.fill(cnfFormula.nbVar)(None)
 
-
-    while(status == Unknown) {
-      //println("loop")
-      //println("assignments: " + assignment)
-      //println("unitClauses: " + unitClauses.mkString("[", "\n", "]"))
-      //println("model: " + model.mkString(","))
-      //println("visitedAtLevel: " + visitedAtLevel)
-
-      while(unitClauses != Nil) {
-        val unitClause = unitClauses.head
-        if(unitClause.isUnit) { //could no longer be true since many variables are forwarded
-          val forcedLit = unitClause.lits.find(_.isUnassigned).get
-          //println("Force: " + forcedLit)
-          forcedLit.set(forcedLit.polarity)
-          model(forcedLit.id) = Some(forcedLit.polarity)
-
-          val currentLevel = visitedAtLevel.head
-          val newCurrentLevel = forcedLit.id :: currentLevel
-          visitedAtLevel = newCurrentLevel :: visitedAtLevel.tail
+      for(clause <- cnfFormula.clauses)
+        for(lit <- clause.lits) {
+          adjacencyLists(lit.id) = (clause :: adjacencyLists(lit.id))
+          if(literalRep(lit.id) == null)
+            literalRep(lit.id) = lit
         }
-        unitClauses = unitClauses.tail
+
+
+      while(status == Unknown) {
+        //println("assignments: " + assignment)
+        //println("unitClauses: " + unitClauses.mkString("[", "\n", "]"))
+        //println("model: " + model.mkString(","))
+        //println("visitedAtLevel: " + visitedAtLevel)
+
+        while(unitClauses != Nil) {
+          val unitClause = unitClauses.head
+          if(unitClause.isUnit) { //could no longer be true since many variables are forwarded
+            val forcedLit = unitClause.lits.find(_.isUnassigned).get
+            forcedLit.set(forcedLit.polarity)
+            model(forcedLit.id) = Some(forcedLit.polarity)
+
+            val currentLevel = visitedAtLevel.head
+            val newCurrentLevel = forcedLit.id :: currentLevel
+            visitedAtLevel = newCurrentLevel :: visitedAtLevel.tail
+          }
+          unitClauses = unitClauses.tail
+        }
+
+        if(status == Unknown)
+          decide()
+
+        while(status == Conflict && assignment != Nil)
+          backtrack()
       }
-
-      if(status == Unknown)
-        decide()
-
-      while(status == Conflict && assignment != Nil)
-        backtrack()
     }
 
     val res = status match {
       case Unknown => sys.error("unexpected")
-      case Satisfiable => Some(model.map(v => v.getOrElse(true)))
+      case Satisfiable => {
+        val completeModel: Array[Boolean] = new Array(cnf.nbVar)
+        (0 until cnf.nbVar).foreach(i => forcedVars(i) match {
+          case None => //then this is a new var
+            val newId = oldVarToNewVar(i)
+            completeModel(i) = model(newId).getOrElse(true)
+          case Some(v) =>
+            completeModel(i) = v
+        })
+        Some(completeModel)
+      }
       case Conflict => None
     }
     //println(res.map(m => m.mkString(", ")))
