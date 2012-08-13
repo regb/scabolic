@@ -7,6 +7,102 @@ import regolic.asts.fol.Manip._
 
 object DPLL extends Solver {
 
+  class ImplicationGraph(nbVars: Int) {
+
+    private val nodes: Array[Node] = new Array(nbVars)
+    private var lastConflict: ConflictNode = null
+
+    def insertDecision(id: Int, polarity: Boolean, level: Int) {
+      assert(nodes(id) == null)
+      val n = DecisionNode(id, polarity, level)
+      nodes(id) = n
+    }
+
+    def insertConsequence(reasonIds: List[Int], id: Int, polarity: Boolean, level: Int) {
+      //assert(nodes(id) == null)
+      val n = ConsequenceNode(id, polarity, level)
+      n.ins = reasonIds.map(id => { 
+        assert(nodes(id) != null)
+        val pn = nodes(id) 
+        pn.outs ::= n
+        pn
+      })
+      nodes(id) = n
+    }
+
+    def insertConflict(reasonIds: List[Int]): Node = {
+      println(this.toDotString)
+      println("inserting conflict: " + reasonIds)
+      val n = ConflictNode(reasonIds)
+      n.ins = reasonIds.map(id => { 
+        assert(nodes(id) != null)
+        val pn: Node = nodes(id) 
+        pn.outs ::= n
+        pn
+      })
+      lastConflict = n
+      n
+    }
+
+    def conflictAnalysis: (Clause, Int) = {
+      assert(lastConflict != null)
+      println("Conflict analysis")
+      val (learnedClause, levels) = findRoots(lastConflict).map{ case DecisionNode(id, pol, lvl) => ((id, !pol), lvl) }.unzip
+      println("learned clause is: " + learnedClause)
+      assert(!learnedClause.isEmpty)
+      val clause = new Clause(learnedClause.map(p => new Literal(p._1, p._2)))
+      val backtrackLevel = if(levels.tail.isEmpty) 0 else levels.sortWith((e1, e2) => e1 > e2).tail.head //TODO: inneficient search for the second to last
+
+      lastConflict = null
+      (clause, backtrackLevel)
+
+    }
+
+    def findRoots(node: Node): List[DecisionNode] = node match {
+      case d@DecisionNode(_, _, _) => List(d)
+      case _ => node.ins.flatMap(n => findRoots(n))
+    }
+
+    def allNodes(from: Node = null): List[Node] = {
+      if(from == null) 
+        nodes.flatMap(n => if(n != null) allNodes(n) else List()).distinct.toList 
+      else 
+        from :: (from.outs.flatMap(out => allNodes(out)).distinct)
+    }
+
+
+    def toDotString: String = {
+      var res = "digraph {\n"
+
+      res += nodes.map(n => if(n==null) "" else n match {
+        case DecisionNode(id, pol, level) => id + " [label=\"" + (if(pol) "" else "-") + id + " @" + level + "\" color=blue];"
+        case ConsequenceNode(id, pol, level) => id + " [label=\"" + (if(pol) "" else "-") + id + " @" + level + "\" color=green];"
+        case ConflictNode(_) => "C"
+      }).mkString("\n")
+
+      def printNode(n: Node): String = n match {
+        case DecisionNode(id, _, _) => id.toString
+        case ConsequenceNode(id, _, _) => id.toString
+        case ConflictNode(_) => "C"
+      }
+      def printOuts(n: Node): String = n.outs.map(out => printOuts(out) + "\n" + printNode(n) + " -> " + printNode(out) + ";").mkString("\n")
+      
+      res += nodes.map(n => if(n!=null) printOuts(n) else "").mkString("\n")
+
+      res += "}"
+      res
+    }
+
+  }
+
+  abstract sealed class Node {
+    var ins: List[Node] = Nil
+    var outs: List[Node] = Nil
+  }
+  case class DecisionNode(id: Int, polarity: Boolean, level: Int) extends Node
+  case class ConsequenceNode(id: Int, polarity: Boolean, level: Int) extends Node
+  case class ConflictNode(cl: List[Int]) extends Node
+
   var unitClauses: List[Clause] = List()
 
   //a literal with variable id > 0 and polarity indicates whether this is a NOT literal
@@ -36,8 +132,12 @@ object DPLL extends Solver {
 
             if(clause.isUnit)
               unitClauses ::= clause
-            else if(clause.isUnsat)
+            else if(clause.isUnsat) {
+              assert(lit.polarity != b)
+              implicationGraph.insertConsequence(clause.lits.map(_.id).filterNot(_==lit.id), lit.id, b, decisionLevel)
+              implicationGraph.insertConflict(clause.lits.map(_.id))
               status = Conflict
+            }
             else if(clause.isSat && !wasSat) {
               cnfFormula.incSat()
               if(cnfFormula.isSat)
@@ -275,9 +375,11 @@ object DPLL extends Solver {
   private case object Unknown extends Status
 
   def decide() {
+    decisionLevel += 1
     val i = model.indexWhere(_ == None)
     assert(i >= 0)
     val lit = literalRep(i)
+    implicationGraph.insertDecision(i, true, decisionLevel)
     //println("decide: " + lit)
 
     lit.set(true)
@@ -288,6 +390,7 @@ object DPLL extends Solver {
 
   def backtrack() {
     //println("backtracking")
+    implicationGraph.conflictAnalysis
     var b = false
     while(assignment != Nil && !b) {
       //println("visitedAtLevel: " + visitedAtLevel)
@@ -332,6 +435,8 @@ object DPLL extends Solver {
   private var literalRep: Array[Literal] = null
   private var cnfFormula: CNFFormula = null
   private var status: Status = Unknown
+  private var implicationGraph: ImplicationGraph = null
+  private var decisionLevel = 0
 
   def isSat(cnf: CNFFormula): Option[Array[Boolean]] = {
     //println("isSat called on: " + cnf)
@@ -343,10 +448,12 @@ object DPLL extends Solver {
 
     status = st
     if(status == Unknown) {
+      decisionLevel = 0
       cnfFormula = clauses
       adjacencyLists = Array.fill(clauses.nbVar)(Nil)
       literalRep = new Array(clauses.nbVar)
       model = Array.fill(cnfFormula.nbVar)(None)
+      implicationGraph = new ImplicationGraph(clauses.nbVar)
 
       for(clause <- cnfFormula.clauses)
         for(lit <- clause.lits) {
@@ -364,16 +471,17 @@ object DPLL extends Solver {
 
         while(unitClauses != Nil) {
           val unitClause = unitClauses.head
+          unitClauses = unitClauses.tail
           if(unitClause.isUnit) { //could no longer be true since many variables are forwarded
             val forcedLit = unitClause.lits.find(_.isUnassigned).get
             forcedLit.set(forcedLit.polarity)
             model(forcedLit.id) = Some(forcedLit.polarity)
+            implicationGraph.insertConsequence(unitClause.lits.map(_.id).filterNot(_ == forcedLit.id), forcedLit.id, forcedLit.polarity, decisionLevel)
 
             val currentLevel = visitedAtLevel.head
             val newCurrentLevel = forcedLit.id :: currentLevel
             visitedAtLevel = newCurrentLevel :: visitedAtLevel.tail
           }
-          unitClauses = unitClauses.tail
         }
 
         if(status == Unknown)
@@ -381,7 +489,10 @@ object DPLL extends Solver {
 
         while(status == Conflict && assignment != Nil)
           backtrack()
+
+        println(implicationGraph.toDotString)
       }
+      println(implicationGraph.toDotString)
     }
 
     val res = status match {
