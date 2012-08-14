@@ -12,7 +12,8 @@ object Main {
     "  --dimacs             The input file is to be interpreted as a DIMACS CNF SAT problem" + "\n" +
     "  --smtlib             The input file is to be interpreted as an SMT problem in SMTLIB version 2 format" + "\n" +
     "  --debug=[1-5]        Debug level" + "\n" +
-    "  --tags=t1:...        Filter out debug information that are not of one of the given tags" 
+    "  --tags=t1:...        Filter out debug information that are not of one of the given tags" + "\n" +
+    "  --stats              Print statistics information"
   )
 
   def processOptions(options: Array[String]) {
@@ -20,6 +21,8 @@ object Main {
       option match {
         case "dimacs"        =>                     dimacs = true
         case "smtlib"        =>                     smtlib = true
+
+        case "stats"         =>                     Settings.stats = true
 
         case s if s.startsWith("debug=") =>         Settings.debugLevel = try { 
                                                       s.substring("debug=".length, s.length).toInt 

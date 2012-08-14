@@ -5,7 +5,14 @@ import regolic.asts.core.Manip._
 import regolic.asts.fol.Trees._
 import regolic.asts.fol.Manip._
 
+import regolic.Settings
+
 object DPLL extends Solver {
+
+  private var nbConflicts = 0
+  private var nbDecisions = 0
+  private var nbLearnedLiteral = 0
+  private var nbRestarts = 0
 
   class ImplicationGraph(nbVars: Int) {
 
@@ -92,18 +99,77 @@ object DPLL extends Solver {
       }
     }
 
-    def conflictAnalysis: (Clause, Int) = {
+    private def findDominators(start: Node, to: Node): Set[Node] = {
+      var D: Map[Node, Set[Node]] = Map()
+      val N: Set[Node] = nodes.flatMap(n => if(n == null) List() else List(n)).toSet + to
+      D += (start -> Set(start))
+      for(n <- (N-start))
+        D += (n -> N)
+
+      var change = true
+      while(change) {
+        change = false
+        for(n <- (N-start)) {
+          val preds: Set[Node] = n.ins.toSet
+          val newD = preds.foldLeft(N)((a, s) => a.intersect(D(s))) + n
+          if(newD != D(n)) {
+            change = true
+            D += (n -> newD)
+          }
+        }
+      }
+
+      D(to) - to
+    }
+
+
+    def conflictAnalysis: (Clause, Int) = if(decisionLevel == 0) (null, -1) else {
+      //println(toDotString)
       assert(lastConflict != null)
-      val (learnedClause, levels) = findRoots(lastConflict).map{ case DecisionNode(id, pol, lvl) => ((id, !pol), lvl) }.unzip
+      //println("computing dominator")
+      val dominators = findDominators(decisions.head, lastConflict)
+      //println("dominators: " + dominators)
+
+      val (learnedClause, levels) = findRoots(lastConflict, dominators).map{ 
+        case DecisionNode(id, pol, lvl) => ((id, !pol), lvl) 
+        case ConsequenceNode(id, pol, lvl) => ((id, !pol), lvl)
+        case _ => sys.error("unexpected")
+      }.unzip
       val clause = new Clause(learnedClause.map(p => {val lit = new Literal(p._1, p._2); lit.value = Some(!p._2); lit })) //not sure but I set the literal to its correct assignment so that it is coherent with the whole state
+      //println("learned clause: " + clause)
       clause.nbFalse = clause.lits.size
       val backtrackLevel = if(levels.isEmpty) -1 else if(levels.tail.isEmpty) 0 else levels.sortWith((e1, e2) => e1 > e2).tail.head //TODO: inneficient search for the second to last
       (clause, backtrackLevel)
+
+      //var c = 0
+      //val seen: Array[Boolean] = Array.fill(nbVars)(false)
+      //var learnedClause: List[(Int, Boolean)] = Nil
+      //var backtrackLevel = 0
+      //var toSee: List[Node] = Nil
+      //do {
+      //  lastConflict.ins.foreach(n => {
+      //    toSee ::= n
+      //    val (id, pol, lvl) = n match {
+      //      case DecisionNode(id, pol, lvl) => (id, pol, lvl)
+      //      case ConsequenceNode(id, pol, lvl) => (id, pol, lvl)
+      //      case _ => assert(false)
+      //    }
+      //    seen(id) = true
+      //    if(lvl == decisionLevel)
+      //      c += 1
+      //    else if(lvl > 0) {
+      //      learnedClause ::= (id, !pol)
+      //      backtrackLevel = backtrackLevel.max(level)
+      //    }
+      //  })
+      //  
+      //} while(c > 0)
     }
 
-    private def findRoots(node: Node): List[DecisionNode] = node match {
+    private def findRoots(node: Node, additionalRoots: Set[Node] = Set()): List[Node] = node match {
       case d@DecisionNode(_, _, _) => List(d)
-      case _ => node.ins.flatMap(n => findRoots(n).distinct).distinct
+      case n if additionalRoots.contains(n) => List(n)
+      case _ => node.ins.flatMap(n => findRoots(n, additionalRoots).distinct).distinct
     }
 
     def toDotString: String = {
@@ -121,13 +187,12 @@ object DPLL extends Solver {
         case ConsequenceNode(id, _, _) => id.toString
         case ConflictNode(_) => "C"
       }
-      //def printOuts(n: Node): String = n.outs.map(out => printOuts(out) + "\n" + printNode(n) + " -> " + printNode(out) + ";").mkString("\n")
       
       res += nodes.map(n => if(n == null) "" else {
         n.outs.map(out => printNode(n) + " -> " + printNode(out) + ";").mkString("\n")
       }).mkString("\n")
 
-      res += "}"
+      res += "\n}"
       res
     }
 
@@ -173,6 +238,24 @@ object DPLL extends Solver {
 
     var nbClauses = clauses.size
     private var _nbSat = 0
+
+    private var vsids: Array[Int] = Array.fill(2*nbVar)(0)
+    def getVSIDS(id: Int, pol: Boolean): Int = vsids(2*id + (if(pol) 1 else 0))
+    def incVSIDS(id: Int, pol: Boolean) {
+      val index = 2*id + (if(pol) 1 else 0)
+      vsids(index) = vsids(index) + 1
+    }
+    def decayVSIDS() {
+      var i = 0
+      val size = vsids.size
+      while(i < size) {
+        vsids(i) = vsids(i)/2
+        i += 1
+      }
+    }
+    //init the VSIDS array
+    clauses.foreach(cl => cl.lits.foreach(lit => incVSIDS(lit.id, lit.polarity)))
+
     def isSat = _nbSat == nbClauses
     def incSat() {
       assert(_nbSat < nbClauses)
@@ -184,13 +267,15 @@ object DPLL extends Solver {
     }
     def nbSat = _nbSat
     def learn(clause: Clause) {
-      //println("learning clause: " + clause)
       clauses ::= clause
       nbClauses += 1
       if(clause.isSat)
         incSat()
-      for(lit <- clause.lits)
+      for(lit <- clause.lits) {
         adjacencyLists(lit.id) = (clause :: adjacencyLists(lit.id))
+        incVSIDS(lit.id, lit.polarity)
+      }
+      nbLearnedLiteral += clause.lits.size
     }
 
     override def toString: String = clauses.mkString("{\n", "\n", "\n}")
@@ -265,19 +350,61 @@ object DPLL extends Solver {
   }
 
   def decide() {
-    val i = model.indexWhere(_ == None)
-    assert(i >= 0)
-    implicationGraph.insertDecision(i, true)
-    set(i, true)
+    nbDecisions += 1
+
+    var max: Option[Int] = None
+    var lit: Option[(Int, Boolean)] = None
+    var i = 0
+    while(i < cnfFormula.nbVar) {
+      if(model(i) == None) {
+        val scorePos = cnfFormula.getVSIDS(i, true)
+        val scoreNeg = cnfFormula.getVSIDS(i, false)
+        max match {
+          case None => {
+            if(scorePos > scoreNeg) {
+              max = Some(scorePos)
+              lit = Some((i, true))
+            } else {
+              max = Some(scoreNeg)
+              lit = Some((i, false))
+            }
+          } 
+          case Some(maxScore) => {
+            if(scorePos > maxScore && scorePos >= scoreNeg) {
+              max = Some(scorePos)
+              lit = Some((i, true))
+            } else if(scoreNeg > maxScore && scoreNeg >= scorePos) {
+              max = Some(scoreNeg)
+              lit = Some((i, false))
+            }
+          }
+        }
+      }
+      i += 1
+    }
+    assert(max != None)
+    assert(lit != None)
+
+    val fLit = lit.get
+    //println("decide: " + fLit._1 + " with polarity " + fLit._2)
+    implicationGraph.insertDecision(fLit._1, fLit._2)
+    set(fLit._1, fLit._2)
   }
 
   def backtrack() {
+    nbConflicts += 1
+    if(nbConflicts % 20 == 0)
+      cnfFormula.decayVSIDS()
     val (learnedClause, backtrackLevel) = implicationGraph.conflictAnalysis
     if(backtrackLevel == -1)
       status = Unsatisfiable
     else {
       cnfFormula.learn(learnedClause)
-      implicationGraph.backtrackTo(backtrackLevel)
+      if(nbConflicts % 200 == 0) {
+        nbRestarts += 1
+        implicationGraph.backtrackTo(0)
+      } else
+        implicationGraph.backtrackTo(backtrackLevel)
     }
   }
 
@@ -287,6 +414,7 @@ object DPLL extends Solver {
       unitClauses = unitClauses.tail
       if(unitClause.isUnit) { //could no longer be true since many variables are forwarded
         val forcedLit = unitClause.lits.find(_.isUnassigned).get
+        //println("force: " + forcedLit)
         implicationGraph.insertConsequence(unitClause.lits.map(_.id).filterNot(_ == forcedLit.id), forcedLit.id, forcedLit.polarity)
         set(forcedLit.id, forcedLit.polarity)
       }
@@ -353,7 +481,12 @@ object DPLL extends Solver {
         Some(completeModel)
       }
     }
-    //println(res.map(m => m.mkString(", ")))
+    if(Settings.stats) {
+      println("Conflicts: " + nbConflicts)
+      println("Decisions: " + nbDecisions)
+      println("Restarts: " + nbRestarts)
+      println("Learned Literals: " + nbLearnedLiteral + " --- " + nbLearnedLiteral.toDouble/nbConflicts.toDouble + " per clause")
+    }
     res
   }
 
