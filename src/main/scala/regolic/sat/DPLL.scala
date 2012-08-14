@@ -9,18 +9,33 @@ object DPLL extends Solver {
 
   class ImplicationGraph(nbVars: Int) {
 
+    private abstract sealed class Node {
+      var ins: List[Node] = Nil
+      var outs: List[Node] = Nil
+    }
+    private case class DecisionNode(id: Int, polarity: Boolean, level: Int) extends Node
+    private case class ConsequenceNode(id: Int, polarity: Boolean, level: Int) extends Node
+    private case class ConflictNode(cl: List[Int]) extends Node
+
     private val nodes: Array[Node] = new Array(nbVars)
     private var lastConflict: ConflictNode = null
+    
+    private var decisionLevel = 0
+    private var consequences: List[List[ConsequenceNode]] = List(Nil)
+    private var decisions: List[DecisionNode] = Nil
 
-    def insertDecision(id: Int, polarity: Boolean, level: Int) {
+    def insertDecision(id: Int, polarity: Boolean) {
       assert(nodes(id) == null)
-      val n = DecisionNode(id, polarity, level)
+      decisionLevel += 1
+      val n = DecisionNode(id, polarity, decisionLevel)
       nodes(id) = n
+      decisions ::= n
+      consequences ::= Nil
     }
 
-    def insertConsequence(reasonIds: List[Int], id: Int, polarity: Boolean, level: Int) {
-      //assert(nodes(id) == null)
-      val n = ConsequenceNode(id, polarity, level)
+    def insertConsequence(reasonIds: List[Int], id: Int, polarity: Boolean) {
+      assert(nodes(id) == null)
+      val n = ConsequenceNode(id, polarity, decisionLevel)
       n.ins = reasonIds.map(id => { 
         assert(nodes(id) != null)
         val pn = nodes(id) 
@@ -28,11 +43,14 @@ object DPLL extends Solver {
         pn
       })
       nodes(id) = n
+
+      val currentLevel = consequences.head
+      val newCurrentLevel = n :: currentLevel
+      consequences = newCurrentLevel :: consequences.tail
     }
 
-    def insertConflict(reasonIds: List[Int]): Node = {
-      println(this.toDotString)
-      println("inserting conflict: " + reasonIds)
+    def insertConflict(reasonIds: List[Int]) {
+      assert(lastConflict == null)
       val n = ConflictNode(reasonIds)
       n.ins = reasonIds.map(id => { 
         assert(nodes(id) != null)
@@ -44,32 +62,49 @@ object DPLL extends Solver {
       n
     }
 
+    def backtrackTo(lvl: Int) {
+      assert(lastConflict != null)
+      lastConflict.ins.foreach(incNode => incNode.outs = incNode.outs.filterNot(_ == lastConflict))
+      lastConflict = null
+      while(decisionLevel != lvl) {
+        val decisionNode: DecisionNode = decisions.head
+        assert(decisionNode.level == decisionLevel)
+        val consequenceNodes: List[ConsequenceNode] = consequences.head
+        consequenceNodes.foreach(n => assert(n.level == decisionLevel))
+        decisions = decisions.tail
+        consequences = consequences.tail
+        decisionLevel -= 1
+
+        unset(decisionNode.id)
+        nodes(decisionNode.id) = null
+
+        consequenceNodes.foreach(n => {
+          val id = n.id
+          unset(id)
+
+          //remove the occurence of the node everywhere (not all of the inc node are removed with backtracking)
+          //this is not optimal, maybe a more global approach to backtracking would be better
+          n.ins.foreach(incNode => incNode.outs = incNode.outs.filterNot(_ == n))
+          nodes(id) = null
+
+        })
+
+      }
+    }
+
     def conflictAnalysis: (Clause, Int) = {
       assert(lastConflict != null)
-      println("Conflict analysis")
       val (learnedClause, levels) = findRoots(lastConflict).map{ case DecisionNode(id, pol, lvl) => ((id, !pol), lvl) }.unzip
-      println("learned clause is: " + learnedClause)
-      assert(!learnedClause.isEmpty)
-      val clause = new Clause(learnedClause.map(p => new Literal(p._1, p._2)))
-      val backtrackLevel = if(levels.tail.isEmpty) 0 else levels.sortWith((e1, e2) => e1 > e2).tail.head //TODO: inneficient search for the second to last
-
-      lastConflict = null
+      val clause = new Clause(learnedClause.map(p => {val lit = new Literal(p._1, p._2); lit.value = Some(!p._2); lit })) //not sure but I set the literal to its correct assignment so that it is coherent with the whole state
+      clause.nbFalse = clause.lits.size
+      val backtrackLevel = if(levels.isEmpty) -1 else if(levels.tail.isEmpty) 0 else levels.sortWith((e1, e2) => e1 > e2).tail.head //TODO: inneficient search for the second to last
       (clause, backtrackLevel)
-
     }
 
-    def findRoots(node: Node): List[DecisionNode] = node match {
+    private def findRoots(node: Node): List[DecisionNode] = node match {
       case d@DecisionNode(_, _, _) => List(d)
-      case _ => node.ins.flatMap(n => findRoots(n))
+      case _ => node.ins.flatMap(n => findRoots(n).distinct).distinct
     }
-
-    def allNodes(from: Node = null): List[Node] = {
-      if(from == null) 
-        nodes.flatMap(n => if(n != null) allNodes(n) else List()).distinct.toList 
-      else 
-        from :: (from.outs.flatMap(out => allNodes(out)).distinct)
-    }
-
 
     def toDotString: String = {
       var res = "digraph {\n"
@@ -79,15 +114,18 @@ object DPLL extends Solver {
         case ConsequenceNode(id, pol, level) => id + " [label=\"" + (if(pol) "" else "-") + id + " @" + level + "\" color=green];"
         case ConflictNode(_) => "C"
       }).mkString("\n")
+      res += "\n"
 
       def printNode(n: Node): String = n match {
         case DecisionNode(id, _, _) => id.toString
         case ConsequenceNode(id, _, _) => id.toString
         case ConflictNode(_) => "C"
       }
-      def printOuts(n: Node): String = n.outs.map(out => printOuts(out) + "\n" + printNode(n) + " -> " + printNode(out) + ";").mkString("\n")
+      //def printOuts(n: Node): String = n.outs.map(out => printOuts(out) + "\n" + printNode(n) + " -> " + printNode(out) + ";").mkString("\n")
       
-      res += nodes.map(n => if(n!=null) printOuts(n) else "").mkString("\n")
+      res += nodes.map(n => if(n == null) "" else {
+        n.outs.map(out => printNode(n) + " -> " + printNode(out) + ";").mkString("\n")
+      }).mkString("\n")
 
       res += "}"
       res
@@ -95,100 +133,17 @@ object DPLL extends Solver {
 
   }
 
-  abstract sealed class Node {
-    var ins: List[Node] = Nil
-    var outs: List[Node] = Nil
-  }
-  case class DecisionNode(id: Int, polarity: Boolean, level: Int) extends Node
-  case class ConsequenceNode(id: Int, polarity: Boolean, level: Int) extends Node
-  case class ConflictNode(cl: List[Int]) extends Node
+  private sealed trait Status
+  private case object Satisfiable extends Status
+  private case object Unsatisfiable extends Status
+  private case object Conflict extends Status
+  private case object Unknown extends Status
 
-  var unitClauses: List[Clause] = List()
-
-  //a literal with variable id > 0 and polarity indicates whether this is a NOT literal
-  //we assume that all propositional variable will have an id between 0 and nbVar, so we can use basic arrays to represent information associated with variable
   class Literal(val id: Int, val polarity: Boolean) {
     require(id >= 0)
-
     var value: Option[Boolean] = None
-
-    def set(b: Boolean) {
-      require(isUnassigned)
-
-      for(clause <- adjacencyLists(id)) {
-        val wasSat = clause.isSat
-        //println("set in clause: " + clause)
-
-        clause.lits.find(lit => { //assume only one occurence of each lit
-          if(lit.id == id) {
-            if(lit != this)
-              require(lit.isUnassigned)
-            lit.value = Some(b)
-
-            if(lit.isUnsat)
-              clause.nbFalse += 1
-            else
-              clause.nbTrue += 1
-
-            if(clause.isUnit)
-              unitClauses ::= clause
-            else if(clause.isUnsat) {
-              assert(lit.polarity != b)
-              implicationGraph.insertConsequence(clause.lits.map(_.id).filterNot(_==lit.id), lit.id, b, decisionLevel)
-              implicationGraph.insertConflict(clause.lits.map(_.id))
-              status = Conflict
-            }
-            else if(clause.isSat && !wasSat) {
-              cnfFormula.incSat()
-              if(cnfFormula.isSat)
-                status = Satisfiable
-            }
-            true
-          } else false
-        })
-        //println("end set in clause: " + clause)
-      }
-    }
-
-    def unset() {
-      require(isAssigned)
-      val clauses = adjacencyLists(id)
-      for(clause <- clauses) {
-        for(lit <- clause.lits) {
-          if(lit.id == id) {
-            if(lit != this)
-              require(lit.isAssigned)
-
-            if(clause.isSat)
-              cnfFormula.decSat()
-
-            if(status == Conflict && clause.isUnsat)
-              status = Unknown
-
-            if(lit.isUnsat)
-              clause.nbFalse -= 1
-            else
-              clause.nbTrue -= 1
-
-            lit.value = None
-
-            if(clause.isUnit)
-              unitClauses ::= clause
-            else if(clause.isUnsat)
-              status = Conflict
-            else if(clause.isSat) {
-              cnfFormula.incSat()
-              if(cnfFormula.isSat)
-                status = Satisfiable
-            }
-          }
-        }
-      }
-    }
-
     def isAssigned = value != None
     def isUnassigned = value == None
-
     def isSat = {
       require(isAssigned)
       !(value.get ^ polarity)
@@ -197,48 +152,213 @@ object DPLL extends Solver {
       require(isAssigned)
       value.get ^ polarity
     }
-
     override def toString: String = (if(!polarity) "-" else "") + "v" + id
   }
 
   class Clause(val lits: List[Literal]) {
-
     val nbLits = lits.length
     var nbTrue = 0
     var nbFalse = 0
-
     def isSat = nbTrue > 0
     def isUnsat = nbFalse == nbLits
     def isUnit = nbFalse == nbLits - 1 && nbTrue == 0
     def isConflict = nbFalse == nbLits
-
     override def toString: String = lits.mkString(", ")
-
   }
 
-  class CNFFormula(val clauses: List[Clause], val nbVar: Int) {
-    //TODO: require nbVar is correct
+  class CNFFormula(var clauses: List[Clause], val nbVar: Int) {
+    require(clauses.forall(cl => cl.lits.forall(lit => lit.id >= 0 && lit.id < nbVar))) //could also check that there is no empty id
+    //require(only one occurence of each lit)
+    //actually we should write an invariant function somewhere
 
-    val nbClauses = clauses.size
+    var nbClauses = clauses.size
     private var _nbSat = 0
-
     def isSat = _nbSat == nbClauses
-
     def incSat() {
       assert(_nbSat < nbClauses)
       _nbSat += 1
-      //println("nbSat: " + _nbSat)
     }
-
     def decSat() {
       assert(_nbSat > 0)
       _nbSat -= 1
-      //println("nbSat: " + _nbSat)
+    }
+    def nbSat = _nbSat
+    def learn(clause: Clause) {
+      //println("learning clause: " + clause)
+      clauses ::= clause
+      nbClauses += 1
+      if(clause.isSat)
+        incSat()
+      for(lit <- clause.lits)
+        adjacencyLists(lit.id) = (clause :: adjacencyLists(lit.id))
     }
 
-    def nbSat = _nbSat
-
     override def toString: String = clauses.mkString("{\n", "\n", "\n}")
+  }
+
+  def set(id: Int, b: Boolean) {
+    model(id) = Some(b)
+
+    for(clause <- adjacencyLists(id)) {
+      val wasSat = clause.isSat
+      clause.lits.find(lit => { //assume only one occurence of each lit, hence the find so we can stop after finding it
+        if(lit.id == id) {
+          require(lit.isUnassigned)
+          lit.value = Some(b)
+
+          if(lit.isUnsat)
+            clause.nbFalse += 1
+          else
+            clause.nbTrue += 1
+
+          if(clause.isUnit)
+            unitClauses ::= clause
+          else if(status != Conflict && clause.isUnsat) {
+            assert(lit.polarity != b)
+            implicationGraph.insertConflict(clause.lits.map(_.id))
+            status = Conflict
+          }
+          else if(clause.isSat && !wasSat) {
+            cnfFormula.incSat()
+            if(cnfFormula.isSat)
+              status = Satisfiable
+          }
+          true
+        } else false
+      })
+    }
+  }
+
+  def unset(id: Int) {
+    model(id) = None
+    val clauses = adjacencyLists(id)
+    for(clause <- clauses) {
+      for(lit <- clause.lits) {
+        if(lit.id == id) {
+          require(lit.isAssigned)
+
+          if(clause.isSat)
+            cnfFormula.decSat()
+
+          if(status == Conflict && clause.isUnsat)
+            status = Unknown
+
+          if(lit.isUnsat)
+            clause.nbFalse -= 1
+          else
+            clause.nbTrue -= 1
+
+          lit.value = None
+
+          if(clause.isUnit)
+            unitClauses ::= clause
+          else if(clause.isUnsat)
+            status = Conflict
+          else if(clause.isSat) {
+            cnfFormula.incSat()
+            if(cnfFormula.isSat)
+              status = Satisfiable
+          }
+        }
+      }
+    }
+  }
+
+  def decide() {
+    val i = model.indexWhere(_ == None)
+    assert(i >= 0)
+    implicationGraph.insertDecision(i, true)
+    set(i, true)
+  }
+
+  def backtrack() {
+    val (learnedClause, backtrackLevel) = implicationGraph.conflictAnalysis
+    if(backtrackLevel == -1)
+      status = Unsatisfiable
+    else {
+      cnfFormula.learn(learnedClause)
+      implicationGraph.backtrackTo(backtrackLevel)
+    }
+  }
+
+  def deduce() {
+    while(unitClauses != Nil) {
+      val unitClause = unitClauses.head
+      unitClauses = unitClauses.tail
+      if(unitClause.isUnit) { //could no longer be true since many variables are forwarded
+        val forcedLit = unitClause.lits.find(_.isUnassigned).get
+        implicationGraph.insertConsequence(unitClause.lits.map(_.id).filterNot(_ == forcedLit.id), forcedLit.id, forcedLit.polarity)
+        set(forcedLit.id, forcedLit.polarity)
+      }
+    }
+  }
+
+  private var unitClauses: List[Clause] = List()
+  private var model: Array[Option[Boolean]] = null
+  private var adjacencyLists: Array[List[Clause]] = null
+  private var cnfFormula: CNFFormula = null
+  private var status: Status = Unknown
+  private var implicationGraph: ImplicationGraph = null
+
+  def isSat(cnf: CNFFormula): Option[Array[Boolean]] = {
+    //println("isSat called on: " + cnf)
+    val (st, clauses, forcedVars, oldVarToNewVar) = preprocess(cnf)
+    //println("After preprocessing: " + clauses)
+
+    status = st
+    if(status == Unknown) {
+      //INITIALIZATION
+      cnfFormula = clauses
+      adjacencyLists = Array.fill(clauses.nbVar)(Nil)
+      model = Array.fill(cnfFormula.nbVar)(None)
+      implicationGraph = new ImplicationGraph(clauses.nbVar)
+      for(clause <- cnfFormula.clauses)
+        for(lit <- clause.lits)
+          adjacencyLists(lit.id) = (clause :: adjacencyLists(lit.id))
+
+      //MAIN LOOP
+      while(status == Unknown) {
+        //println("assignments: " + assignment)
+        //println("unitClauses: " + unitClauses.mkString("[", "\n", "]"))
+        //println("model: " + model.mkString(","))
+        //println(cnfFormula.nbClauses)
+        //println(implicationGraph.toDotString)
+
+        decide()
+
+        var cont = true
+        while(cont) {
+          deduce()
+
+          if(status == Conflict)
+            backtrack()
+          else
+            cont = false
+        }
+      }
+    }
+
+    val res = status match {
+      case Unknown | Conflict => sys.error("unexpected")
+      case Unsatisfiable => None
+      case Satisfiable => {
+        val completeModel: Array[Boolean] = new Array(cnf.nbVar)
+        (0 until cnf.nbVar).foreach(i => forcedVars(i) match {
+          case None => //then this is a new var
+            val newId = oldVarToNewVar(i)
+            completeModel(i) = model(newId).getOrElse(true)
+          case Some(v) =>
+            completeModel(i) = v
+        })
+        Some(completeModel)
+      }
+    }
+    //println(res.map(m => m.mkString(", ")))
+    res
+  }
+
+  def isSat(clauses: List[Formula]): Option[Map[PredicateApplication, Boolean]] = {
+    null
   }
 
   //if a var only appear with the same polarity then set it to be true
@@ -352,7 +472,7 @@ object DPLL extends Solver {
     }
 
     if(conflictDetected)
-      (Conflict, null, null, null)
+      (Unsatisfiable, null, null, null)
     else if(oldClauses.isEmpty)
       (Satisfiable, null, forcedVars, null)
     else {
@@ -367,222 +487,6 @@ object DPLL extends Solver {
       val newNbVars = cnf.nbVar - nbVarsRemoved
       (Unknown, new CNFFormula(finalClauses, newNbVars), forcedVars, oldVarToNewVar)
     }
-  }
-
-  private sealed trait Status
-  private case object Satisfiable extends Status
-  private case object Conflict extends Status
-  private case object Unknown extends Status
-
-  def decide() {
-    decisionLevel += 1
-    val i = model.indexWhere(_ == None)
-    assert(i >= 0)
-    val lit = literalRep(i)
-    implicationGraph.insertDecision(i, true, decisionLevel)
-    //println("decide: " + lit)
-
-    lit.set(true)
-    model(i) = Some(true)
-    assignment ::= (i, true)
-    visitedAtLevel ::= Nil //add a new layer for this level
-  }
-
-  def backtrack() {
-    //println("backtracking")
-    implicationGraph.conflictAnalysis
-    var b = false
-    while(assignment != Nil && !b) {
-      //println("visitedAtLevel: " + visitedAtLevel)
-      val h = assignment.head
-      val id = h._1
-      val lit = literalRep(id)
-      //println("Unset " + lit)
-      lit.unset()
-      model(id) = None
-
-      var currentLevel = visitedAtLevel.head
-      while(currentLevel != Nil) {
-        val toUnset = literalRep(currentLevel.head)
-        //println("Unset " + toUnset)
-        toUnset.unset()
-        model(currentLevel.head) = None
-        currentLevel = currentLevel.tail
-      }
-
-      visitedAtLevel = visitedAtLevel.tail
-      b = h._2
-      assignment = assignment.tail
-
-      if(b) {
-        //println("set " + lit + " to false")
-        lit.set(false)
-        model(id) = Some(false)
-        assignment ::= (id, false)
-        visitedAtLevel ::= Nil
-      }
-
-    }
-    if(assignment == Nil)
-      status = Conflict
-    //println("status: " + status)
-  }
-
-  private var visitedAtLevel: List[List[Int]] = List(Nil) //we explicitly represent layer -1 so that we can apply the deduce immediately
-  private var assignment: List[(Int, Boolean)] = Nil
-  private var model: Array[Option[Boolean]] = null
-  private var adjacencyLists: Array[List[Clause]] = null
-  private var literalRep: Array[Literal] = null
-  private var cnfFormula: CNFFormula = null
-  private var status: Status = Unknown
-  private var implicationGraph: ImplicationGraph = null
-  private var decisionLevel = 0
-
-  def isSat(cnf: CNFFormula): Option[Array[Boolean]] = {
-    //println("isSat called on: " + cnf)
-    val (st, clauses, forcedVars, oldVarToNewVar) = preprocess(cnf)
-    //println("After preprocessing: " + clauses)
-    //println("Status: " + st)
-    //println("focedVars: " + forcedVars.mkString(", "))
-    //println("old->new: " + oldVarToNewVar)
-
-    status = st
-    if(status == Unknown) {
-      decisionLevel = 0
-      cnfFormula = clauses
-      adjacencyLists = Array.fill(clauses.nbVar)(Nil)
-      literalRep = new Array(clauses.nbVar)
-      model = Array.fill(cnfFormula.nbVar)(None)
-      implicationGraph = new ImplicationGraph(clauses.nbVar)
-
-      for(clause <- cnfFormula.clauses)
-        for(lit <- clause.lits) {
-          adjacencyLists(lit.id) = (clause :: adjacencyLists(lit.id))
-          if(literalRep(lit.id) == null)
-            literalRep(lit.id) = lit
-        }
-
-
-      while(status == Unknown) {
-        //println("assignments: " + assignment)
-        //println("unitClauses: " + unitClauses.mkString("[", "\n", "]"))
-        //println("model: " + model.mkString(","))
-        //println("visitedAtLevel: " + visitedAtLevel)
-
-        while(unitClauses != Nil) {
-          val unitClause = unitClauses.head
-          unitClauses = unitClauses.tail
-          if(unitClause.isUnit) { //could no longer be true since many variables are forwarded
-            val forcedLit = unitClause.lits.find(_.isUnassigned).get
-            forcedLit.set(forcedLit.polarity)
-            model(forcedLit.id) = Some(forcedLit.polarity)
-            implicationGraph.insertConsequence(unitClause.lits.map(_.id).filterNot(_ == forcedLit.id), forcedLit.id, forcedLit.polarity, decisionLevel)
-
-            val currentLevel = visitedAtLevel.head
-            val newCurrentLevel = forcedLit.id :: currentLevel
-            visitedAtLevel = newCurrentLevel :: visitedAtLevel.tail
-          }
-        }
-
-        if(status == Unknown)
-          decide()
-
-        while(status == Conflict && assignment != Nil)
-          backtrack()
-
-        println(implicationGraph.toDotString)
-      }
-      println(implicationGraph.toDotString)
-    }
-
-    val res = status match {
-      case Unknown => sys.error("unexpected")
-      case Satisfiable => {
-        val completeModel: Array[Boolean] = new Array(cnf.nbVar)
-        (0 until cnf.nbVar).foreach(i => forcedVars(i) match {
-          case None => //then this is a new var
-            val newId = oldVarToNewVar(i)
-            completeModel(i) = model(newId).getOrElse(true)
-          case Some(v) =>
-            completeModel(i) = v
-        })
-        Some(completeModel)
-      }
-      case Conflict => None
-    }
-    //println(res.map(m => m.mkString(", ")))
-    res
-  }
-
-  def isSat(clauses: List[Formula]): Option[Map[PredicateApplication, Boolean]] = {
-    val simpleClauses = clauses.map(simplifyOr).filterNot(isTrue)
-    val (clauses2, varsMapping) = bcp(simpleClauses)
-    if(clauses2.forall(isTrue))
-      Some(varsMapping)
-    else if(clauses2.exists(isFalse))
-      None
-    else {
-      val chosenVar = clauses2.flatMap(f => propVars(f)).head
-      val left = isSat(clauses2.map(f => substitutePropVar(f, chosenVar, True())))
-      val right = isSat(clauses2.map(f => substitutePropVar(f, chosenVar, False())))
-      (left, right) match {
-        case (Some(m1), _) => Some((m1 ++ varsMapping) + (chosenVar -> true))
-        case (_, Some(m2)) => Some((m2 ++ varsMapping) + (chosenVar -> false))
-        case (None, None) => None
-      }
-    }
-  }
-
-  private def simplifyOr(or: Formula): Formula = or match {
-    case Or(Nil) => False()
-    case Or(fs) if fs.exists(isTrue) => True()
-    case Or(fs) if fs.exists(isFalse) => fs.filterNot(isFalse) match {
-      case Nil => False()
-      case fs2 => Or(fs2)
-    }
-    case _ => or
-  }
-
-  def bcp(clauses: List[Formula]): (List[Formula], Map[PredicateApplication, Boolean]) = {
-    def unitClause(f: Formula) = f match {
-      case Or(List(PropositionalVariable(_))) => true
-      case Or(List(Not(PropositionalVariable(_)))) => true
-      case PropositionalVariable(_) => true
-      case Not(PropositionalVariable(_)) => true
-      case _ => false
-    }
-    clauses.find(unitClause) match {
-      case None => (clauses, Map())
-      case Some(o) => {
-        val p = o match {
-          case Or(List(p)) => p
-          case p => p
-        }
-        val (substClauses, mappedVar) = p match {
-          case Not(p@PropositionalVariable(_)) => (clauses.map(f => substitutePropVar(f, p, False())), Map[PredicateApplication, Boolean](p -> false))
-          case p@PropositionalVariable(_) => (clauses.map(f => substitutePropVar(f, p, True())), Map[PredicateApplication, Boolean](p -> true))
-        }
-        val simpleClauses = substClauses.map(f => simplifyOr(f))
-        val res = simpleClauses.filterNot(isTrue)
-        if(res.exists(isFalse))
-          (res, mappedVar)
-        else {
-          val (finalClauses, finalMap) = bcp(res)
-          (finalClauses, finalMap ++ mappedVar)
-        }
-      }
-    }
-  }
-
-  private def isTrue(f: Formula): Boolean = f match {
-    case True() => true
-    case Not(False()) => true
-    case _ => false
-  }
-  private def isFalse(f: Formula): Boolean = f match {
-    case False() => true
-    case Not(True()) => true
-    case _ => false
   }
 
 }
