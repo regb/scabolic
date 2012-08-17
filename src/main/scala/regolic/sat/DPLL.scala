@@ -269,9 +269,9 @@ object DPLL extends Solver {
   }
 
   class CNFFormula(var clauses: List[Clause], val nbVar: Int) {
-    require(clauses.forall(cl => cl.lits.forall(lit => lit.id >= 0 && lit.id < nbVar))) //could also check that there is no empty id
-    //require(only one occurence of each lit)
-    //actually we should write an invariant function somewhere
+    require(clauses.forall(cl => cl.lits.forall(lit => lit.id >= 0 && lit.id < nbVar)))
+    require(clauses.forall(cl => cl.lits.size >= 2))
+    require(clauses.forall(cl => cl.lits.forall(lit => cl.lits.count(_.id == lit.id) == 1)))
 
     var nbClauses = clauses.size
     //private var _nbSat = 0
@@ -440,15 +440,15 @@ object DPLL extends Solver {
   private var status: Status = Unknown
   private var implicationGraph: ImplicationGraph = null
 
-  def isSat(cnf: CNFFormula): Option[Array[Boolean]] = {
-    val (st, clauses, forcedVars, oldVarToNewVar) = preprocess(cnf)
+  def isSat(clauses: List[Clause], nbVars: Int): Option[Array[Boolean]] = {
+    val (st, newClauses, forcedVars, oldVarToNewVar) = preprocess(clauses, nbVars)
 
     status = st
     if(status == Unknown) {
       //INITIALIZATION
-      cnfFormula = clauses
+      cnfFormula = newClauses
       model = Array.fill(cnfFormula.nbVar)(None)
-      implicationGraph = new ImplicationGraph(clauses.nbVar)
+      implicationGraph = new ImplicationGraph(cnfFormula.nbVar)
       posWatched = Array.fill(cnfFormula.nbVar)(Nil)
       negWatched = Array.fill(cnfFormula.nbVar)(Nil)
       for(clause <- cnfFormula.clauses)
@@ -479,8 +479,8 @@ object DPLL extends Solver {
       case Unknown | Conflict => sys.error("unexpected")
       case Unsatisfiable => None
       case Satisfiable => {
-        val completeModel: Array[Boolean] = new Array(cnf.nbVar)
-        (0 until cnf.nbVar).foreach(i => forcedVars(i) match {
+        val completeModel: Array[Boolean] = new Array(nbVars)
+        (0 until nbVars).foreach(i => forcedVars(i) match {
           case None => //then this is a new var
             val newId = oldVarToNewVar(i)
             completeModel(i) = model(newId).getOrElse(true)
@@ -507,9 +507,9 @@ object DPLL extends Solver {
   //all unit clause are eliminated and the corresponding variables deleted
   //keep a map from original var id to new ones
   //must also ensure that in each clause at most one occurence of the same variable can occur
-  private def preprocess(cnf: CNFFormula): (Status, CNFFormula, Array[Option[Boolean]], Array[Int]) = {
+  private def preprocess(clauses: List[Clause], nbVars: Int): (Status, CNFFormula, Array[Option[Boolean]], Array[Int]) = {
     var conflictDetected = false
-    var forcedVars: Array[Option[Boolean]] = Array.fill(cnf.nbVar)(None) //list of variable that are forced to some value
+    var forcedVars: Array[Option[Boolean]] = Array.fill(nbVars)(None) //list of variable that are forced to some value
     //force a var to a pol, record the information into the forcedVars array, may detect a conflict
     def force(id: Int, pol: Boolean) {
       //println("Forcing " + id + " to " + pol)
@@ -521,13 +521,13 @@ object DPLL extends Solver {
     }
     def isForced(id: Int): Boolean = forcedVars(id) != None
 
-    var oldClauses: List[List[Literal]] = cnf.clauses.map(_.lits)
+    var oldClauses: List[List[Literal]] = clauses.map(_.lits)
     var newClauses: List[List[Literal]] = Nil
 
     //first we eliminate duplicate in the same clause as well as clauses containing both polarity
     //of same variable. This is only needed once
     for(clause <- oldClauses) {
-      val varOccurences: Array[Option[Boolean]] = Array.fill(cnf.nbVar)(None)
+      val varOccurences: Array[Option[Boolean]] = Array.fill(nbVars)(None)
       var newLits: List[Literal] = Nil
       var ignoreClause = false
       for(lit <- clause) {
@@ -554,7 +554,7 @@ object DPLL extends Solver {
       //println(oldClauses)
 
       //first we count all occurence in the current situation and the unit clauses
-      val varsCounters: Array[(Int, Int)] = Array.fill(cnf.nbVar)((0, 0))
+      val varsCounters: Array[(Int, Int)] = Array.fill(nbVars)((0, 0))
       for(clause <- oldClauses) {
         var nbLits = 0
         for(lit <- clause) {
@@ -618,15 +618,15 @@ object DPLL extends Solver {
     else if(oldClauses.isEmpty)
       (Satisfiable, null, forcedVars, null)
     else {
-      val oldVarToNewVar: Array[Int] = new Array(cnf.nbVar)
+      val oldVarToNewVar: Array[Int] = new Array(nbVars)
       val newVarToOldVar = new scala.collection.mutable.ArrayBuffer[Int]
       var nbVarsRemoved = 0 //will be used as a shifter for the variable id
-      (0 until cnf.nbVar).foreach(i => if(isForced(i)) nbVarsRemoved += 1 else {
+      (0 until nbVars).foreach(i => if(isForced(i)) nbVarsRemoved += 1 else {
         oldVarToNewVar(i) = i - nbVarsRemoved
         newVarToOldVar += i
       })
       val finalClauses: List[Clause] = oldClauses.map(clause => new Clause(clause.map(lit => new Literal(oldVarToNewVar(lit.id), lit.polarity))))
-      val newNbVars = cnf.nbVar - nbVarsRemoved
+      val newNbVars = nbVars - nbVarsRemoved
       (Unknown, new CNFFormula(finalClauses, newNbVars), forcedVars, oldVarToNewVar)
     }
   }

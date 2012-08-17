@@ -32,7 +32,7 @@ import regolic.asts.fol.Trees._
 
 object Dimacs {
 
-  def cnf(input: InputStream): CNFFormula = {
+  def cnf(input: InputStream): (List[Clause], Int) = {
 
     var clauses: List[Clause] = Nil
     var nbClauses: Option[Int] = None
@@ -81,7 +81,7 @@ object Dimacs {
       } //else simply ignore the line, don't need to reject the input file for that
     }
 
-    new CNFFormula(clauses, nbVariables)
+    (clauses, nbVariables)
   }
 
 
