@@ -21,6 +21,12 @@ object DPLL extends Solver {
     private abstract sealed class Node {
       var ins: List[Node] = Nil
       var outs: List[Node] = Nil
+
+      def getId: Int = this match {
+        case DecisionNode(id, _, _) => id
+        case ConsequenceNode(id, _, _) => id
+        case _ => throw new RuntimeException("id unsported on conflict node")
+      }
     }
     private case class DecisionNode(id: Int, polarity: Boolean, level: Int) extends Node
     private case class ConsequenceNode(id: Int, polarity: Boolean, level: Int) extends Node
@@ -32,6 +38,7 @@ object DPLL extends Solver {
     private var decisionLevel = 0
     private var consequences: List[List[ConsequenceNode]] = List(Nil)
     private var decisions: List[DecisionNode] = Nil
+    private var trail: List[Node] = Nil
 
     def insertDecision(id: Int, polarity: Boolean) {
       assert(nodes(id) == null)
@@ -40,14 +47,12 @@ object DPLL extends Solver {
       nodes(id) = n
       decisions ::= n
       consequences ::= Nil
+      trail ::= n
     }
 
     def insertConsequence(reasonIds: List[Int], id: Int, polarity: Boolean) {
       assert(nodes(id) == null)
-      val n = if(reasonIds.isEmpty) //then this comes from a clause of size 1, we can add the implication at level 0
-          ConsequenceNode(id, polarity, 0)
-        else
-          ConsequenceNode(id, polarity, decisionLevel)
+      val n = ConsequenceNode(id, polarity, decisionLevel)
       n.ins = reasonIds.map(id => {
         assert(nodes(id) != null)
         val pn = nodes(id)
@@ -56,13 +61,10 @@ object DPLL extends Solver {
       })
       nodes(id) = n
 
-      if(reasonIds.isEmpty) {
-        consequences.zipWithIndex.map{ case (lists, i) => if(i == 0) n::lists else lists }
-      } else {
-        val currentLevel = consequences.head
-        val newCurrentLevel = n :: currentLevel
-        consequences = newCurrentLevel :: consequences.tail
-      }
+      val currentLevel = consequences.head
+      val newCurrentLevel = n :: currentLevel
+      consequences = newCurrentLevel :: consequences.tail
+      trail ::= n
     }
 
     def insertConflict(reasonIds: List[Int]) {
@@ -93,6 +95,7 @@ object DPLL extends Solver {
 
         unset(decisionNode.id)
         nodes(decisionNode.id) = null
+        trail = trail.tail
 
         consequenceNodes.foreach(n => {
           val id = n.id
@@ -102,6 +105,8 @@ object DPLL extends Solver {
           //this is not optimal, maybe a more global approach to backtracking would be better
           n.ins.foreach(incNode => incNode.outs = incNode.outs.filterNot(_ == n))
           nodes(id) = null
+
+          trail = trail.tail
 
         })
 
@@ -133,45 +138,67 @@ object DPLL extends Solver {
 
 
     def conflictAnalysis: (Clause, Int) = if(decisionLevel == 0) (null, -1) else {
-      //println(toDotString)
       assert(lastConflict != null)
-      //println("computing dominator")
-      val dominators = findDominators(decisions.head, lastConflict)
-      //println("dominators: " + dominators)
 
-      val (learnedClause, levels) = findRoots(lastConflict, dominators).map{ 
-        case DecisionNode(id, pol, lvl) => ((id, !pol), lvl) 
-        case ConsequenceNode(id, pol, lvl) => ((id, !pol), lvl)
+      //val (learnedClause, levels) = findRoots(lastConflict, dominators).map{ 
+      //  case DecisionNode(id, pol, lvl) => ((id, !pol), lvl) 
+      //  case ConsequenceNode(id, pol, lvl) => ((id, !pol), lvl)
+      //  case _ => sys.error("unexpected")
+      //}.unzip
+      //val clause = new Clause(learnedClause.map(p => {new Literal(p._1, p._2)}))
+      //val backtrackLevel = if(levels.isEmpty) -1 else if(levels.tail.isEmpty) 0 else levels.sortWith((e1, e2) => e1 > e2).tail.head //TODO: inneficient search for the second to last
+      import scala.collection.mutable.Queue
+
+      //the algorithm augment the cut closest to the conflict node successively by doing
+      //a BFS while only searching through the nodes of the current decision level
+      //it stops when only one node of the current decision level (the UIP) remain in the cut
+      val seen: Array[Boolean] = Array.fill(nbVars)(false)
+      var learnedClause: List[Literal] = Nil
+      var backtrackLevel = 0
+      var toSee: List[Node] = trail
+      var p: Node = lastConflict
+      var c = 0
+
+      do {
+        p.ins.foreach(n => {
+          val (id, pol, lvl) = n match {
+            case DecisionNode(id, pol, lvl) => (id, pol, lvl)
+            case ConsequenceNode(id, pol, lvl) => (id, pol, lvl)
+            case _ => sys.error("unexpected")
+          }
+          if(!seen(id)) {
+            seen(id) = true
+            if(lvl == decisionLevel) {
+              c += 1
+            } else if(lvl > 0) { //we do not need to register literal from level 0
+              backtrackLevel = backtrackLevel.max(lvl)
+              learnedClause ::= new Literal(id, !pol)
+            }
+          }
+        })
+
+        do {
+          p = toSee.head
+          toSee = toSee.tail
+        } while(!seen(p.getId))
+          
+        c = c - 1
+      } while(c > 0)
+      //now p is the first UIP, we add it to the learnedClause
+      learnedClause ::= (p match {
+        case DecisionNode(id, pol, _) => new Literal(id, !pol)
+        case ConsequenceNode(id, pol, _) => new Literal(id, !pol)
         case _ => sys.error("unexpected")
-      }.unzip
-      val clause = new Clause(learnedClause.map(p => {new Literal(p._1, p._2)}))
-      //println("learned clause: " + clause)
-      val backtrackLevel = if(levels.isEmpty) -1 else if(levels.tail.isEmpty) 0 else levels.sortWith((e1, e2) => e1 > e2).tail.head //TODO: inneficient search for the second to last
-      (clause, backtrackLevel)
+      })
 
-      //var c = 0
-      //val seen: Array[Boolean] = Array.fill(nbVars)(false)
-      //var learnedClause: List[(Int, Boolean)] = Nil
-      //var backtrackLevel = 0
-      //var toSee: List[Node] = Nil
-      //do {
-      //  lastConflict.ins.foreach(n => {
-      //    toSee ::= n
-      //    val (id, pol, lvl) = n match {
-      //      case DecisionNode(id, pol, lvl) => (id, pol, lvl)
-      //      case ConsequenceNode(id, pol, lvl) => (id, pol, lvl)
-      //      case _ => assert(false)
-      //    }
-      //    seen(id) = true
-      //    if(lvl == decisionLevel)
-      //      c += 1
-      //    else if(lvl > 0) {
-      //      learnedClause ::= (id, !pol)
-      //      backtrackLevel = backtrackLevel.max(level)
-      //    }
-      //  })
-      //  
-      //} while(c > 0)
+      //println(toDotString)
+      //println(decisions.mkString("\n"))
+      //println(consequences.mkString("\n"))
+      //println(trail.mkString("\n"))
+      //println("learned clause: " + learnedClause)
+      //println("backtrack from level " + decisionLevel + " to " + backtrackLevel)
+
+      (new Clause(learnedClause), backtrackLevel)
     }
 
     private def findRoots(node: Node, additionalRoots: Set[Node] = Set()): List[Node] = node match {
@@ -228,6 +255,8 @@ object DPLL extends Solver {
   }
 
   class Clause(val lits: List[Literal]) {
+
+    //if size is 1 then just set wl1 = wl2 = lits.head, the clause will be handled separately in the rest of the code
 
     var wl1 = lits.head
     var wl2 = if(lits.tail.isEmpty) wl1 else lits.tail.head
@@ -313,13 +342,13 @@ object DPLL extends Solver {
     //}
     //def nbSat = _nbSat
     def learn(clause: Clause) {
-      if(!clause.lits.tail.isEmpty) { 
         clauses ::= clause
         nbClauses += 1
         for(lit <- clause.lits)
           incVSIDS(lit.id, lit.polarity)
+      if(!clause.lits.tail.isEmpty) {  //only record if not unit
         recordClause(clause)
-      } //else can ignore the clause, will never forget it or unassigned it
+      }
       nbLearnedClause += 1
       nbLearnedLiteral += clause.lits.size
     }
@@ -414,13 +443,14 @@ object DPLL extends Solver {
       if(nbConflicts % 200 == 0) {
         nbRestarts += 1
         implicationGraph.backtrackTo(0)
-        for(clause <- cnfFormula.clauses) {
+        for(clause <- cnfFormula.clauses) { //need to add all unit clauses
           if(clause.lits.tail.isEmpty)
             unitClauses ::= ((clause, clause.lits.head))
         }
       } else {
         implicationGraph.backtrackTo(backtrackLevel)
         unitClauses ::= ((learnedClause, learnedClause.lits.find(_.isUnassigned).get)) //only on non restart
+        //note that if the unitClause is of size 1, there will be an auto-reset to backtrack level 0 so this is correct as well
       }
       cnfFormula.learn(learnedClause)
       status = Unknown
@@ -428,7 +458,7 @@ object DPLL extends Solver {
   }
 
   def deduce() {
-    while(unitClauses != Nil) {
+    while(unitClauses != Nil && status != Conflict) {
       val (unitClause, forcedLit) = unitClauses.head
       unitClauses = unitClauses.tail
       if(forcedLit.isUnassigned) { //could no longer be true since many variables are forwarded
@@ -437,6 +467,7 @@ object DPLL extends Solver {
         set(forcedLit.id, forcedLit.polarity)
       }
     }
+    unitClauses = Nil
   }
 
   private var unitClauses: List[(Clause, Literal)] = List()
@@ -449,43 +480,45 @@ object DPLL extends Solver {
   private var implicationGraph: ImplicationGraph = null
 
   def isSat(clauses: List[Clause], nbVars: Int): Option[Array[Boolean]] = {
-    val (st, newClauses, forcedVars, oldVarToNewVar) = preprocess(clauses, nbVars)
+    val (st, newClauses, forcedVars, oldVarToNewVar) = Stats.time("preprocess")(preprocess(clauses, nbVars))
 
     status = st
-    if(status == Unknown) {
-      //INITIALIZATION
-      cnfFormula = newClauses
-      model = Array.fill(cnfFormula.nbVar)(None)
-      implicationGraph = new ImplicationGraph(cnfFormula.nbVar)
-      posWatched = Array.fill(cnfFormula.nbVar)(Nil)
-      negWatched = Array.fill(cnfFormula.nbVar)(Nil)
-      for(clause <- cnfFormula.clauses)
-        recordClause(clause)
+    Stats.time("toplevelloop"){
+      if(status == Unknown) {
+        //INITIALIZATION
+        cnfFormula = newClauses
+        model = Array.fill(cnfFormula.nbVar)(None)
+        implicationGraph = new ImplicationGraph(cnfFormula.nbVar)
+        posWatched = Array.fill(cnfFormula.nbVar)(Nil)
+        negWatched = Array.fill(cnfFormula.nbVar)(Nil)
+        for(clause <- cnfFormula.clauses)
+          recordClause(clause)
 
-      //MAIN LOOP
-      while(status == Unknown) {
-        //println("model: " + model.mkString(","))
-        //println("posWatched: " + posWatched.mkString("\n\n"))
-        //println("negWatched: " + negWatched.mkString("\n\n"))
-        //println(implicationGraph.toDotString)
+        //MAIN LOOP
+        while(status == Unknown) {
+          //println("model: " + model.mkString(","))
+          //println("posWatched: " + posWatched.mkString("\n\n"))
+          //println("negWatched: " + negWatched.mkString("\n\n"))
+          //println(implicationGraph.toDotString)
 
-        Stats.time("decide") {
-          decide()
-        }
-
-        var cont = true
-        while(cont) {
-
-          Stats.time("deduce") {
-            deduce()
+          Stats.time("decide") {
+            decide()
           }
 
-          if(status == Conflict)
-            Stats.time("backtrack") {
-              backtrack()
+          var cont = true
+          while(cont) {
+
+            Stats.time("deduce") {
+              deduce()
             }
-          else
-            cont = false
+
+            if(status == Conflict)
+              Stats.time("backtrack") {
+                backtrack()
+              }
+            else
+              cont = false
+          }
         }
       }
     }
@@ -509,14 +542,15 @@ object DPLL extends Solver {
       println("Conflicts: " + nbConflicts)
       println("Decisions: " + nbDecisions)
       println("Restarts: " + nbRestarts)
-      println("Learned Literals: " + nbLearnedLiteral + " --- " + nbLearnedLiteral.toDouble/nbConflicts.toDouble + " per clause")
+      println("Learned Literals: " + nbLearnedLiteral + " --- " + nbLearnedLiteral.toDouble/nbLearnedClause.toDouble + " per clause")
 
       println("Time spend in:\n")
-      println("  decide: " + Stats.getTime("decide"))
-      println("  deduce: " + Stats.getTime("deduce"))
-      println("  backtrack: " + Stats.getTime("backtrack"))
-      println("    conflictAnalysis: " + Stats.getTime("backtrack.conflictAnalysis"))
-      println(Stats.percents)
+      println("  preprocess:           " + Stats.getTime("preprocess"))
+      println("  toplevelloop:         " + Stats.getTime("toplevelloop"))
+      println("    decide:             " + Stats.getTime("decide"))
+      println("    deduce:             " + Stats.getTime("deduce"))
+      println("    backtrack:          " + Stats.getTime("backtrack"))
+      println("      conflictAnalysis: " + Stats.getTime("backtrack.conflictAnalysis"))
     }
     res
   }
