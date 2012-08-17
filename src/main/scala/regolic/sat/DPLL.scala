@@ -11,6 +11,7 @@ object DPLL extends Solver {
 
   private var nbConflicts = 0
   private var nbDecisions = 0
+  private var nbLearnedClause = 0
   private var nbLearnedLiteral = 0
   private var nbRestarts = 0
 
@@ -42,7 +43,10 @@ object DPLL extends Solver {
 
     def insertConsequence(reasonIds: List[Int], id: Int, polarity: Boolean) {
       assert(nodes(id) == null)
-      val n = ConsequenceNode(id, polarity, decisionLevel)
+      val n = if(reasonIds.isEmpty) //then this comes from a clause of size 1, we can add the implication at level 0
+          ConsequenceNode(id, polarity, 0)
+        else
+          ConsequenceNode(id, polarity, decisionLevel)
       n.ins = reasonIds.map(id => {
         assert(nodes(id) != null)
         val pn = nodes(id)
@@ -51,9 +55,13 @@ object DPLL extends Solver {
       })
       nodes(id) = n
 
-      val currentLevel = consequences.head
-      val newCurrentLevel = n :: currentLevel
-      consequences = newCurrentLevel :: consequences.tail
+      if(reasonIds.isEmpty) {
+        consequences.zipWithIndex.map{ case (lists, i) => if(i == 0) n::lists else lists }
+      } else {
+        val currentLevel = consequences.head
+        val newCurrentLevel = n :: currentLevel
+        consequences = newCurrentLevel :: consequences.tail
+      }
     }
 
     def insertConflict(reasonIds: List[Int]) {
@@ -73,6 +81,8 @@ object DPLL extends Solver {
       assert(lastConflict != null)
       lastConflict.ins.foreach(incNode => incNode.outs = incNode.outs.filterNot(_ == lastConflict))
       lastConflict = null
+      if(lvl==0)
+        println("before restart: " + consequences)
       while(decisionLevel != lvl) {
         val decisionNode: DecisionNode = decisions.head
         assert(decisionNode.level == decisionLevel)
@@ -97,6 +107,8 @@ object DPLL extends Solver {
         })
 
       }
+      if(lvl==0)
+        println("after restart: " + consequences)
     }
 
     private def findDominators(start: Node, to: Node): Set[Node] = {
@@ -304,15 +316,16 @@ object DPLL extends Solver {
     //}
     //def nbSat = _nbSat
     def learn(clause: Clause) {
-      clauses ::= clause
-      nbClauses += 1
-      //if(clause.isSat)
-      //  incSat()
-      for(lit <- clause.lits) {
-        //adjacencyLists(lit.id) = (clause :: adjacencyLists(lit.id))
-        incVSIDS(lit.id, lit.polarity)
+      if(clause.lits.tail.isEmpty) { //can ignore the clause, will never forget it or unassigned it
+        println("learning unit clause!")
+      } else {
+        clauses ::= clause
+        nbClauses += 1
+        for(lit <- clause.lits)
+          incVSIDS(lit.id, lit.polarity)
+        recordClause(clause)
       }
-      recordClause(clause)
+      nbLearnedClause += 1
       nbLearnedLiteral += clause.lits.size
     }
 
@@ -403,7 +416,6 @@ object DPLL extends Solver {
     if(backtrackLevel == -1)
       status = Unsatisfiable
     else {
-      cnfFormula.learn(learnedClause)
       if(nbConflicts % 200 == 0) {
         nbRestarts += 1
         implicationGraph.backtrackTo(0)
@@ -415,6 +427,7 @@ object DPLL extends Solver {
         implicationGraph.backtrackTo(backtrackLevel)
         unitClauses ::= ((learnedClause, learnedClause.lits.find(_.isUnassigned).get)) //only on non restart
       }
+      cnfFormula.learn(learnedClause)
       status = Unknown
     }
   }
