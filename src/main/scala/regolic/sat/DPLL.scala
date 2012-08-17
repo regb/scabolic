@@ -6,6 +6,7 @@ import regolic.asts.fol.Trees._
 import regolic.asts.fol.Manip._
 
 import regolic.Settings
+import regolic.Stats
 
 object DPLL extends Solver {
 
@@ -81,8 +82,6 @@ object DPLL extends Solver {
       assert(lastConflict != null)
       lastConflict.ins.foreach(incNode => incNode.outs = incNode.outs.filterNot(_ == lastConflict))
       lastConflict = null
-      if(lvl==0)
-        println("before restart: " + consequences)
       while(decisionLevel != lvl) {
         val decisionNode: DecisionNode = decisions.head
         assert(decisionNode.level == decisionLevel)
@@ -107,8 +106,6 @@ object DPLL extends Solver {
         })
 
       }
-      if(lvl==0)
-        println("after restart: " + consequences)
     }
 
     private def findDominators(start: Node, to: Node): Set[Node] = {
@@ -412,7 +409,7 @@ object DPLL extends Solver {
     nbConflicts += 1
     if(nbConflicts % 20 == 0)
       cnfFormula.decayVSIDS()
-    val (learnedClause, backtrackLevel) = implicationGraph.conflictAnalysis
+    val (learnedClause, backtrackLevel) = Stats.time("backtrack.conflictAnalysis")(implicationGraph.conflictAnalysis)
     if(backtrackLevel == -1)
       status = Unsatisfiable
     else {
@@ -474,14 +471,21 @@ object DPLL extends Solver {
         //println("negWatched: " + negWatched.mkString("\n\n"))
         //println(implicationGraph.toDotString)
 
-        decide()
+        Stats.time("decide") {
+          decide()
+        }
 
         var cont = true
         while(cont) {
-          deduce()
+
+          Stats.time("deduce") {
+            deduce()
+          }
 
           if(status == Conflict)
-            backtrack()
+            Stats.time("backtrack") {
+              backtrack()
+            }
           else
             cont = false
         }
@@ -508,6 +512,12 @@ object DPLL extends Solver {
       println("Decisions: " + nbDecisions)
       println("Restarts: " + nbRestarts)
       println("Learned Literals: " + nbLearnedLiteral + " --- " + nbLearnedLiteral.toDouble/nbConflicts.toDouble + " per clause")
+
+      println("Time spend in:\n")
+      println("  decide: " + Stats.getTime("decide"))
+      println("  deduce: " + Stats.getTime("deduce"))
+      println("  backtrack: " + Stats.getTime("backtrack"))
+      println("    conflictAnalysis: " + Stats.getTime("backtrack.conflictAnalysis"))
     }
     res
   }
