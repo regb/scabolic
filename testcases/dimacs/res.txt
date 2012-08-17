@@ -18,9 +18,9 @@ good, all the important mechanisms are there, but nothing is really implemented 
 In particular clause learning adds new clauses and it is likely that the two-counter is then more and more
 expensive. Still, some testcase improve drastically.
 
-benchmark         Naive   V1      V2
-uf20-0150.cnf     0.843   0.363   0.472
-uf20-0155.cnf     0.870   0.359   0.390
+benchmark         Naive   V1      V2      V2.1
+uf20-0150.cnf     0.843   0.363   0.472   
+uf20-0155.cnf     0.870   0.359   0.390   
 uf50-0250.cnf     2.379   0.489   0.766
 uf50-0350.cnf     1.582   0.481   1.313
 uf75-012.cnf      5.570   0.969   3.995

@@ -43,9 +43,9 @@ object DPLL extends Solver {
     def insertConsequence(reasonIds: List[Int], id: Int, polarity: Boolean) {
       assert(nodes(id) == null)
       val n = ConsequenceNode(id, polarity, decisionLevel)
-      n.ins = reasonIds.map(id => { 
+      n.ins = reasonIds.map(id => {
         assert(nodes(id) != null)
-        val pn = nodes(id) 
+        val pn = nodes(id)
         pn.outs ::= n
         pn
       })
@@ -396,12 +396,10 @@ object DPLL extends Solver {
   }
 
   def backtrack() {
-    //println("backtrack")
     nbConflicts += 1
     if(nbConflicts % 20 == 0)
       cnfFormula.decayVSIDS()
     val (learnedClause, backtrackLevel) = implicationGraph.conflictAnalysis
-    println(backtrackLevel)
     if(backtrackLevel == -1)
       status = Unsatisfiable
     else {
@@ -409,8 +407,14 @@ object DPLL extends Solver {
       if(nbConflicts % 200 == 0) {
         nbRestarts += 1
         implicationGraph.backtrackTo(0)
-      } else
+        for(clause <- cnfFormula.clauses) {
+          if(clause.lits.tail.isEmpty)
+            unitClauses ::= ((clause, clause.lits.head))
+        }
+      } else {
         implicationGraph.backtrackTo(backtrackLevel)
+        unitClauses ::= ((learnedClause, learnedClause.lits.find(_.isUnassigned).get)) //only on non restart
+      }
       status = Unknown
     }
   }
