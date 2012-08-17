@@ -313,15 +313,13 @@ object DPLL extends Solver {
     //}
     //def nbSat = _nbSat
     def learn(clause: Clause) {
-      if(clause.lits.tail.isEmpty) { //can ignore the clause, will never forget it or unassigned it
-        println("learning unit clause!")
-      } else {
+      if(!clause.lits.tail.isEmpty) { 
         clauses ::= clause
         nbClauses += 1
         for(lit <- clause.lits)
           incVSIDS(lit.id, lit.polarity)
         recordClause(clause)
-      }
+      } //else can ignore the clause, will never forget it or unassigned it
       nbLearnedClause += 1
       nbLearnedLiteral += clause.lits.size
     }
@@ -518,6 +516,7 @@ object DPLL extends Solver {
       println("  deduce: " + Stats.getTime("deduce"))
       println("  backtrack: " + Stats.getTime("backtrack"))
       println("    conflictAnalysis: " + Stats.getTime("backtrack.conflictAnalysis"))
+      println(Stats.percents)
     }
     res
   }
