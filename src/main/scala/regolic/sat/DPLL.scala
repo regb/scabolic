@@ -10,10 +10,13 @@ import regolic.Stats
 
 object DPLL extends Solver {
 
+
   private var nbConflicts = 0
   private var nbDecisions = 0
-  private var nbLearnedClause = 0
-  private var nbLearnedLiteral = 0
+  private var nbLearntClauseTotal = 0
+  private var nbLearntLiteralTotal = 0
+  private var nbRemovedClauses = 0
+  private var nbRemovedLiteral = 0
   private var nbRestarts = 0
 
   class ImplicationGraph(nbVars: Int) {
@@ -191,13 +194,6 @@ object DPLL extends Solver {
         case _ => sys.error("unexpected")
       })
 
-      //println(toDotString)
-      //println(decisions.mkString("\n"))
-      //println(consequences.mkString("\n"))
-      //println(trail.mkString("\n"))
-      //println("learned clause: " + learnedClause)
-      //println("backtrack from level " + decisionLevel + " to " + backtrackLevel)
-
       (new Clause(learnedClause), backtrackLevel)
     }
 
@@ -256,6 +252,9 @@ object DPLL extends Solver {
 
   class Clause(val lits: List[Literal]) {
 
+    var activity: Double = 0.
+    var locked = false
+
     //if size is 1 then just set wl1 = wl2 = lits.head, the clause will be handled separately in the rest of the code
 
     var wl1 = lits.head
@@ -306,54 +305,182 @@ object DPLL extends Solver {
     override def toString: String = lits.mkString(", ")
   }
 
-  class CNFFormula(var clauses: List[Clause], val nbVar: Int) {
-    require(clauses.forall(cl => cl.lits.forall(lit => lit.id >= 0 && lit.id < nbVar)))
-    require(clauses.forall(cl => cl.lits.size >= 2))
-    require(clauses.forall(cl => cl.lits.forall(lit => cl.lits.count(_.id == lit.id) == 1)))
+  class CNFFormula(val originalClauses: List[Clause], val nbVar: Int) {
+    require(originalClauses.forall(cl => cl.lits.forall(lit => lit.id >= 0 && lit.id < nbVar)))
+    require(originalClauses.forall(cl => cl.lits.size >= 2))
+    require(originalClauses.forall(cl => cl.lits.forall(lit => cl.lits.count(_.id == lit.id) == 1)))
 
-    var nbClauses = clauses.size
-    //private var _nbSat = 0
+    private val nbProblemClauses: Int = originalClauses.size
+    var nbClauses: Int = nbProblemClauses
 
-    private var vsids: Array[Int] = Array.fill(2*nbVar)(0)
-    def getVSIDS(id: Int, pol: Boolean): Int = vsids(2*id + (if(pol) 1 else 0))
-    def incVSIDS(id: Int, pol: Boolean) {
-      val index = 2*id + (if(pol) 1 else 0)
-      vsids(index) = vsids(index) + 1
+    var learntClauses: List[Clause] = Nil
+    var nbLearntClauses = 0
+
+    private var maxLearnt: Int = nbClauses / 3
+    private val maxLearntFactor: Double = 1.1
+
+    def augmentMaxLearnt() {
+      maxLearnt = (maxLearnt*maxLearntFactor + 1).toInt
     }
-    def decayVSIDS() {
+
+    /*
+     * Next comes a bunch of stuff to maintain VSIDS scores for all variable.
+     * we use two arrays, one for the score, sorted from highest to lowest and
+     * associated with the corresponding id and polarity.
+     * The second array is used as an index, to be able to find in constant time in
+     * the vsids array the current score for a literal.
+     * We decided to use an encoding from literal to index taking 2*id + pol, which
+     * seems to be not optimal in scala because pol needs to be translated to an int
+     * with an if-then-else anyway.
+     *
+     * I think this is better than using a heap/priority queue because there is no
+     * insert during the actual execution, the inserts only comes at the beginning
+     * when building the array, then the only two needed operations are incrementKey
+     * and findMax, which can be both completed in O(1) (actually there is a loop in the
+     * increment, but it should only swap sums locally).
+     *
+     * The initial construction is done without mainting the order and index, and once all
+     * variables are counted, we apply a sort algorithm and then update the index with
+     * one sweep. I believe this is more efficient than using the incrementKey.
+     *
+     * Finally the decay mechanism is from MiniSAT, instead of periodically scaling down
+     * each variable, it is equivalent to just augment the value of the increment, since
+     * the scale down will not change any order and only the relative value are important.
+     * We use doubles and we use the upper bound of 1e100 before scaling down everything, to
+     * avoid reaching the limits of floating points.
+     */
+
+    private val VSIDS_DECAY: Double = 0.95
+    private val VSIDS_CLAUSE_DECAY: Double = 0.999
+
+    private var vsidsInc: Double = 1.
+    private val vsidsDecay: Double = 1./VSIDS_DECAY
+
+    private var vsidsClauseInc: Double = 1.
+    private val vsidsClauseDecay: Double = 1./VSIDS_CLAUSE_DECAY
+
+    //we only wants to init the VSIDS sum to 0, the (Int, Boolean) literal will get
+    //update in the following
+    val vsids: Array[(Int, Boolean, Double)] = Array.fill(2*nbVar)(0, false, 0)
+    //init the VSIDS array
+    originalClauses.foreach(cl => cl.lits.foreach(lit => {
+      val index = litToIndex(lit.id, lit.polarity)
+      vsids(index) = (lit.id, lit.polarity, vsids(index)._3 + vsidsInc)
+    }))
+    //and now sort it, we only do that for the initial preprocessing
+    scala.util.Sorting.quickSort(vsids)(new Ordering[(Int, Boolean, Double)] { 
+      def compare(e1: (Int, Boolean, Double), e2: (Int, Boolean, Double)): Int = (e2._3 - e1._3).toInt
+    })
+    //now create an index for these variables
+    private val vsidsIndex: Array[Int] = new Array(2*nbVar)
+    vsids.zipWithIndex.foreach{
+      case ((id, pol, _), i) =>
+        val index = litToIndex(id, pol)
+        vsidsIndex(index) = i
+    }
+
+    //invariant is true initially
+    assert(invariantVSIDS)
+
+    private def invariantVSIDS: Boolean = {
+      vsids.zipWithIndex.zip(vsids.tail).forall{
+        case (((id, pol, sum1), i), (_, _, sum2)) => 
+          val b = sum1 >= sum2 && i == vsidsIndex(litToIndex(id, pol))
+          if(!b) println((id, pol, sum1, sum2, i, litToIndex(id, pol)))
+          b
+      }
+    }
+
+    private def litToIndex(id: Int, pol: Boolean): Int = 2*id + (if(pol) 1 else 0)
+
+    //this gets called for each learned literal, need to maintain the index and the ordered array
+    def incVSIDS(id: Int, pol: Boolean) {
+      val index = litToIndex(id, pol)
+      val indexInSorted = vsidsIndex(index)
+      val (id2, pol2, sum) = vsids(indexInSorted)
+      assert(id2 == id)
+      assert(pol2 == pol)
+      val newSum = sum + vsidsInc
+
+      if(indexInSorted == 0) vsids(indexInSorted) = (id, pol, newSum) else {
+        var newIndex = indexInSorted
+        var t = vsids(newIndex-1)
+        while(newIndex != 0 && t._3 < newSum) {
+          vsids(newIndex) = t
+          vsidsIndex(litToIndex(t._1, t._2)) = newIndex
+          newIndex -= 1
+          if(newIndex != 0)
+            t = vsids(newIndex-1)
+        }
+        vsids(newIndex) = (id, pol, newSum)
+        vsidsIndex(index) = newIndex
+      }
+
+      if(newSum > 1e100) {
+        rescaleVSIDS()
+      }
+
+    }
+
+    def rescaleVSIDS() {
       var i = 0
       val size = vsids.size
       while(i < size) {
-        vsids(i) = vsids(i)/2
+        val (id, pol, v) = vsids(i)
+        vsids(i) = (id, pol, v*1e-100)
         i += 1
       }
+      vsidsInc *= 1e-100
     }
-    //init the VSIDS array
-    clauses.foreach(cl => cl.lits.foreach(lit => incVSIDS(lit.id, lit.polarity)))
+    def decayVSIDS() {
+      vsidsInc *= vsidsDecay
+    }
 
-    //def isSat = _nbSat == nbClauses
-    //def incSat() {
-    //  assert(_nbSat < nbClauses)
-    //  _nbSat += 1
-    //}
-    //def decSat() {
-    //  assert(_nbSat > 0)
-    //  _nbSat -= 1
-    //}
-    //def nbSat = _nbSat
+
+    def incVSIDSClause(cl: Clause) {
+      cl.activity = cl.activity + vsidsClauseInc
+      if(cl.activity > 1e100)
+        rescaleVSIDSClause()
+    }
+    def rescaleVSIDSClause() {
+      for(cl <- learntClauses)
+        cl.activity = cl.activity*1e-100
+      vsidsClauseInc *= 1e-100
+    }
+    def decayVSIDSClause() {
+      vsidsClauseInc *= vsidsClauseDecay
+    }
+
     def learn(clause: Clause) {
-        clauses ::= clause
-        nbClauses += 1
-        for(lit <- clause.lits)
-          incVSIDS(lit.id, lit.polarity)
-      if(!clause.lits.tail.isEmpty) {  //only record if not unit
+      learntClauses ::= clause
+      nbClauses += 1
+      nbLearntClauses += 1
+      for(lit <- clause.lits)
+        incVSIDS(lit.id, lit.polarity)
+      incVSIDSClause(clause)
+      if(!clause.lits.tail.isEmpty)//only record if not unit
         recordClause(clause)
-      }
-      nbLearnedClause += 1
-      nbLearnedLiteral += clause.lits.size
+      nbLearntClauseTotal += 1
+      nbLearntLiteralTotal += clause.lits.size
+      if(nbLearntClauses > maxLearnt)
+        reduceLearntClauses()
     }
 
-    override def toString: String = clauses.mkString("{\n", "\n", "\n}")
+    def reduceLearntClauses() {
+      val sortedLearntClauses = learntClauses.sortWith((cl1, cl2) => cl1.activity < cl2.activity)
+      val (forgotenClauses, keptClauses) = sortedLearntClauses.splitAt(maxLearnt/2)
+      learntClauses = keptClauses
+      for(cl <- forgotenClauses) {
+        unrecordClause(cl)
+        nbClauses -= 1
+        nbLearntClauses -= 1
+        nbRemovedClauses += 1
+        for(lit <- cl.lits)
+          nbRemovedLiteral += 1
+      }
+    }
+
+    override def toString: String = (learntClauses ++ originalClauses).mkString("{\n", "\n", "\n}")
   }
 
   def recordClause(cl: Clause) {
@@ -366,6 +493,18 @@ object DPLL extends Solver {
       posWatched(cl.wl2.id) ::= cl
     else
       negWatched(cl.wl2.id) ::= cl
+  }
+
+  def unrecordClause(cl: Clause) {
+    if(cl.wl1.polarity)
+      posWatched(cl.wl1.id) = posWatched(cl.wl1.id).filterNot(_ == cl)
+    else
+      negWatched(cl.wl1.id) = negWatched(cl.wl1.id).filterNot(_ == cl)
+
+    if(cl.wl2.polarity)
+      posWatched(cl.wl2.id) = posWatched(cl.wl2.id).filterNot(_ == cl)
+    else
+      negWatched(cl.wl2.id) = negWatched(cl.wl2.id).filterNot(_ == cl)
   }
 
 
@@ -388,43 +527,50 @@ object DPLL extends Solver {
   def decide() {
     nbDecisions += 1
 
-    var max: Option[Int] = None
+    //var max: Option[Int] = None
+    //var lit: Option[(Int, Boolean)] = None
+    //var i = 0
+    //while(i < cnfFormula.nbVar) {
+    //  if(model(i) == None) {
+    //    val scorePos = cnfFormula.getVSIDS(i, true)
+    //    val scoreNeg = cnfFormula.getVSIDS(i, false)
+    //    max match {
+    //      case None => {
+    //        if(scorePos > scoreNeg) {
+    //          max = Some(scorePos)
+    //          lit = Some((i, true))
+    //        } else {
+    //          max = Some(scoreNeg)
+    //          lit = Some((i, false))
+    //        }
+    //      } 
+    //      case Some(maxScore) => {
+    //        if(scorePos > maxScore && scorePos >= scoreNeg) {
+    //          max = Some(scorePos)
+    //          lit = Some((i, true))
+    //        } else if(scoreNeg > maxScore && scoreNeg >= scorePos) {
+    //          max = Some(scoreNeg)
+    //          lit = Some((i, false))
+    //        }
+    //      }
+    //    }
+    //  }
+    //  i += 1
+    //}
+
     var lit: Option[(Int, Boolean)] = None
     var i = 0
-    while(i < cnfFormula.nbVar) {
-      if(model(i) == None) {
-        val scorePos = cnfFormula.getVSIDS(i, true)
-        val scoreNeg = cnfFormula.getVSIDS(i, false)
-        max match {
-          case None => {
-            if(scorePos > scoreNeg) {
-              max = Some(scorePos)
-              lit = Some((i, true))
-            } else {
-              max = Some(scoreNeg)
-              lit = Some((i, false))
-            }
-          } 
-          case Some(maxScore) => {
-            if(scorePos > maxScore && scorePos >= scoreNeg) {
-              max = Some(scorePos)
-              lit = Some((i, true))
-            } else if(scoreNeg > maxScore && scoreNeg >= scorePos) {
-              max = Some(scoreNeg)
-              lit = Some((i, false))
-            }
-          }
-        }
-      }
+    val size = cnfFormula.vsids.size
+    while(lit == None && i < size) {
+      val (id, pol, top) = cnfFormula.vsids(i)
+      if(model(id) == None)
+        lit = Some((id, pol))
       i += 1
     }
 
-    if(max == None) {
+    if(lit == None) {
       status = Satisfiable
     } else {
-
-      assert(lit != None)
-
       val fLit = lit.get
       //println("decide: " + fLit._1 + " with polarity " + fLit._2)
       implicationGraph.insertDecision(fLit._1, fLit._2)
@@ -434,19 +580,25 @@ object DPLL extends Solver {
 
   def backtrack() {
     nbConflicts += 1
-    if(nbConflicts % 20 == 0)
-      cnfFormula.decayVSIDS()
+    cnfFormula.decayVSIDS()
+    cnfFormula.decayVSIDSClause()
     val (learnedClause, backtrackLevel) = Stats.time("backtrack.conflictAnalysis")(implicationGraph.conflictAnalysis)
     if(backtrackLevel == -1)
       status = Unsatisfiable
     else {
-      if(nbConflicts % 200 == 0) {
+      if(nbConflicts == nextRestart) {
+        if(Settings.stats) {
+          println("restart after " + nbConflicts + " nb conflicts")
+        }
+        restartInterval = (restartInterval*restartFactor).toInt
+        nextRestart = nbConflicts + restartInterval
         nbRestarts += 1
         implicationGraph.backtrackTo(0)
-        for(clause <- cnfFormula.clauses) { //need to add all unit clauses
+        for(clause <- cnfFormula.learntClauses) { //need to add all unit clauses, only learnt clauses could be unit
           if(clause.lits.tail.isEmpty)
             unitClauses ::= ((clause, clause.lits.head))
         }
+        cnfFormula.augmentMaxLearnt()
       } else {
         implicationGraph.backtrackTo(backtrackLevel)
         unitClauses ::= ((learnedClause, learnedClause.lits.find(_.isUnassigned).get)) //only on non restart
@@ -478,6 +630,9 @@ object DPLL extends Solver {
   private var cnfFormula: CNFFormula = null
   private var status: Status = Unknown
   private var implicationGraph: ImplicationGraph = null
+  private var restartInterval = 32
+  private var nextRestart = restartInterval
+  private val restartFactor = 1.1
 
   def isSat(clauses: List[Clause], nbVars: Int): Option[Array[Boolean]] = {
     val (st, newClauses, forcedVars, oldVarToNewVar) = Stats.time("preprocess")(preprocess(clauses, nbVars))
@@ -491,8 +646,10 @@ object DPLL extends Solver {
         implicationGraph = new ImplicationGraph(cnfFormula.nbVar)
         posWatched = Array.fill(cnfFormula.nbVar)(Nil)
         negWatched = Array.fill(cnfFormula.nbVar)(Nil)
-        for(clause <- cnfFormula.clauses)
+        for(clause <- cnfFormula.originalClauses)
           recordClause(clause)
+        restartInterval = 32
+        nextRestart = restartInterval
 
         //MAIN LOOP
         while(status == Unknown) {
@@ -542,7 +699,9 @@ object DPLL extends Solver {
       println("Conflicts: " + nbConflicts)
       println("Decisions: " + nbDecisions)
       println("Restarts: " + nbRestarts)
-      println("Learned Literals: " + nbLearnedLiteral + " --- " + nbLearnedLiteral.toDouble/nbLearnedClause.toDouble + " per clause")
+      println("Learned Literals: " + nbLearntLiteralTotal + " (" + nbLearntClauseTotal + " clauses) --- " + nbLearntLiteralTotal.toDouble/nbLearntClauseTotal.toDouble + " per clause")
+      println("Removed Literals: " + nbRemovedLiteral + "(" + nbRemovedClauses + " clauses) --- " + nbRemovedLiteral.toDouble/nbRemovedClauses.toDouble + " per clause")
+      println("Active Literals: " + (nbLearntLiteralTotal - nbRemovedLiteral) + "(" + (nbLearntClauseTotal - nbRemovedClauses) + ") --- " + (nbLearntLiteralTotal - nbRemovedLiteral).toDouble/(nbLearntClauseTotal-nbRemovedClauses).toDouble + " per clause")
 
       println("Time spend in:\n")
       println("  preprocess:           " + Stats.getTime("preprocess"))
