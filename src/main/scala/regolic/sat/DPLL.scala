@@ -10,7 +10,16 @@ import regolic.Stats
 
 object DPLL extends Solver {
 
+  /*
+    This is a SAT solver, and I am trying to make it efficient, so don't expect nice functional code
+    using immutable data and everything, this will be pure procedural code with many gloabl variables
+    */
 
+  def isSat(clauses: List[Formula]): Option[Map[PredicateApplication, Boolean]] = {
+    null
+  }
+  
+  //Statistics, should move them to the Stats object in some way
   private var nbConflicts = 0
   private var nbDecisions = 0
   private var nbLearntClauseTotal = 0
@@ -19,215 +28,177 @@ object DPLL extends Solver {
   private var nbRemovedLiteral = 0
   private var nbRestarts = 0
 
-  class ImplicationGraph(nbVars: Int) {
 
-    private abstract sealed class Node {
-      var ins: List[Node] = Nil
-      var outs: List[Node] = Nil
+  private var decisionLevel = 0
+  private var setAtLevels: List[Int] = List(0)
+  private var trail: List[Int] = Nil
+  private var reasons: Array[Clause] = null
+  private var levels: Array[Int] = null
+  private var conflict: Clause = null
+  private var unitClauses: List[(Clause, Literal)] = List()
+  private var model: Array[Option[Boolean]] = null
+  private var posWatched: Array[List[Clause]] = null
+  private var negWatched: Array[List[Clause]] = null
+  private var cnfFormula: CNFFormula = null
+  private var status: Status = Unknown
+  private var restartInterval = 32
+  private var nextRestart = restartInterval
+  private val restartFactor = 1.1
 
-      def getId: Int = this match {
-        case DecisionNode(id, _, _) => id
-        case ConsequenceNode(id, _, _) => id
-        case _ => throw new RuntimeException("id unsported on conflict node")
-      }
-    }
-    private case class DecisionNode(id: Int, polarity: Boolean, level: Int) extends Node
-    private case class ConsequenceNode(id: Int, polarity: Boolean, level: Int) extends Node
-    private case class ConflictNode(cl: List[Int]) extends Node
+  def isSat(clauses: List[Clause], nbVars: Int): Option[Array[Boolean]] = {
+    val (st, newClauses, forcedVars, oldVarToNewVar) = Stats.time("preprocess")(preprocess(clauses, nbVars))
 
-    private val nodes: Array[Node] = new Array(nbVars)
-    private var lastConflict: ConflictNode = null
-    
-    private var decisionLevel = 0
-    private var consequences: List[List[ConsequenceNode]] = List(Nil)
-    private var decisions: List[DecisionNode] = Nil
-    private var trail: List[Node] = Nil
+    status = st
+    Stats.time("toplevelloop"){
+      if(status == Unknown) {
+        //INITIALIZATION
+        cnfFormula = newClauses
+        model = Array.fill(cnfFormula.nbVar)(None)
+        posWatched = Array.fill(cnfFormula.nbVar)(Nil)
+        negWatched = Array.fill(cnfFormula.nbVar)(Nil)
+        for(clause <- cnfFormula.originalClauses)
+          recordClause(clause)
+        restartInterval = 32
+        nextRestart = restartInterval
+        reasons = new Array(nbVars)
+        levels = new Array(nbVars)
 
-    def insertDecision(id: Int, polarity: Boolean) {
-      assert(nodes(id) == null)
-      decisionLevel += 1
-      val n = DecisionNode(id, polarity, decisionLevel)
-      nodes(id) = n
-      decisions ::= n
-      consequences ::= Nil
-      trail ::= n
-    }
+        //MAIN LOOP
+        while(status == Unknown) {
+          Stats.time("decide") {
+            decide()
+          }
 
-    def insertConsequence(reasonIds: List[Int], id: Int, polarity: Boolean) {
-      assert(nodes(id) == null)
-      val n = ConsequenceNode(id, polarity, decisionLevel)
-      n.ins = reasonIds.map(id => {
-        assert(nodes(id) != null)
-        val pn = nodes(id)
-        pn.outs ::= n
-        pn
-      })
-      nodes(id) = n
+          var cont = true
+          while(cont) {
 
-      val currentLevel = consequences.head
-      val newCurrentLevel = n :: currentLevel
-      consequences = newCurrentLevel :: consequences.tail
-      trail ::= n
-    }
+            Stats.time("deduce") {
+              deduce()
+            }
 
-    def insertConflict(reasonIds: List[Int]) {
-      assert(lastConflict == null)
-      val n = ConflictNode(reasonIds)
-      n.ins = reasonIds.map(id => { 
-        assert(nodes(id) != null)
-        val pn: Node = nodes(id) 
-        pn.outs ::= n
-        pn
-      })
-      lastConflict = n
-      n
-    }
-
-    def backtrackTo(lvl: Int) {
-      assert(lastConflict != null)
-      lastConflict.ins.foreach(incNode => incNode.outs = incNode.outs.filterNot(_ == lastConflict))
-      lastConflict = null
-      while(decisionLevel != lvl) {
-        val decisionNode: DecisionNode = decisions.head
-        assert(decisionNode.level == decisionLevel)
-        val consequenceNodes: List[ConsequenceNode] = consequences.head
-        consequenceNodes.foreach(n => assert(n.level == decisionLevel))
-        decisions = decisions.tail
-        consequences = consequences.tail
-        decisionLevel -= 1
-
-        unset(decisionNode.id)
-        nodes(decisionNode.id) = null
-        trail = trail.tail
-
-        consequenceNodes.foreach(n => {
-          val id = n.id
-          unset(id)
-
-          //remove the occurence of the node everywhere (not all of the inc node are removed with backtracking)
-          //this is not optimal, maybe a more global approach to backtracking would be better
-          n.ins.foreach(incNode => incNode.outs = incNode.outs.filterNot(_ == n))
-          nodes(id) = null
-
-          trail = trail.tail
-
-        })
-
-      }
-    }
-
-    private def findDominators(start: Node, to: Node): Set[Node] = {
-      var D: Map[Node, Set[Node]] = Map()
-      val N: Set[Node] = nodes.flatMap(n => if(n == null) List() else List(n)).toSet + to
-      D += (start -> Set(start))
-      for(n <- (N-start))
-        D += (n -> N)
-
-      var change = true
-      while(change) {
-        change = false
-        for(n <- (N-start)) {
-          val preds: Set[Node] = n.ins.toSet
-          val newD = preds.foldLeft(N)((a, s) => a.intersect(D(s))) + n
-          if(newD != D(n)) {
-            change = true
-            D += (n -> newD)
+            if(status == Conflict)
+              Stats.time("backtrack") {
+                backtrack()
+              }
+            else
+              cont = false
           }
         }
       }
-
-      D(to) - to
     }
 
-
-    def conflictAnalysis: (Clause, Int) = if(decisionLevel == 0) (null, -1) else {
-      assert(lastConflict != null)
-
-      //val (learnedClause, levels) = findRoots(lastConflict, dominators).map{ 
-      //  case DecisionNode(id, pol, lvl) => ((id, !pol), lvl) 
-      //  case ConsequenceNode(id, pol, lvl) => ((id, !pol), lvl)
-      //  case _ => sys.error("unexpected")
-      //}.unzip
-      //val clause = new Clause(learnedClause.map(p => {new Literal(p._1, p._2)}))
-      //val backtrackLevel = if(levels.isEmpty) -1 else if(levels.tail.isEmpty) 0 else levels.sortWith((e1, e2) => e1 > e2).tail.head //TODO: inneficient search for the second to last
-      import scala.collection.mutable.Queue
-
-      //the algorithm augment the cut closest to the conflict node successively by doing
-      //a BFS while only searching through the nodes of the current decision level
-      //it stops when only one node of the current decision level (the UIP) remain in the cut
-      val seen: Array[Boolean] = Array.fill(nbVars)(false)
-      var learnedClause: List[Literal] = Nil
-      var backtrackLevel = 0
-      var toSee: List[Node] = trail
-      var p: Node = lastConflict
-      var c = 0
-
-      do {
-        p.ins.foreach(n => {
-          val (id, pol, lvl) = n match {
-            case DecisionNode(id, pol, lvl) => (id, pol, lvl)
-            case ConsequenceNode(id, pol, lvl) => (id, pol, lvl)
-            case _ => sys.error("unexpected")
-          }
-          if(!seen(id)) {
-            seen(id) = true
-            if(lvl == decisionLevel) {
-              c += 1
-            } else if(lvl > 0) { //we do not need to register literal from level 0
-              backtrackLevel = backtrackLevel.max(lvl)
-              learnedClause ::= new Literal(id, !pol)
-            }
-          }
+    val res = status match {
+      case Unknown | Conflict => sys.error("unexpected")
+      case Unsatisfiable => None
+      case Satisfiable => {
+        val completeModel: Array[Boolean] = new Array(nbVars)
+        (0 until nbVars).foreach(i => forcedVars(i) match {
+          case None => //then this is a new var
+            val newId = oldVarToNewVar(i)
+            completeModel(i) = model(newId).getOrElse(true)
+          case Some(v) =>
+            completeModel(i) = v
         })
+        Some(completeModel)
+      }
+    }
+    if(Settings.stats) {
+      println("Conflicts: " + nbConflicts)
+      println("Decisions: " + nbDecisions)
+      println("Restarts: " + nbRestarts)
+      println("Learned Literals: " + nbLearntLiteralTotal + " (" + nbLearntClauseTotal + " clauses) --- " + nbLearntLiteralTotal.toDouble/nbLearntClauseTotal.toDouble + " per clause")
+      println("Removed Literals: " + nbRemovedLiteral + "(" + nbRemovedClauses + " clauses) --- " + nbRemovedLiteral.toDouble/nbRemovedClauses.toDouble + " per clause")
+      println("Active Literals: " + (nbLearntLiteralTotal - nbRemovedLiteral) + "(" + (nbLearntClauseTotal - nbRemovedClauses) + ") --- " + (nbLearntLiteralTotal - nbRemovedLiteral).toDouble/(nbLearntClauseTotal-nbRemovedClauses).toDouble + " per clause")
 
-        do {
-          p = toSee.head
-          toSee = toSee.tail
-        } while(!seen(p.getId))
-          
-        c = c - 1
-      } while(c > 0)
-      //now p is the first UIP, we add it to the learnedClause
-      learnedClause ::= (p match {
-        case DecisionNode(id, pol, _) => new Literal(id, !pol)
-        case ConsequenceNode(id, pol, _) => new Literal(id, !pol)
-        case _ => sys.error("unexpected")
+      println("Time spend in:\n")
+      println("  preprocess:           " + Stats.getTime("preprocess"))
+      println("  toplevelloop:         " + Stats.getTime("toplevelloop"))
+      println("    decide:             " + Stats.getTime("decide"))
+      println("    deduce:             " + Stats.getTime("deduce"))
+      println("    backtrack:          " + Stats.getTime("backtrack"))
+      println("      conflictAnalysis: " + Stats.getTime("backtrack.conflictAnalysis"))
+    }
+    res
+  }
+  def conflictAnalysis: (Clause, Int) = if(decisionLevel == 0) (null, -1) else {
+    assert(conflict != null)
+
+    import scala.collection.mutable.Queue
+
+    //the algorithm augment the cut closest to the conflict node successively by doing
+    //a BFS while only searching through the nodes of the current decision level
+    //it stops when only one node of the current decision level (the UIP) remain in the cut
+    val seen: Array[Boolean] = Array.fill(cnfFormula.nbVar)(false)
+    var learntClause: List[Literal] = Nil
+    var toSee: List[Int] = trail
+    var p: Int = 42
+    var c = 0
+    var confl = conflict
+    conflict = null
+
+    do {
+      cnfFormula.incVSIDSClause(confl)
+
+      confl.lits.foreach(lit => {
+        val id = lit.id
+        val lvl = levels(id)
+        val pol = model(id).get
+        if(!seen(id) && lvl > 0) {
+          seen(id) = true
+          if(lvl == decisionLevel)
+            c += 1
+          else
+            learntClause ::= new Literal(id, !pol)
+        }
       })
 
-      (new Clause(learnedClause), backtrackLevel)
-    }
+      do {
+        p = toSee.head
+        toSee = toSee.tail
+      } while(!seen(p))
 
-    private def findRoots(node: Node, additionalRoots: Set[Node] = Set()): List[Node] = node match {
-      case d@DecisionNode(_, _, _) => List(d)
-      case n if additionalRoots.contains(n) => List(n)
-      case _ => node.ins.flatMap(n => findRoots(n, additionalRoots).distinct).distinct
-    }
+      c = c - 1
 
-    def toDotString: String = {
-      var res = "digraph {\n"
+      confl = reasons(p)
+    } while(c > 0)
+    seen(p) = true
 
-      res += nodes.map(n => if(n==null) "" else n match {
-        case DecisionNode(id, pol, level) => id + " [label=\"" + (if(pol) "" else "-") + id + " @" + level + "\" color=blue];"
-        case ConsequenceNode(id, pol, level) => id + " [label=\"" + (if(pol) "" else "-") + id + " @" + level + "\" color=green];"
-        case ConflictNode(_) => "C"
-      }).mkString("\n")
-      res += "\n"
+    learntClause = learntClause.filterNot(lit => {
+      val reasonClause = reasons(lit.id) 
+      reasonClause != null && reasonClause.lits.forall(pre => seen(pre.id) || levels(pre.id) == 0)
+    })
 
-      def printNode(n: Node): String = n match {
-        case DecisionNode(id, _, _) => id.toString
-        case ConsequenceNode(id, _, _) => id.toString
-        case ConflictNode(_) => "C"
-      }
-      
-      res += nodes.map(n => if(n == null) "" else {
-        n.outs.map(out => printNode(n) + " -> " + printNode(out) + ";").mkString("\n")
-      }).mkString("\n")
+    val backtrackLevel = if(learntClause.isEmpty) 0 else learntClause.map((lit: Literal) => levels(lit.id)).max
+    learntClause ::= new Literal(p, !model(p).get) 
 
-      res += "\n}"
-      res
-    }
 
+    (new Clause(learntClause), backtrackLevel)
   }
+
+
+    //def toDotString: String = {
+    //  var res = "digraph {\n"
+
+    //  res += nodes.map(n => if(n==null) "" else n match {
+    //    case DecisionNode(id, pol, level) => id + " [label=\"" + (if(pol) "" else "-") + id + " @" + level + "\" color=blue];"
+    //    case ConsequenceNode(id, pol, level) => id + " [label=\"" + (if(pol) "" else "-") + id + " @" + level + "\" color=green];"
+    //    case ConflictNode(_) => "C"
+    //  }).mkString("\n")
+    //  res += "\n"
+
+    //  def printNode(n: Node): String = n match {
+    //    case DecisionNode(id, _, _) => id.toString
+    //    case ConsequenceNode(id, _, _) => id.toString
+    //    case ConflictNode(_) => "C"
+    //  }
+    //  
+    //  res += nodes.map(n => if(n == null) "" else {
+    //    n.outs.map(out => printNode(n) + " -> " + printNode(out) + ";").mkString("\n")
+    //  }).mkString("\n")
+
+    //  res += "\n}"
+    //  res
+    //}
 
   private sealed trait Status
   private case object Satisfiable extends Status
@@ -296,7 +267,7 @@ object DPLL extends Solver {
           unitClauses ::= (this, owl)
         else if(owl.isUnsat && status != Conflict) {
           status = Conflict
-          implicationGraph.insertConflict(lits.map(_.id))
+          conflict = this
         }
       }
 
@@ -471,12 +442,16 @@ object DPLL extends Solver {
       val (forgotenClauses, keptClauses) = sortedLearntClauses.splitAt(maxLearnt/2)
       learntClauses = keptClauses
       for(cl <- forgotenClauses) {
-        unrecordClause(cl)
-        nbClauses -= 1
-        nbLearntClauses -= 1
-        nbRemovedClauses += 1
-        for(lit <- cl.lits)
-          nbRemovedLiteral += 1
+        if(!cl.locked) {
+          unrecordClause(cl)
+          nbClauses -= 1
+          nbLearntClauses -= 1
+          nbRemovedClauses += 1
+          for(lit <- cl.lits)
+            nbRemovedLiteral += 1
+        } else {
+          learntClauses ::= cl
+        }
       }
     }
 
@@ -509,6 +484,7 @@ object DPLL extends Solver {
 
 
   def set(id: Int, b: Boolean) {
+    assert(model(id) == None)
     model(id) = Some(b)
 
     if(b) {
@@ -527,37 +503,6 @@ object DPLL extends Solver {
   def decide() {
     nbDecisions += 1
 
-    //var max: Option[Int] = None
-    //var lit: Option[(Int, Boolean)] = None
-    //var i = 0
-    //while(i < cnfFormula.nbVar) {
-    //  if(model(i) == None) {
-    //    val scorePos = cnfFormula.getVSIDS(i, true)
-    //    val scoreNeg = cnfFormula.getVSIDS(i, false)
-    //    max match {
-    //      case None => {
-    //        if(scorePos > scoreNeg) {
-    //          max = Some(scorePos)
-    //          lit = Some((i, true))
-    //        } else {
-    //          max = Some(scoreNeg)
-    //          lit = Some((i, false))
-    //        }
-    //      } 
-    //      case Some(maxScore) => {
-    //        if(scorePos > maxScore && scorePos >= scoreNeg) {
-    //          max = Some(scorePos)
-    //          lit = Some((i, true))
-    //        } else if(scoreNeg > maxScore && scoreNeg >= scorePos) {
-    //          max = Some(scoreNeg)
-    //          lit = Some((i, false))
-    //        }
-    //      }
-    //    }
-    //  }
-    //  i += 1
-    //}
-
     var lit: Option[(Int, Boolean)] = None
     var i = 0
     val size = cnfFormula.vsids.size
@@ -572,8 +517,10 @@ object DPLL extends Solver {
       status = Satisfiable
     } else {
       val fLit = lit.get
-      //println("decide: " + fLit._1 + " with polarity " + fLit._2)
-      implicationGraph.insertDecision(fLit._1, fLit._2)
+      decisionLevel += 1
+      trail ::= fLit._1
+      setAtLevels ::= 1
+      levels(fLit._1) = decisionLevel
       set(fLit._1, fLit._2)
     }
   }
@@ -582,7 +529,7 @@ object DPLL extends Solver {
     nbConflicts += 1
     cnfFormula.decayVSIDS()
     cnfFormula.decayVSIDSClause()
-    val (learnedClause, backtrackLevel) = Stats.time("backtrack.conflictAnalysis")(implicationGraph.conflictAnalysis)
+    val (learnedClause, backtrackLevel) = Stats.time("backtrack.conflictAnalysis")(conflictAnalysis)
     if(backtrackLevel == -1)
       status = Unsatisfiable
     else {
@@ -593,14 +540,14 @@ object DPLL extends Solver {
         restartInterval = (restartInterval*restartFactor).toInt
         nextRestart = nbConflicts + restartInterval
         nbRestarts += 1
-        implicationGraph.backtrackTo(0)
+        backtrackTo(0)
         for(clause <- cnfFormula.learntClauses) { //need to add all unit clauses, only learnt clauses could be unit
           if(clause.lits.tail.isEmpty)
             unitClauses ::= ((clause, clause.lits.head))
         }
         cnfFormula.augmentMaxLearnt()
       } else {
-        implicationGraph.backtrackTo(backtrackLevel)
+        backtrackTo(backtrackLevel)
         unitClauses ::= ((learnedClause, learnedClause.lits.find(_.isUnassigned).get)) //only on non restart
         //note that if the unitClause is of size 1, there will be an auto-reset to backtrack level 0 so this is correct as well
       }
@@ -609,114 +556,45 @@ object DPLL extends Solver {
     }
   }
 
+
+  def backtrackTo(lvl: Int) {
+    while(decisionLevel != lvl) {
+      var count = setAtLevels.head
+      setAtLevels = setAtLevels.tail
+      while(count > 0) {
+        val head = trail.head
+        trail = trail.tail
+        unset(head)
+        val reasonClause = reasons(head)
+        if(reasonClause != null) {
+          reasonClause.locked = false
+          reasons(head) = null
+        }
+        count -= 1
+      }
+      decisionLevel -= 1
+    }
+  }
+
   def deduce() {
     while(unitClauses != Nil && status != Conflict) {
       val (unitClause, forcedLit) = unitClauses.head
       unitClauses = unitClauses.tail
       if(forcedLit.isUnassigned) { //could no longer be true since many variables are forwarded
-        //println("force : " + forcedLit)
-        implicationGraph.insertConsequence(unitClause.lits.map(_.id).filterNot(_ == forcedLit.id), forcedLit.id, forcedLit.polarity)
+
+
+        setAtLevels = (setAtLevels.head + 1) :: setAtLevels.tail
+        trail ::= forcedLit.id
+        reasons(forcedLit.id) = unitClause
+        levels(forcedLit.id) = decisionLevel
+        unitClause.locked = true
+
         set(forcedLit.id, forcedLit.polarity)
       }
     }
     unitClauses = Nil
   }
 
-  private var unitClauses: List[(Clause, Literal)] = List()
-  private var model: Array[Option[Boolean]] = null
-  //private var adjacencyLists: Array[List[Clause]] = null
-  private var posWatched: Array[List[Clause]] = null
-  private var negWatched: Array[List[Clause]] = null
-  private var cnfFormula: CNFFormula = null
-  private var status: Status = Unknown
-  private var implicationGraph: ImplicationGraph = null
-  private var restartInterval = 32
-  private var nextRestart = restartInterval
-  private val restartFactor = 1.1
-
-  def isSat(clauses: List[Clause], nbVars: Int): Option[Array[Boolean]] = {
-    val (st, newClauses, forcedVars, oldVarToNewVar) = Stats.time("preprocess")(preprocess(clauses, nbVars))
-
-    status = st
-    Stats.time("toplevelloop"){
-      if(status == Unknown) {
-        //INITIALIZATION
-        cnfFormula = newClauses
-        model = Array.fill(cnfFormula.nbVar)(None)
-        implicationGraph = new ImplicationGraph(cnfFormula.nbVar)
-        posWatched = Array.fill(cnfFormula.nbVar)(Nil)
-        negWatched = Array.fill(cnfFormula.nbVar)(Nil)
-        for(clause <- cnfFormula.originalClauses)
-          recordClause(clause)
-        restartInterval = 32
-        nextRestart = restartInterval
-
-        //MAIN LOOP
-        while(status == Unknown) {
-          //println("model: " + model.mkString(","))
-          //println("posWatched: " + posWatched.mkString("\n\n"))
-          //println("negWatched: " + negWatched.mkString("\n\n"))
-          //println(implicationGraph.toDotString)
-
-          Stats.time("decide") {
-            decide()
-          }
-
-          var cont = true
-          while(cont) {
-
-            Stats.time("deduce") {
-              deduce()
-            }
-
-            if(status == Conflict)
-              Stats.time("backtrack") {
-                backtrack()
-              }
-            else
-              cont = false
-          }
-        }
-      }
-    }
-
-    val res = status match {
-      case Unknown | Conflict => sys.error("unexpected")
-      case Unsatisfiable => None
-      case Satisfiable => {
-        val completeModel: Array[Boolean] = new Array(nbVars)
-        (0 until nbVars).foreach(i => forcedVars(i) match {
-          case None => //then this is a new var
-            val newId = oldVarToNewVar(i)
-            completeModel(i) = model(newId).getOrElse(true)
-          case Some(v) =>
-            completeModel(i) = v
-        })
-        Some(completeModel)
-      }
-    }
-    if(Settings.stats) {
-      println("Conflicts: " + nbConflicts)
-      println("Decisions: " + nbDecisions)
-      println("Restarts: " + nbRestarts)
-      println("Learned Literals: " + nbLearntLiteralTotal + " (" + nbLearntClauseTotal + " clauses) --- " + nbLearntLiteralTotal.toDouble/nbLearntClauseTotal.toDouble + " per clause")
-      println("Removed Literals: " + nbRemovedLiteral + "(" + nbRemovedClauses + " clauses) --- " + nbRemovedLiteral.toDouble/nbRemovedClauses.toDouble + " per clause")
-      println("Active Literals: " + (nbLearntLiteralTotal - nbRemovedLiteral) + "(" + (nbLearntClauseTotal - nbRemovedClauses) + ") --- " + (nbLearntLiteralTotal - nbRemovedLiteral).toDouble/(nbLearntClauseTotal-nbRemovedClauses).toDouble + " per clause")
-
-      println("Time spend in:\n")
-      println("  preprocess:           " + Stats.getTime("preprocess"))
-      println("  toplevelloop:         " + Stats.getTime("toplevelloop"))
-      println("    decide:             " + Stats.getTime("decide"))
-      println("    deduce:             " + Stats.getTime("deduce"))
-      println("    backtrack:          " + Stats.getTime("backtrack"))
-      println("      conflictAnalysis: " + Stats.getTime("backtrack.conflictAnalysis"))
-    }
-    res
-  }
-
-  def isSat(clauses: List[Formula]): Option[Map[PredicateApplication, Boolean]] = {
-    null
-  }
 
   //if a var only appear with the same polarity then set it to be true
   //all unit clause are eliminated and the corresponding variables deleted
