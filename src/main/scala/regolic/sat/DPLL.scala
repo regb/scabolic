@@ -167,12 +167,16 @@ object DPLL extends Solver {
     //p is 1-UIP
 
     //clause minimalization
-    val marked: Set[Int] = learntClause.map(_.id).toSet
+    var marked: Set[Int] = learntClause.map(_.id).toSet
+    val levelsInClause: Set[Int] = marked.map(levels(_)) //we can optimize the search, if we see a node of a level not in the set, then for sure there will be a decision node of the same level
     def isDominated(lit: Int): Boolean = {
-      if(marked.contains(lit) || levels(lit) == 0) true else if(reasons(lit) == null) false else {
+      val res = if(marked.contains(lit) || levels(lit) == 0) true else if(reasons(lit) == null || !levelsInClause.contains(lit)) false else {
         val reasonClause = reasons(lit)
         reasonClause.lits.forall(l => l.id == lit || isDominated(l.id)) 
       }
+      if(res)
+        marked += lit //for caching
+      res
     }
 
     learntClause = learntClause.filterNot(lit => {
