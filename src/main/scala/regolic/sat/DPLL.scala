@@ -105,19 +105,19 @@ object DPLL extends Solver {
     if(Settings.stats) {
       println("Conflicts: " + nbConflicts)
       println("Decisions: " + nbDecisions)
-      println("Propagations: " + nbPropagations)
+      println("Propagations: " + nbPropagations + " ( " + nbPropagations/Stats.getTime("deduce") + " / sec)")
       println("Restarts: " + nbRestarts)
       println("Learned Literals: " + nbLearntLiteralTotal + " (" + nbLearntClauseTotal + " clauses) --- " + nbLearntLiteralTotal.toDouble/nbLearntClauseTotal.toDouble + " per clause")
       println("Removed Literals: " + nbRemovedLiteral + "(" + nbRemovedClauses + " clauses) --- " + nbRemovedLiteral.toDouble/nbRemovedClauses.toDouble + " per clause")
       println("Active Literals: " + (nbLearntLiteralTotal - nbRemovedLiteral) + "(" + (nbLearntClauseTotal - nbRemovedClauses) + ") --- " + (nbLearntLiteralTotal - nbRemovedLiteral).toDouble/(nbLearntClauseTotal-nbRemovedClauses).toDouble + " per clause")
 
       println("Time spend in:\n")
-      println("  preprocess:           " + Stats.getTime("preprocess"))
-      println("  toplevelloop:         " + Stats.getTime("toplevelloop"))
-      println("    decide:             " + Stats.getTime("decide"))
-      println("    deduce:             " + Stats.getTime("deduce"))
-      println("    backtrack:          " + Stats.getTime("backtrack"))
-      println("      conflictAnalysis: " + Stats.getTime("backtrack.conflictAnalysis"))
+      println("  preprocess:           " + Stats.getTime("preprocess") + " sec")
+      println("  toplevelloop:         " + Stats.getTime("toplevelloop") + " sec")
+      println("    decide:             " + Stats.getTime("decide") + " sec")
+      println("    deduce:             " + Stats.getTime("deduce") + " sec")
+      println("    backtrack:          " + Stats.getTime("backtrack") + " sec")
+      println("      conflictAnalysis: " + Stats.getTime("backtrack.conflictAnalysis") + " sec")
     }
     res
   }
@@ -137,6 +137,7 @@ object DPLL extends Solver {
     var confl = conflict
     conflict = null
 
+    //find 1-UIP
     do {
       cnfFormula.incVSIDSClause(confl)
 
@@ -163,15 +164,25 @@ object DPLL extends Solver {
       confl = reasons(p)
     } while(c > 0)
     seen(p) = true
+    //p is 1-UIP
+
+    //clause minimalization
+    val marked: Set[Int] = learntClause.map(_.id).toSet
+    def isDominated(lit: Int): Boolean = {
+      if(marked.contains(lit) || levels(lit) == 0) true else if(reasons(lit) == null) false else {
+        val reasonClause = reasons(lit)
+        reasonClause.lits.forall(l => l.id == lit || isDominated(l.id)) 
+      }
+    }
 
     learntClause = learntClause.filterNot(lit => {
       val reasonClause = reasons(lit.id) 
-      reasonClause != null && reasonClause.lits.forall(pre => seen(pre.id) || levels(pre.id) == 0)
+      reasonClause != null && reasonClause.lits.forall(pre => isDominated(pre.id))
     })
 
+    //compute backtrack level
     val backtrackLevel = if(learntClause.isEmpty) 0 else learntClause.map((lit: Literal) => levels(lit.id)).max
-    learntClause ::= new Literal(p, !model(p).get) 
-
+    learntClause ::= new Literal(p, !model(p).get)  //don't forget to add p in the clause !
 
     (new Clause(learntClause), backtrackLevel)
   }
@@ -497,9 +508,6 @@ object DPLL extends Solver {
     }
   }
 
-  def unset(id: Int) {
-    model(id) = None
-  }
 
   def decide() {
     nbDecisions += 1
@@ -563,21 +571,27 @@ object DPLL extends Solver {
     assert(levels(trail.head) == decisionLevel)
     var head = trail.head
     while(decisionLevel != lvl) {
-      unset(head)
-      val reasonClause = reasons(head)
-      if(reasonClause != null) {
-        reasonClause.locked = false
-        reasons(head) = null
-      }
+      assert(decisionLevel == levels(head))
+      assert(model(head) != None)
+      model(head) = None
       levels(head) = -1
       trail = trail.tail
       if(!trail.isEmpty) {
+        if(decisionLevel == levels(trail.head)) { //the current element is not a decision variable
+          val reasonClause = reasons(head)
+          assert(reasonClause != null)
+          reasonClause.locked = false
+          reasons(head) = null
+        } else { //the current variable is a decision variable, and the next one should be one level lower
+          assert(reasons(head) == null)
+          assert(decisionLevel == levels(trail.head) + 1)
+          decisionLevel -= 1
+        }
         head = trail.head
-        decisionLevel = levels(head)
-        assert(decisionLevel != -1)
-      } else {
+      } else { // we have the very first decision variable
         assert(decisionLevel == 1)
         assert(lvl == 0)
+        assert(reasons(head) == null)
         decisionLevel = 0
       }
     }
