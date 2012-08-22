@@ -22,6 +22,7 @@ object DPLL extends Solver {
   //Statistics, should move them to the Stats object in some way
   private var nbConflicts = 0
   private var nbDecisions = 0
+  private var nbPropagations = 0
   private var nbLearntClauseTotal = 0
   private var nbLearntLiteralTotal = 0
   private var nbRemovedClauses = 0
@@ -30,7 +31,6 @@ object DPLL extends Solver {
 
 
   private var decisionLevel = 0
-  private var setAtLevels: List[Int] = List(0)
   private var trail: List[Int] = Nil
   private var reasons: Array[Clause] = null
   private var levels: Array[Int] = null
@@ -49,21 +49,21 @@ object DPLL extends Solver {
     val (st, newClauses, forcedVars, oldVarToNewVar) = Stats.time("preprocess")(preprocess(clauses, nbVars))
 
     status = st
-    Stats.time("toplevelloop"){
-      if(status == Unknown) {
-        //INITIALIZATION
-        cnfFormula = newClauses
-        model = Array.fill(cnfFormula.nbVar)(None)
-        posWatched = Array.fill(cnfFormula.nbVar)(Nil)
-        negWatched = Array.fill(cnfFormula.nbVar)(Nil)
-        for(clause <- cnfFormula.originalClauses)
-          recordClause(clause)
-        restartInterval = 32
-        nextRestart = restartInterval
-        reasons = new Array(nbVars)
-        levels = new Array(nbVars)
+    if(status == Unknown) {
+      //INITIALIZATION
+      cnfFormula = newClauses
+      model = Array.fill(cnfFormula.nbVar)(None)
+      posWatched = Array.fill(cnfFormula.nbVar)(Nil)
+      negWatched = Array.fill(cnfFormula.nbVar)(Nil)
+      for(clause <- cnfFormula.originalClauses)
+        recordClause(clause)
+      restartInterval = 32
+      nextRestart = restartInterval
+      reasons = new Array(nbVars)
+      levels = Array.fill(nbVars)(-1)
 
-        //MAIN LOOP
+      //MAIN LOOP
+      Stats.time("toplevelloop"){
         while(status == Unknown) {
           Stats.time("decide") {
             decide()
@@ -105,6 +105,7 @@ object DPLL extends Solver {
     if(Settings.stats) {
       println("Conflicts: " + nbConflicts)
       println("Decisions: " + nbDecisions)
+      println("Propagations: " + nbPropagations)
       println("Restarts: " + nbRestarts)
       println("Learned Literals: " + nbLearntLiteralTotal + " (" + nbLearntClauseTotal + " clauses) --- " + nbLearntLiteralTotal.toDouble/nbLearntClauseTotal.toDouble + " per clause")
       println("Removed Literals: " + nbRemovedLiteral + "(" + nbRemovedClauses + " clauses) --- " + nbRemovedLiteral.toDouble/nbRemovedClauses.toDouble + " per clause")
@@ -519,7 +520,7 @@ object DPLL extends Solver {
       val fLit = lit.get
       decisionLevel += 1
       trail ::= fLit._1
-      setAtLevels ::= 1
+      assert(levels(fLit._1) == -1)
       levels(fLit._1) = decisionLevel
       set(fLit._1, fLit._2)
     }
@@ -558,21 +559,27 @@ object DPLL extends Solver {
 
 
   def backtrackTo(lvl: Int) {
+    assert(!trail.isEmpty)
+    assert(levels(trail.head) == decisionLevel)
+    var head = trail.head
     while(decisionLevel != lvl) {
-      var count = setAtLevels.head
-      setAtLevels = setAtLevels.tail
-      while(count > 0) {
-        val head = trail.head
-        trail = trail.tail
-        unset(head)
-        val reasonClause = reasons(head)
-        if(reasonClause != null) {
-          reasonClause.locked = false
-          reasons(head) = null
-        }
-        count -= 1
+      unset(head)
+      val reasonClause = reasons(head)
+      if(reasonClause != null) {
+        reasonClause.locked = false
+        reasons(head) = null
       }
-      decisionLevel -= 1
+      levels(head) = -1
+      trail = trail.tail
+      if(!trail.isEmpty) {
+        head = trail.head
+        decisionLevel = levels(head)
+        assert(decisionLevel != -1)
+      } else {
+        assert(decisionLevel == 1)
+        assert(lvl == 0)
+        decisionLevel = 0
+      }
     }
   }
 
@@ -582,14 +589,13 @@ object DPLL extends Solver {
       unitClauses = unitClauses.tail
       if(forcedLit.isUnassigned) { //could no longer be true since many variables are forwarded
 
-
-        setAtLevels = (setAtLevels.head + 1) :: setAtLevels.tail
         trail ::= forcedLit.id
         reasons(forcedLit.id) = unitClause
         levels(forcedLit.id) = decisionLevel
         unitClause.locked = true
 
         set(forcedLit.id, forcedLit.polarity)
+        nbPropagations += 1
       }
     }
     unitClauses = Nil
