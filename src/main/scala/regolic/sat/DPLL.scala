@@ -8,6 +8,8 @@ import regolic.asts.fol.Manip._
 import regolic.Settings
 import regolic.Stats
 
+import scala.collection.mutable.HashSet
+
 object DPLL extends Solver {
 
   /*
@@ -37,8 +39,8 @@ object DPLL extends Solver {
   private var conflict: Clause = null
   private var unitClauses: List[(Clause, Literal)] = List()
   private var model: Array[Option[Boolean]] = null
-  private var posWatched: Array[List[Clause]] = null
-  private var negWatched: Array[List[Clause]] = null
+  private var posWatched: Array[HashSet[Clause]] = null
+  private var negWatched: Array[HashSet[Clause]] = null
   private var cnfFormula: CNFFormula = null
   private var status: Status = Unknown
   private var restartInterval = 32
@@ -53,8 +55,8 @@ object DPLL extends Solver {
       //INITIALIZATION
       cnfFormula = newClauses
       model = Array.fill(cnfFormula.nbVar)(None)
-      posWatched = Array.fill(cnfFormula.nbVar)(Nil)
-      negWatched = Array.fill(cnfFormula.nbVar)(Nil)
+      posWatched = Array.fill(cnfFormula.nbVar)(new HashSet[Clause]())
+      negWatched = Array.fill(cnfFormula.nbVar)(new HashSet[Clause]())
       for(clause <- cnfFormula.originalClauses)
         recordClause(clause)
       restartInterval = 32
@@ -65,6 +67,7 @@ object DPLL extends Solver {
       //MAIN LOOP
       Stats.time("toplevelloop"){
         while(status == Unknown) {
+          //watchedIsCorrect()
           Stats.time("decide") {
             decide()
           }
@@ -172,7 +175,7 @@ object DPLL extends Solver {
     def isDominated(lit: Int): Boolean = {
       val res = if(marked.contains(lit) || levels(lit) == 0) true else if(reasons(lit) == null || !levelsInClause.contains(lit)) false else {
         val reasonClause = reasons(lit)
-        reasonClause.lits.forall(l => l.id == lit || isDominated(l.id)) 
+        reasonClause.lits.forall(l => l.id == lit || isDominated(l.id))
       }
       if(res)
         marked += lit //for caching
@@ -225,7 +228,6 @@ object DPLL extends Solver {
   class Literal(val id: Int, val polarity: Boolean) {
     require(id >= 0)
     def value: Option[Boolean] = model(id)
-    //def value_=(nv: Option[Boolean]) { model(id) = nv }
     def isAssigned = value != None
     def isUnassigned = value == None
     def isSat = {
@@ -241,6 +243,8 @@ object DPLL extends Solver {
 
     var activity: Double = 0.
     var locked = false
+
+    val size = lits.size
 
     //if size is 1 then just set wl1 = wl2 = lits.head, the clause will be handled separately in the rest of the code
 
@@ -260,9 +264,9 @@ object DPLL extends Solver {
       if(found != None) {
         val newWatched = found.get
         if(lit.polarity)
-          posWatched(id) = posWatched(id).filterNot(_ == this)
+          posWatched(id) -= this
         else
-          negWatched(id) = negWatched(id).filterNot(_ == this)
+          negWatched(id) -= this
 
         if(wl1 == lit) {
           rest = wl1 :: newRest
@@ -273,9 +277,9 @@ object DPLL extends Solver {
         }
 
         if(newWatched.polarity)
-          posWatched(newWatched.id) = (this :: posWatched(newWatched.id))
+          posWatched(newWatched.id) += this
         else
-          negWatched(newWatched.id) = (this :: negWatched(newWatched.id))
+          negWatched(newWatched.id) += this
       } else {
         val owl = if(wl1 == lit) wl2 else wl1
 
@@ -439,6 +443,7 @@ object DPLL extends Solver {
     }
 
     def learn(clause: Clause) {
+      assert(clause.size > 1)
       learntClauses ::= clause
       nbClauses += 1
       nbLearntClauses += 1
@@ -476,26 +481,26 @@ object DPLL extends Solver {
 
   def recordClause(cl: Clause) {
     if(cl.wl1.polarity)
-      posWatched(cl.wl1.id) ::= cl
+      posWatched(cl.wl1.id) += cl
     else
-      negWatched(cl.wl1.id) ::= cl
+      negWatched(cl.wl1.id) += cl
 
     if(cl.wl2.polarity)
-      posWatched(cl.wl2.id) ::= cl
+      posWatched(cl.wl2.id) += cl
     else
-      negWatched(cl.wl2.id) ::= cl
+      negWatched(cl.wl2.id) += cl
   }
 
   def unrecordClause(cl: Clause) {
     if(cl.wl1.polarity)
-      posWatched(cl.wl1.id) = posWatched(cl.wl1.id).filterNot(_ == cl)
+      posWatched(cl.wl1.id) -= cl
     else
-      negWatched(cl.wl1.id) = negWatched(cl.wl1.id).filterNot(_ == cl)
+      negWatched(cl.wl1.id) -= cl
 
     if(cl.wl2.polarity)
-      posWatched(cl.wl2.id) = posWatched(cl.wl2.id).filterNot(_ == cl)
+      posWatched(cl.wl2.id) -= cl
     else
-      negWatched(cl.wl2.id) = negWatched(cl.wl2.id).filterNot(_ == cl)
+      negWatched(cl.wl2.id) -= cl
   }
 
 
@@ -554,17 +559,16 @@ object DPLL extends Solver {
         nextRestart = nbConflicts + restartInterval
         nbRestarts += 1
         backtrackTo(0)
-        for(clause <- cnfFormula.learntClauses) { //need to add all unit clauses, only learnt clauses could be unit
-          if(clause.lits.tail.isEmpty)
-            unitClauses ::= ((clause, clause.lits.head))
-        }
+        if(learnedClause.size == 1) //since we do not learn the clause
+          unitClauses ::= ((learnedClause, learnedClause.lits.head))
         cnfFormula.augmentMaxLearnt()
       } else {
         backtrackTo(backtrackLevel)
         unitClauses ::= ((learnedClause, learnedClause.lits.find(_.isUnassigned).get)) //only on non restart
         //note that if the unitClause is of size 1, there will be an auto-reset to backtrack level 0 so this is correct as well
       }
-      cnfFormula.learn(learnedClause)
+      if(learnedClause.size > 1) //we only learn if it is not unit, if it is unit, then it is processed via the unitClauses and its consequences is added at level 0 which is never forgot
+        cnfFormula.learn(learnedClause)
       status = Unknown
     }
   }
@@ -745,6 +749,30 @@ object DPLL extends Solver {
       val finalClauses: List[Clause] = oldClauses.map(clause => new Clause(clause.map(lit => new Literal(oldVarToNewVar(lit.id), lit.polarity))))
       val newNbVars = nbVars - nbVarsRemoved
       (Unknown, new CNFFormula(finalClauses, newNbVars), forcedVars, oldVarToNewVar)
+    }
+  }
+
+  //assert the invariant of watched literal is correct
+  def watchedIsCorrect() {
+    for(cl <- cnfFormula.originalClauses ++ cnfFormula.learntClauses) {
+      if(cl.wl1.polarity)
+        assert(posWatched(cl.wl1.id).contains(cl))
+      else
+        assert(negWatched(cl.wl1.id).contains(cl))
+
+      if(cl.wl2.polarity)
+        assert(posWatched(cl.wl2.id).contains(cl))
+      else
+        assert(negWatched(cl.wl2.id).contains(cl))
+    }
+
+    for(v <- 0 until cnfFormula.nbVar) {
+      for(cl <- posWatched(v))
+        assert((cl.wl1.id == v && cl.wl1.polarity) || (cl.wl2.id == v && cl.wl2.polarity))
+
+      for(cl <- negWatched(v))
+        assert((cl.wl1.id == v && !cl.wl1.polarity) || (cl.wl2.id == v && !cl.wl2.polarity))
+
     }
   }
 
