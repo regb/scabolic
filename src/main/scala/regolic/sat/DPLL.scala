@@ -228,69 +228,112 @@ object DPLL extends Solver {
   class Literal(val id: Int, val polarity: Boolean) {
     require(id >= 0)
     def value: Option[Boolean] = model(id)
-    def isAssigned = value != None
-    def isUnassigned = value == None
-    def isSat = {
-      isAssigned && !(value.get ^ polarity)
-    }
-    def isUnsat = {
-      isAssigned && value.get ^ polarity
-    }
+    def isAssigned: Boolean = value != None
+    def isUnassigned: Boolean = value == None
+    def isSat: Boolean = isAssigned && !(value.get ^ polarity)
+    def isUnsat: Boolean = isAssigned && (value.get ^ polarity)
     override def toString: String = (if(!polarity) "-" else "") + "v" + id
   }
 
   class Clause(val lits: List[Literal]) {
-
     var activity: Double = 0.
     var locked = false
-
     val size = lits.size
 
-    //if size is 1 then just set wl1 = wl2 = lits.head, the clause will be handled separately in the rest of the code
+    //ignore size 1 for watched literal, they are never kept in the db
+    private sealed trait ClauseKind
+    private case object BinaryClause extends ClauseKind
+    private case object TernaryClause extends ClauseKind
+    private case object ArbitraryClause extends ClauseKind
+    private val kind: ClauseKind = if(size == 2) BinaryClause else if(size == 3) TernaryClause else ArbitraryClause
 
-    var wl1 = lits.head
-    var wl2 = if(lits.tail.isEmpty) wl1 else lits.tail.head
-    var rest = if(lits.tail.isEmpty) Nil else lits.tail.tail
+    var wl1: Literal = lits.head
+    var wl2: Literal = if(size == 1) wl1 else lits(1)
+    private var uwl: Literal = if(kind == TernaryClause) lits(2) else null
+    private var arrayLits: Array[Literal] = if(kind == ArbitraryClause) lits.toArray else null
+    private var wli1: Int = 0
+    private var wli2: Int = 1
 
     //one of the watched lit is negated
     def watchedLitNeg(id: Int) {
       val lit = if(id == wl1.id) wl1 else wl2
       assert(wl1 == lit || wl2 == lit)
 
-      var found: Option[Literal] = None
-      var newRest: List[Literal] = Nil
-      rest.foreach(l => if(found == None && (l.isUnassigned || l.isSat)) found = Some(l) else (newRest ::= l))
-
-      if(found != None) {
-        val newWatched = found.get
-        if(lit.polarity)
-          posWatched(id) -= this
-        else
-          negWatched(id) -= this
-
-        if(wl1 == lit) {
-          rest = wl1 :: newRest
-          wl1 = newWatched
-        } else {
-          rest = wl2 :: newRest
-          wl2 = newWatched
+      kind match {
+        case BinaryClause => {
+          if(wl1.isUnsat && wl2.isUnsat) {
+            status = Conflict
+            conflict = this
+          } else if(wl2.isUnassigned) {
+            unitClauses ::= (this, wl2)
+          } else if(wl1.isUnassigned) {
+            unitClauses ::= (this, wl1)
+          }
         }
+        case TernaryClause => {
+          if((uwl.isUnassigned || uwl.isSat) && lit == wl1) {
+            val tmp = uwl
+            uwl = wl1
+            wl1 = tmp
+            changedWatched(uwl, wl1)
+          } else if((uwl.isUnassigned || uwl.isSat) && lit == wl2) {
+            val tmp = uwl
+            uwl = wl2
+            wl2 = tmp
+            changedWatched(uwl, wl2)
+          } else if(wl1.isUnassigned) { 
+            unitClauses ::= (this, wl1)
+          } else if(wl2.isUnassigned) {
+            unitClauses ::= (this, wl2)
+          } else if(wl1.isUnsat && wl2.isUnsat) {
+            status = Conflict
+            conflict = this
+          }
+        }
+        case ArbitraryClause => {
+          var newWatchedIndex = 0
+          var found = false
+          while(!found && newWatchedIndex < size) {
+            val l = arrayLits(newWatchedIndex)
+            if(newWatchedIndex != wli1 && newWatchedIndex != wli2 && !l.isUnsat)
+              found = true
+            else
+              newWatchedIndex += 1
+          }
 
-        if(newWatched.polarity)
-          posWatched(newWatched.id) += this
-        else
-          negWatched(newWatched.id) += this
-      } else {
-        val owl = if(wl1 == lit) wl2 else wl1
-
-        if(owl.isUnassigned)
-          unitClauses ::= (this, owl)
-        else if(owl.isUnsat && status != Conflict) {
-          status = Conflict
-          conflict = this
+          if(found) {
+            if(wl1 == lit) {
+              wl1 = arrayLits(newWatchedIndex) 
+              wli1 = newWatchedIndex
+            } else {
+              wl2 = arrayLits(newWatchedIndex) 
+              wli2 = newWatchedIndex
+            }
+            changedWatched(lit, arrayLits(newWatchedIndex))
+          } else {
+            val owl = if(wl1 == lit) wl2 else wl1
+            if(owl.isUnassigned)
+              unitClauses ::= (this, owl)
+            else if(owl.isUnsat && status != Conflict) {
+              status = Conflict
+              conflict = this
+            }
+          }
         }
       }
 
+    }
+
+    private def changedWatched(oldLit: Literal, newLit: Literal) {
+      if(oldLit.polarity)
+        posWatched(oldLit.id) -= this
+      else
+        negWatched(oldLit.id) -= this
+    
+      if(newLit.polarity)
+        posWatched(newLit.id) += this
+      else
+        negWatched(newLit.id) += this
     }
 
     override def toString: String = lits.mkString(", ")
