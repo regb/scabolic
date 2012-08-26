@@ -88,7 +88,8 @@ object DPLL extends Solver {
               }
             } else {
               cont = false
-              assertNoUnits
+              if(status != Unsatisfiable)
+                assertNoUnits
             }
           }
         }
@@ -200,7 +201,7 @@ object DPLL extends Solver {
     val backtrackLevel = if(learntClause.isEmpty) 0 else learntClause.map((lit: Literal) => levels(lit.id)).max
     learntClause ::= new Literal(p, !model(p).get)  //don't forget to add p in the clause !
 
-    (new Clause(learntClause), backtrackLevel)
+    (new Clause(learntClause.sortWith((lit1, lit2) => levels(lit1.id) > levels(lit2.id))), backtrackLevel)
   }
 
 
@@ -458,7 +459,7 @@ object DPLL extends Solver {
     }
 
     def learn(clause: Clause) {
-      println("learning: " + clause)
+      //println("learning: " + clause.lits.map(lit => lit.toString + "@" + levels(lit.id) + " -> " + model(lit.id)))
       assert(clause.size > 1)
       learntClauses ::= clause
       nbClauses += 1
@@ -626,7 +627,7 @@ object DPLL extends Solver {
       val (unitClause, forcedLit) = unitClauses.head
       unitClauses = unitClauses.tail
       if(forcedLit.isUnassigned) { //could no longer be true since many variables are forwarded
-        println("forcing: " + forcedLit + " from clause: " + unitClause)
+        //println("forcing: " + forcedLit + " from clause: " + unitClause)
         assert(unitClause.lits.forall(lit => (lit == forcedLit) || lit.isUnsat))
         assert(unitClause.lits.forall(lit => (lit == forcedLit) || (trail.contains(lit.id))))
 
