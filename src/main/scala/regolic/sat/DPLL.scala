@@ -67,17 +67,17 @@ object DPLL extends Solver {
       //MAIN LOOP
       Stats.time("toplevelloop"){
         while(status == Unknown) {
-          assertNoUnits
-          assertWatchedInvariant
-          assertTrailInvariant
+          //assertNoUnits
+          //assertWatchedInvariant
+          //assertTrailInvariant
           Stats.time("decide") {
             decide()
           }
 
           var cont = true
           while(cont) {
-            assertWatchedInvariant
-            assertTrailInvariant
+            //assertWatchedInvariant
+            //assertTrailInvariant
             Stats.time("deduce") {
               deduce()
             }
@@ -88,8 +88,8 @@ object DPLL extends Solver {
               }
             } else {
               cont = false
-              if(status != Unsatisfiable)
-                assertNoUnits
+              //if(status != Unsatisfiable)
+              //  assertNoUnits
             }
           }
         }
