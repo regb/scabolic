@@ -644,6 +644,7 @@ object DPLL extends Solver {
   }
 
 
+  //TODO: this is slow and could probably be replaced by the deduce + clause removal during the search, just need to ensure the basic constraints
   //if a var only appear with the same polarity then set it to be true
   //all unit clause are eliminated and the corresponding variables deleted
   //keep a map from original var id to new ones
@@ -764,34 +765,6 @@ object DPLL extends Solver {
     }
   }
 
-
-  private class FixedIntStack(size: Int) {
-    private val stack: Array[Int] = new Array(size)
-    private var topIndex: Int = -1
-
-    def push(el: Int) {
-      topIndex += 1
-      stack(topIndex) = el
-    }
-    def pop(): Int = {
-      val res = stack(topIndex)
-      topIndex -= 1
-      res
-    }
-    def top: Int = stack(topIndex)
-    def isEmpty: Boolean = topIndex == -1
-    def contains(el: Int): Boolean = {
-      var i = topIndex
-      while(i >= 0) {
-        if(stack(i) == el)
-          return true
-        i -= 1
-      }
-      false
-    }
-  }
-
-  
 
   //some debugging assertions that can be introduced in the code to check for correctness
 
