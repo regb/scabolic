@@ -187,6 +187,7 @@ object DPLL extends Solver {
     //clause minimalization
     var marked: Set[Int] = learntClause.map(_.id).toSet
     val levelsInClause: Set[Int] = marked.map(levels(_)) //we can optimize the search, if we see a node of a level not in the set, then for sure there will be a decision node of the same level
+
     //def isDominated(lit: Int): Boolean = {
     //  val res = if(marked.contains(lit) || levels(lit) == 0) true else if(reasons(lit) == null || !levelsInClause.contains(lit)) false else {
     //    val reasonClause = reasons(lit)
@@ -199,7 +200,6 @@ object DPLL extends Solver {
 
     def litRedundant(lit: Int, abstractLevel: Int): Boolean = {
       var stack = List(lit)
-      var top = learntClause.size + 1
       var analyzeToclear: List[Int] = Nil
       var res = true
       while(!stack.isEmpty && res) {
@@ -215,7 +215,6 @@ object DPLL extends Solver {
               stack ::= id
               analyzeToclear ::= id
             } else {
-              var j = top
               while(!analyzeToclear.isEmpty) {
                 seen(analyzeToclear.head) = false;
                 analyzeToclear = analyzeToclear.tail
