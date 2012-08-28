@@ -17,7 +17,9 @@ trait Solver {
   val logic: Logic
   def isSat(f: Formula): Option[Map[FunctionSymbol, Term]]
 
-  def isValid(f: Formula): Option[Map[FunctionSymbol, Term]] = isSat(Not(f))
+  def isValid(f: Formula): Boolean = isSat(Not(f)) == None
+  
+  def findCounterample(f: Formula): Option[Map[FunctionSymbol, Term]] = isSat(Not(f))
 
 }
 
