@@ -133,6 +133,7 @@ object DPLL extends Solver {
     }
     res
   }
+
   def conflictAnalysis: (Clause, Int) = if(decisionLevel == 0) (null, -1) else {
     assert(conflict != null)
 
@@ -182,22 +183,57 @@ object DPLL extends Solver {
     trail.push(p) //need to keep p in the trail
     //p is 1-UIP
 
+    def getAbstractLevel(id: Int) = 1 << (levels(id) & 31)
     //clause minimalization
     var marked: Set[Int] = learntClause.map(_.id).toSet
     val levelsInClause: Set[Int] = marked.map(levels(_)) //we can optimize the search, if we see a node of a level not in the set, then for sure there will be a decision node of the same level
-    def isDominated(lit: Int): Boolean = {
-      val res = if(marked.contains(lit) || levels(lit) == 0) true else if(reasons(lit) == null || !levelsInClause.contains(lit)) false else {
-        val reasonClause = reasons(lit)
-        reasonClause.lits.forall(l => l.id == lit || isDominated(l.id))
+    //def isDominated(lit: Int): Boolean = {
+    //  val res = if(marked.contains(lit) || levels(lit) == 0) true else if(reasons(lit) == null || !levelsInClause.contains(lit)) false else {
+    //    val reasonClause = reasons(lit)
+    //    reasonClause.lits.forall(l => l.id == lit || isDominated(l.id))
+    //  }
+    //  if(res)
+    //    marked += lit //for caching
+    //  res
+    //}
+
+    def litRedundant(lit: Int, abstractLevel: Int): Boolean = {
+      var stack = List(lit)
+      var top = learntClause.size + 1
+      var analyzeToclear: List[Int] = Nil
+      var res = true
+      while(!stack.isEmpty && res) {
+        val reasonClause = reasons(stack.head)
+        stack = stack.tail
+
+        reasonClause.lits.foreach(l => if(l.id != lit && res) {
+          val id = l.id
+
+          if(!seen(id) && levels(id) > 0) {
+            if(reasons(id) != null && (getAbstractLevel(id) & abstractLevel) != 0) {
+              seen(id) = true
+              stack ::= id
+              analyzeToclear ::= id
+            } else {
+              var j = top
+              while(!analyzeToclear.isEmpty) {
+                seen(analyzeToclear.head) = false;
+                analyzeToclear = analyzeToclear.tail
+              }
+              res = false
+            }
+          }
+        })
       }
-      if(res)
-        marked += lit //for caching
       res
     }
 
+    var absLevel: Int = 0
+    learntClause.foreach(lit => absLevel |= getAbstractLevel(lit.id)) //maintain an abstract level
+
     learntClause = learntClause.filterNot(lit => {
       val reasonClause = reasons(lit.id) 
-      reasonClause != null && reasonClause.lits.forall(pre => isDominated(pre.id))
+      reasonClause != null && litRedundant(lit.id, absLevel) //reasonClause.lits.forall(pre => isDominated(pre.id))
     })
 
     //compute backtrack level
