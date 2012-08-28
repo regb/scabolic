@@ -69,7 +69,7 @@ object Dimacs {
             if(!numbers.isEmpty)
               numbers.map(i => {
                 if(i == 0 && currentClause != Nil) {
-                  clauses ::= new Clause(currentClause.map(i => if(i > 0) new Literal(i-1, true) else new Literal(-i-1, false)))
+                  clauses ::= new Clause(currentClause.map(i => if(i > 0) new Literal(i-1, 1) else new Literal(-i-1, 0)))
                   currentClause = Nil
                 } else
                   currentClause ::= i
