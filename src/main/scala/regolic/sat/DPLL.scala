@@ -253,17 +253,11 @@ object DPLL extends Solver {
     (new Clause(learntClause.sortWith((lit1, lit2) => levels(lit1.id) > levels(lit2.id))), backtrackLevel)
   }
 
+  def isAssigned(lit: Literal): Boolean = model(lit.id) != -1
+  def isUnassigned(lit: Literal): Boolean = model(lit.id) == -1
+  def isSat(lit: Literal): Boolean = (model(lit.id) ^ lit.polInt) == 0
+  def isUnsat(lit: Literal): Boolean = (model(lit.id) ^ lit.polInt) == 1
 
-
-  class Literal(val id: Int, val polInt: Int) {
-    require(id >= 0)
-    def isAssigned: Boolean = model(id) != -1
-    def isUnassigned: Boolean = model(id) == -1
-    def isSat: Boolean = (model(id) ^ polInt) == 0
-    def isUnsat: Boolean = (model(id) ^ polInt) == 1
-    def polarity = polInt == 1
-    override def toString: String = (if(!polarity) "-" else "") + "v" + id
-  }
 
   class Clause(val lits: List[Literal]) {
     var activity: Double = 0.
@@ -603,7 +597,7 @@ object DPLL extends Solver {
       } else {
         assert(decisionLevel > backtrackLevel)
         backtrackTo(backtrackLevel)
-        val lit = learnedClause.lits.find(_.isUnassigned).get
+        val lit = learnedClause.lits.find(isUnassigned).get
         enqueueLiteral(lit.id, lit.polInt, learnedClause) //only on non restart
         //note that if the unitClause is of size 1, there will be an auto-reset to backtrack level 0 so this is correct as well
       }
@@ -666,7 +660,7 @@ object DPLL extends Solver {
         var found = false
         while(!found && newWatchedIndex < w.size) {
           val l = w.arrayLits(newWatchedIndex)
-          if(newWatchedIndex != w.wli1 && newWatchedIndex != w.wli2 && !l.isUnsat)
+          if(newWatchedIndex != w.wli1 && newWatchedIndex != w.wli2 && !isUnsat(l))
             found = true
           else
             newWatchedIndex += 1
@@ -679,11 +673,11 @@ object DPLL extends Solver {
           ws.remove()
         } else {
           
-          if(w.wl2.isUnsat) {
+          if(isUnsat(w.wl2)) {
             status = Conflict
             qHead == trail.size
             conflict = w
-          } else if(w.wl2.isUnassigned) {
+          } else if(isUnassigned(w.wl2)) {
             nbPropagations += 1
             enqueueLiteral(w.wl2.id, w.wl2.polInt, w)
           }
@@ -825,7 +819,7 @@ object DPLL extends Solver {
     assert(qHead == trail.size) //we assume that all unit clauses queued have been processed
 
     for(clause <- cnfFormula.originalClauses ::: cnfFormula.learntClauses) {
-      if(clause.lits.count(_.isUnassigned) == 1 && clause.lits.forall(lit => lit.isUnassigned || lit.isUnsat)) {
+      if(clause.lits.count(isUnassigned) == 1 && clause.lits.forall(lit => isUnassigned(lit) || isUnsat(lit))) {
         println("clause " + clause + " should be unit !")
         assert(false)
       }

@@ -6,6 +6,8 @@ import java.io.InputStream
 import regolic.asts.core.Trees._
 import regolic.asts.fol.Trees._
 
+import regolic.sat.DPLL._
+import regolic.sat.Literal
 
 /*
  * This DIMACS parser might not exactly follow the standard, but since I am not sure where the
@@ -27,8 +29,6 @@ import regolic.asts.fol.Trees._
  * At the end, we verified that the number of clauses indead match the declared, and reject any output
  * that does not have enough clause. Actually, we don't do that yet, but we might in the future.
  */
-
- import regolic.sat.DPLL._
 
 object Dimacs {
 
