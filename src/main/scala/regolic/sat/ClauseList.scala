@@ -126,7 +126,8 @@ class ClauseList(size: Int) {
       currentNode = fakeNode
       if(removedNode == root) {
         root = removedNode.next
-      } else {
+      } 
+      if(predNode != null) {
         predNode.next = removedNode.next
       }
       freeNode(removedNode)
