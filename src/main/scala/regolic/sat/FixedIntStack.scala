@@ -4,8 +4,8 @@ package regolic.sat
  * This implements a stack of int of finite size using an array.
  * This is intended to be used for the trail in the SAT solver.
  */
-class FixedIntStack(size: Int) {
-  private val stack: Array[Int] = new Array(size)
+class FixedIntStack(maxSize: Int) {
+  private val stack: Array[Int] = new Array(maxSize)
   private var topIndex: Int = -1
 
   def push(el: Int) {
@@ -28,4 +28,12 @@ class FixedIntStack(size: Int) {
     }
     false
   }
+
+  def apply(i: Int): Int = {
+    assert(i >= 0 && i <= topIndex)
+    stack(i)
+  }
+
+  def size: Int = topIndex + 1
+
 }
