@@ -14,38 +14,48 @@ object DPLL extends Solver {
 
   /*
     This is a SAT solver, and I am trying to make it efficient, so don't expect nice functional code
-    using immutable data and everything, this will be pure procedural code with many gloabl variables
-    */
+    using immutable data and everything, this will be pure procedural code with many gloabl variables.
+  */
+
+
+  // TODO: use the extends AnyVal with Variable (with a Int field) when the feature will be reliable and as efficient as using directly Int
 
   def isSat(clauses: List[Formula]): Option[Map[PredicateApplication, Boolean]] = {
     null
   }
+
+  //Enumeration for the different status of the algorithm
+  private sealed trait Status
+  private case object Satisfiable extends Status
+  private case object Unsatisfiable extends Status
+  private case object Conflict extends Status
+  private case object Unknown extends Status
   
   //Statistics, should move them to the Stats object in some way
-  private var nbConflicts = 0
-  private var nbDecisions = 0
-  private var nbPropagations = 0
-  private var nbLearntClauseTotal = 0
-  private var nbLearntLiteralTotal = 0
-  private var nbRemovedClauses = 0
-  private var nbRemovedLiteral = 0
-  private var nbRestarts = 0
+  private[this] var nbConflicts = 0
+  private[this] var nbDecisions = 0
+  private[this] var nbPropagations = 0
+  private[this] var nbLearntClauseTotal = 0
+  private[this] var nbLearntLiteralTotal = 0
+  private[this] var nbRemovedClauses = 0
+  private[this] var nbRemovedLiteral = 0
+  private[this] var nbRestarts = 0
+         
+  private[this] var decisionLevel = 0
+  private[this] var trail: FixedIntStack = null
+  private[this] var qHead = 0
+  private[this] var reasons: Array[Clause] = null
+  private[this] var levels: Array[Int] = null
+  private[this] var conflict: Clause = null
+  private[this] var model: Array[Int] = null
+  private[this] var watched: Array[ClauseList] = null
+  private[this] var cnfFormula: CNFFormula = null
+  private[this] var status: Status = Unknown
+  private[this] var restartInterval = 32
+  private[this] var nextRestart = restartInterval
+  private[this] val restartFactor = 1.1
 
-  private var decisionLevel = 0
-  private var trail: FixedIntStack = null
-  private var reasons: Array[Clause] = null
-  private var levels: Array[Int] = null
-  private var conflict: Clause = null
-  private var unitClauses: List[(Clause, Literal)] = List()
-  private var model: Array[Int] = null
-  private var watched: Array[ClauseList] = null
-  private var cnfFormula: CNFFormula = null
-  private var status: Status = Unknown
-  private var restartInterval = 32
-  private var nextRestart = restartInterval
-  private val restartFactor = 1.1
-
-  def getWatched(id: Int, pol: Int) = watched((id<<1) | pol) //2*id + pol, dunno if this is faster, does not really semm to make a difference
+  private[this] def getWatched(id: Int, pol: Int) = watched((id<<1) | pol) //2*id + pol, dunno if this is faster, does not really semm to make a difference
 
   def isSat(clauses: List[Clause], nbVars: Int): Option[Array[Boolean]] = {
     val (st, newClauses, forcedVars, oldVarToNewVar) = Stats.time("preprocess")(preprocess(clauses, nbVars))
@@ -55,6 +65,7 @@ object DPLL extends Solver {
       //INITIALIZATION
       cnfFormula = newClauses
       trail = new FixedIntStack(cnfFormula.nbVar)
+      qHead = 0
       model = Array.fill(cnfFormula.nbVar)(-1)
       watched = Array.fill(2*cnfFormula.nbVar)(new ClauseList(20))
       for(clause <- cnfFormula.originalClauses)
@@ -134,7 +145,7 @@ object DPLL extends Solver {
     res
   }
 
-  def conflictAnalysis: (Clause, Int) = if(decisionLevel == 0) (null, -1) else {
+  private[this] def conflictAnalysis: (Clause, Int) = if(decisionLevel == 0) (null, -1) else {
     assert(conflict != null)
 
     import scala.collection.mutable.Queue
@@ -243,11 +254,6 @@ object DPLL extends Solver {
   }
 
 
-  private sealed trait Status
-  private case object Satisfiable extends Status
-  private case object Unsatisfiable extends Status
-  private case object Conflict extends Status
-  private case object Unknown extends Status
 
   class Literal(val id: Int, val polInt: Int) {
     require(id >= 0)
@@ -268,80 +274,81 @@ object DPLL extends Solver {
 
     var wl1: Literal = lits.head
     var wl2: Literal = if(size == 1) wl1 else lits(1)
-    private var uwl: Literal = if(size == 3) lits(2) else null
-    private var arrayLits: Array[Literal] = if(size > 3) lits.toArray else null
-    private var wli1: Int = 0
-    private var wli2: Int = 1
+    //private var uwl: Literal = if(size == 3) lits(2) else null
+
+    var arrayLits: Array[Literal] = lits.toArray
+    var wli1: Int = 0
+    var wli2: Int = 1
 
     //one of the watched lit is negated
-    def watchedLitNeg(id: Int, node: ClauseList#Iterator) {
-      val lit = if(id == wl1.id) wl1 else wl2
-      assert(wl1 == lit || wl2 == lit)
+    //def watchedLitNeg(id: Int, node: ClauseList#Iterator) {
+    //  val lit = if(id == wl1.id) wl1 else wl2
+    //  assert(wl1 == lit || wl2 == lit)
 
-      if(size == 2) {
-        if(wl1.isUnsat && wl2.isUnsat) {
-          status = Conflict
-          conflict = this
-        } else if(wl2.isUnassigned) {
-          unitClauses ::= (this, wl2)
-        } else if(wl1.isUnassigned) {
-          unitClauses ::= (this, wl1)
-        }
-      } else if(size == 3) {
-        if((uwl.isUnassigned || uwl.isSat) && lit == wl1) {
-          val tmp = uwl
-          uwl = wl1
-          wl1 = tmp
-          changedWatched(uwl, wl1, node)
-        } else if((uwl.isUnassigned || uwl.isSat) && lit == wl2) {
-          val tmp = uwl
-          uwl = wl2
-          wl2 = tmp
-          changedWatched(uwl, wl2, node)
-        } else if(wl1.isUnassigned) { 
-          unitClauses ::= (this, wl1)
-        } else if(wl2.isUnassigned) {
-          unitClauses ::= (this, wl2)
-        } else if(wl1.isUnsat && wl2.isUnsat) {
-          status = Conflict
-          conflict = this
-        }
-      } else {
-        var newWatchedIndex = 0
-        var found = false
-        while(!found && newWatchedIndex < size) {
-          val l = arrayLits(newWatchedIndex)
-          if(newWatchedIndex != wli1 && newWatchedIndex != wli2 && !l.isUnsat)
-            found = true
-          else
-            newWatchedIndex += 1
-        }
+    //  if(size == 2) {
+    //    if(wl1.isUnsat && wl2.isUnsat) {
+    //      status = Conflict
+    //      conflict = this
+    //    } else if(wl2.isUnassigned) {
+    //      unitClauses ::= (this, wl2)
+    //    } else if(wl1.isUnassigned) {
+    //      unitClauses ::= (this, wl1)
+    //    }
+    //  } else if(size == 3) {
+    //    if((uwl.isUnassigned || uwl.isSat) && lit == wl1) {
+    //      val tmp = uwl
+    //      uwl = wl1
+    //      wl1 = tmp
+    //      changedWatched(uwl, wl1, node)
+    //    } else if((uwl.isUnassigned || uwl.isSat) && lit == wl2) {
+    //      val tmp = uwl
+    //      uwl = wl2
+    //      wl2 = tmp
+    //      changedWatched(uwl, wl2, node)
+    //    } else if(wl1.isUnassigned) { 
+    //      unitClauses ::= (this, wl1)
+    //    } else if(wl2.isUnassigned) {
+    //      unitClauses ::= (this, wl2)
+    //    } else if(wl1.isUnsat && wl2.isUnsat) {
+    //      status = Conflict
+    //      conflict = this
+    //    }
+    //  } else {
+    //    var newWatchedIndex = 0
+    //    var found = false
+    //    while(!found && newWatchedIndex < size) {
+    //      val l = arrayLits(newWatchedIndex)
+    //      if(newWatchedIndex != wli1 && newWatchedIndex != wli2 && !l.isUnsat)
+    //        found = true
+    //      else
+    //        newWatchedIndex += 1
+    //    }
 
-        if(found) {
-          if(wl1 == lit) {
-            wl1 = arrayLits(newWatchedIndex) 
-            wli1 = newWatchedIndex
-          } else {
-            wl2 = arrayLits(newWatchedIndex) 
-            wli2 = newWatchedIndex
-          }
-          changedWatched(lit, arrayLits(newWatchedIndex), node)
-        } else {
-          val owl = if(wl1 == lit) wl2 else wl1
-          if(owl.isUnassigned)
-            unitClauses ::= (this, owl)
-          else if(owl.isUnsat && status != Conflict) {
-            status = Conflict
-            conflict = this
-          }
-        }
-      }
-    }
+    //    if(found) {
+    //      if(wl1 == lit) {
+    //        wl1 = arrayLits(newWatchedIndex) 
+    //        wli1 = newWatchedIndex
+    //      } else {
+    //        wl2 = arrayLits(newWatchedIndex) 
+    //        wli2 = newWatchedIndex
+    //      }
+    //      changedWatched(lit, arrayLits(newWatchedIndex), node)
+    //    } else {
+    //      val owl = if(wl1 == lit) wl2 else wl1
+    //      if(owl.isUnassigned)
+    //        unitClauses ::= (this, owl)
+    //      else if(owl.isUnsat && status != Conflict) {
+    //        status = Conflict
+    //        conflict = this
+    //      }
+    //    }
+    //  }
+    //}
 
-    private def changedWatched(oldLit: Literal, newLit: Literal, node: ClauseList#Iterator) {
-      node.remove()
-      getWatched(newLit.id, newLit.polInt).prepend(this)
-    }
+    //private def changedWatched(oldLit: Literal, newLit: Literal, node: ClauseList#Iterator) {
+    //  node.remove()
+    //  getWatched(newLit.id, newLit.polInt).prepend(this)
+    //}
 
     override def toString: String = lits.mkString(", ") + " | wl1: " + wl1 + ", wl2: " + wl2
   }
@@ -530,30 +537,29 @@ object DPLL extends Solver {
     override def toString: String = (learntClauses ++ originalClauses).mkString("{\n", "\n", "\n}")
   }
 
-  def recordClause(cl: Clause) {
+  private[this] def recordClause(cl: Clause) {
     getWatched(cl.wl1.id, cl.wl1.polInt).prepend(cl)
     getWatched(cl.wl2.id, cl.wl2.polInt).prepend(cl)
   }
 
-  def unrecordClause(cl: Clause) {
+  private[this] def unrecordClause(cl: Clause) {
     getWatched(cl.wl1.id, cl.wl1.polInt).remove(cl)
     getWatched(cl.wl2.id, cl.wl2.polInt).remove(cl)
   }
 
 
-  def set(id: Int, b: Int) {
-    assert(model(id) == -1)
-    model(id) = b
-
-    val it = getWatched(id, 1-b).iterator
-    while(it.hasNext()) {
-      val head = it.next()
-      head.watchedLitNeg(id, it)
-    }
+  //maybe use Lit instead of (id, pol). For that we need decide() to be able to find a Literal
+  private[this] def enqueueLiteral(lit: Int, pol: Int, from: Clause = null) {
+    assert(model(lit) == -1)
+    model(lit) = pol
+    trail.push(lit)
+    reasons(lit) = from
+    if(from != null)
+      from.locked = true
+    levels(lit) = decisionLevel
   }
 
-
-  def decide() {
+  private[this] def decide() {
     nbDecisions += 1
 
     var lit: Option[(Int, Boolean)] = None
@@ -571,14 +577,11 @@ object DPLL extends Solver {
     } else {
       val fLit = lit.get
       decisionLevel += 1
-      trail.push(fLit._1)
-      assert(levels(fLit._1) == -1)
-      levels(fLit._1) = decisionLevel
-      set(fLit._1, if(fLit._2) 1 else 0)
+      enqueueLiteral(fLit._1, if(fLit._2) 1 else 0)
     }
   }
 
-  def backtrack() {
+  private[this] def backtrack() {
     nbConflicts += 1
     cnfFormula.decayVSIDS()
     cnfFormula.decayVSIDSClause()
@@ -595,12 +598,13 @@ object DPLL extends Solver {
         nbRestarts += 1
         backtrackTo(0)
         if(learnedClause.size == 1) //since we do not learn the clause
-          unitClauses ::= ((learnedClause, learnedClause.lits.head))
+          enqueueLiteral(learnedClause.lits.head.id, learnedClause.lits.head.polInt, learnedClause)
         cnfFormula.augmentMaxLearnt()
       } else {
         assert(decisionLevel > backtrackLevel)
         backtrackTo(backtrackLevel)
-        unitClauses ::= ((learnedClause, learnedClause.lits.find(_.isUnassigned).get)) //only on non restart
+        val lit = learnedClause.lits.find(_.isUnassigned).get
+        enqueueLiteral(lit.id, lit.polInt, learnedClause) //only on non restart
         //note that if the unitClause is of size 1, there will be an auto-reset to backtrack level 0 so this is correct as well
       }
       if(learnedClause.size > 1) //we only learn if it is not unit, if it is unit, then it is processed via the unitClauses and its consequences is added at level 0 which is never forgot
@@ -610,7 +614,7 @@ object DPLL extends Solver {
   }
 
 
-  def backtrackTo(lvl: Int) {
+  private[this] def backtrackTo(lvl: Int) {
     while(decisionLevel > lvl && !trail.isEmpty) {
       val head = trail.pop()
       decisionLevel = levels(head)
@@ -619,11 +623,12 @@ object DPLL extends Solver {
       else
         trail.push(head)
     }
+    qHead = trail.size
     if(trail.isEmpty)
       decisionLevel = 0
   }
 
-  def undo(id: Int) {
+  private[this] def undo(id: Int) {
     assert(model(id) != -1)
     model(id) = -1
     levels(id) = -1
@@ -634,25 +639,59 @@ object DPLL extends Solver {
     }
   }
 
-  def deduce() {
-    while(unitClauses != Nil && status != Conflict) {
-      val (unitClause, forcedLit) = unitClauses.head
-      unitClauses = unitClauses.tail
-      if(forcedLit.isUnassigned) { //could no longer be true since many variables are forwarded
-        //println("forcing: " + forcedLit + " from clause: " + unitClause)
-        assert(unitClause.lits.forall(lit => (lit == forcedLit) || lit.isUnsat))
-        assert(unitClause.lits.forall(lit => (lit == forcedLit) || (trail.contains(lit.id))))
+  private[this] def deduce() {
 
-        trail.push(forcedLit.id)
-        reasons(forcedLit.id) = unitClause
-        levels(forcedLit.id) = decisionLevel
-        unitClause.locked = true
+    while(qHead < trail.size && status != Conflict) {
 
-        set(forcedLit.id, forcedLit.polInt)
-        nbPropagations += 1
+      val forcedLit = trail(qHead)
+      qHead += 1
+
+      val ws = getWatched(forcedLit, 1 - model(forcedLit) ).iterator
+      while(ws.hasNext() && status != Conflict) {
+        val w = ws.next()
+
+        assert(w.wl1.id == forcedLit || w.wl2.id == forcedLit)
+
+        if(w.wl1.id != forcedLit) {
+          val tmpi = w.wli1
+          w.wli1 = w.wli2
+          w.wli2 = tmpi
+          val tmp = w.wl1
+          w.wl1 = w.wl2
+          w.wl2 = tmp
+        }
+        assert(w.wl1.id == forcedLit)
+
+        var newWatchedIndex = 0
+        var found = false
+        while(!found && newWatchedIndex < w.size) {
+          val l = w.arrayLits(newWatchedIndex)
+          if(newWatchedIndex != w.wli1 && newWatchedIndex != w.wli2 && !l.isUnsat)
+            found = true
+          else
+            newWatchedIndex += 1
+        }
+
+        if(found) {
+          w.wl1 = w.arrayLits(newWatchedIndex)
+          w.wli1 = newWatchedIndex
+          getWatched(w.wl1.id, w.wl1.polInt).prepend(w)
+          ws.remove()
+        } else {
+          
+          if(w.wl2.isUnsat) {
+            status = Conflict
+            qHead == trail.size
+            conflict = w
+          } else if(w.wl2.isUnassigned) {
+            nbPropagations += 1
+            enqueueLiteral(w.wl2.id, w.wl2.polInt, w)
+          }
+        }
       }
+
     }
-    unitClauses = Nil //if we stopped because of a conflict, we clear the list of unit clauses
+
   }
 
 
@@ -661,7 +700,7 @@ object DPLL extends Solver {
   //all unit clause are eliminated and the corresponding variables deleted
   //keep a map from original var id to new ones
   //must also ensure that in each clause at most one occurence of the same variable can occur
-  private def preprocess(clauses: List[Clause], nbVars: Int): (Status, CNFFormula, Array[Option[Boolean]], Array[Int]) = {
+  private[this] def preprocess(clauses: List[Clause], nbVars: Int): (Status, CNFFormula, Array[Option[Boolean]], Array[Int]) = {
     var conflictDetected = false
     var forcedVars: Array[Option[Boolean]] = Array.fill(nbVars)(None) //list of variable that are forced to some value
     //force a var to a pol, record the information into the forcedVars array, may detect a conflict
@@ -783,7 +822,7 @@ object DPLL extends Solver {
   //assert that there is no unit clauses in the database
   def assertNoUnits() {
 
-    assert(unitClauses.isEmpty) //we assume that all unit clauses queued have been processed
+    assert(qHead == trail.size) //we assume that all unit clauses queued have been processed
 
     for(clause <- cnfFormula.originalClauses ::: cnfFormula.learntClauses) {
       if(clause.lits.count(_.isUnassigned) == 1 && clause.lits.forall(lit => lit.isUnassigned || lit.isUnsat)) {
