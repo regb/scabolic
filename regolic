@@ -1,1 +1,7 @@
-scala -cp lib/java-cup-11a.jar:lib/smt-parser.jar:target/scala-2.9.1/classes/ regolic.Main $@
+#!/bin/sh
+
+if scala -cp lib/java-cup-11a.jar:lib/smt-parser.jar:target/scala-2.9.1/classes/ regolic.Main $@; then
+  exit 0
+else
+  exit 1
+fi

@@ -36,24 +36,29 @@ object Main {
   }
 
   def main(args: Array[String]) {
-    val (options0, trueArgs) = args.partition(str => str.startsWith("--"))
-    val options = options0.map(str => str.substring(2))
-    processOptions(options)
-    val inputFile = trueArgs(0)
-    val is = new java.io.FileInputStream(inputFile)
+    try {
+      val (options0, trueArgs) = args.partition(str => str.startsWith("--"))
+      val options = options0.map(str => str.substring(2))
+      processOptions(options)
+      val inputFile = trueArgs(0)
+      val is = new java.io.FileInputStream(inputFile)
 
-    if(dimacs) {
-      val (satInstance, nbVars) = regolic.parsers.Dimacs.cnf(is)
-      val res = regolic.sat.DPLL.isSat(satInstance, nbVars)
-      res match {
-        case Some(_) => println("sat")
-        case None => println("unsat")
+      if(dimacs) {
+        val (satInstance, nbVars) = regolic.parsers.Dimacs.cnf(is)
+        val res = regolic.sat.DPLL.isSat(satInstance, nbVars)
+        res match {
+          case Some(_) => println("sat")
+          case None => println("unsat")
+        }
+      } else if(smtlib) {
+        val smtInstance = regolic.parsers.SmtLib2(is)
+        regolic.smt.Solver.execute(smtInstance)
       }
-    } else if(smtlib) {
-      val smtInstance = regolic.parsers.SmtLib2(is)
-      regolic.smt.Solver.execute(smtInstance)
+    } catch {
+      case e =>
+        e.printStackTrace
+        sys.exit(1)
     }
-
   }
 
   private def splitList(lst: String) : Seq[String] = lst.split(':').map(_.trim).filter(!_.isEmpty)
