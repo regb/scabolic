@@ -10,7 +10,7 @@ libraryDependencies += "org.scalatest" %% "scalatest" % "1.6.1" % "test"
 
 libraryDependencies += "net.sf.squirrel-sql.thirdparty.non-maven" % "java-cup" % "11a"
 
-TaskKey[File]("script") <<= (baseDirectory, fullClasspath in Runtime, mainClass in Runtime) map { (base, cp, main) =>
+script <<= (baseDirectory, fullClasspath in Runtime, mainClass in Runtime) map { (base, cp, main) =>
   val template = """#!/bin/sh
 java -classpath "%s" %s "$@"
 """
@@ -24,7 +24,9 @@ java -classpath "%s" %s "$@"
 
 cleanFiles <+= baseDirectory { base => base / "regolic" }
 
-TaskKey[File]("smtlib-parser") <<= (unmanagedJars in Compile, managedClasspath in Compile, baseDirectory) map { (unmanaged, managed, base) =>
+cleanFiles <+= baseDirectory { base => base / "lib" / "smt-parser.jar" }
+
+smtlibParser <<= (unmanagedJars in Compile, managedClasspath in Compile, baseDirectory) map { (unmanaged, managed, base) =>
   val classpath: String = (unmanaged ++ managed).map(_.data).mkString(":")
   val smtlibDir = base / "smt-parser"
   val exitCode = Process("make CLASSPATH=" + classpath, smtlibDir) !;
@@ -32,6 +34,14 @@ TaskKey[File]("smtlib-parser") <<= (unmanagedJars in Compile, managedClasspath i
     error("Failure")
   val jar = smtlibDir / "smt-parser.jar"
   val libJar = base / "lib" / "smt-parser.jar"
-  IO.copy(List((jar, libJar)))
+  IO.copyFile(jar, libJar)
   libJar
+}
+
+compile <<= (compile in Compile) dependsOn smtlibParser
+
+clean <<= (clean, baseDirectory) map { (c, base) =>
+  val smtlibDir = base / "smt-parser"
+  Process("make clean", smtlibDir) !;
+  c
 }
