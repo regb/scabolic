@@ -8,10 +8,12 @@ scalacOptions ++= Seq("-unchecked", "-deprecation")
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "1.6.1" % "test"
 
-TaskKey[File]("script") <<= (baseDirectory, fullClasspath in Runtime, mainClass in Runtime) map { (base, cp, main) =>
-  val template = 
-"""#!/bin/sh
+libraryDependencies += "net.sf.squirrel-sql.thirdparty.non-maven" % "java-cup" % "11a"
 
+libraryDependencies += "de.jflex" % "maven-jflex" % "11a"
+
+TaskKey[File]("script") <<= (baseDirectory, fullClasspath in Runtime, mainClass in Runtime) map { (base, cp, main) =>
+  val template = """#!/bin/sh
 java -classpath "%s" %s "$@"
 """
     val mainStr = main getOrElse error("No main class specified")
@@ -21,3 +23,5 @@ java -classpath "%s" %s "$@"
     out.setExecutable(true)
     out
 }
+
+cleanFiles <+= baseDirectory { base => base / "regolic" }
