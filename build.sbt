@@ -38,10 +38,31 @@ smtlibParser <<= (unmanagedJars in Compile, managedClasspath in Compile, baseDir
   libJar
 }
 
-compile <<= (compile in Compile) dependsOn smtlibParser
-
 clean <<= (clean, baseDirectory) map { (c, base) =>
   val smtlibDir = base / "smt-parser"
   Process("make clean", smtlibDir) !;
   c
+}
+
+sourceGenerators in Compile <+= (sourceManaged in Compile, baseDirectory, managedClasspath in Compile, unmanagedJars in Compile) map { (dir, base, managed, unmanaged) => 
+  val classpath: String = (unmanaged ++ managed).map(_.data).mkString(":")
+  val cacheDir = base / ".cache"
+  val file = dir / "smtlib"
+  val smtparserDir = base / "smt-parser"
+  val smtlibDir = smtparserDir / "smtlib"
+  val grammarFile: File = smtparserDir / "smtlib.cf"
+  val cachedOp = FileFunction.cached(cacheDir, FilesInfo.lastModified, FilesInfo.exists){ (in: Set[File]) =>
+    val cmdBnfc = "bnfc -java1.5 smtlib.cf"
+    Process(cmdBnfc, base / "smt-parser") !;
+    val cmdLex = "java -cp " + classpath + " JLex.Main " + (smtlibDir / "Yylex").toString
+    println("cmdLex: " + cmdLex)
+    cmdLex !; 
+    val cmdCup = "java -cp " + classpath + " java_cup.Main " + (smtlibDir / "smtlib.cup").toString
+    println("cmdLex: " + cmdCup)
+    cmdCup !;
+    "mv parser.java sym.java " + smtlibDir.toString !;
+    IO.move(smtlibDir, file)
+    (file ** "*.java").get.toSet
+  }
+  cachedOp(Set(grammarFile)).toSeq
 }
