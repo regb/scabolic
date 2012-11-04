@@ -248,9 +248,16 @@ object Manip {
     def multiply(ts : List[Term]): Term = {
       require(!ts.isEmpty)
       def distribute(add1: Term, add2: Term): Term = (add1, add2) match {
-        case (Add(ts1), Add(ts2)) => Add(ts1.flatMap{
-          case Mul(tss1) => ts2.map{
-            case Mul(tss2) => Mul(tss1 ::: tss2)
+        case (I.Add(ts1), I.Add(ts2)) => I.Add(ts1.flatMap{
+          case I.Mul(tss1) => ts2.map{
+            case I.Mul(tss2) => I.Mul(tss1 ::: tss2)
+            case _ => sys.error("was expecting muls")
+          }
+          case _ => sys.error("was expecting muls")
+        })
+        case (R.Add(ts1), R.Add(ts2)) => R.Add(ts1.flatMap{
+          case R.Mul(tss1) => ts2.map{
+            case R.Mul(tss2) => R.Mul(tss1 ::: tss2)
             case _ => sys.error("was expecting muls")
           }
           case _ => sys.error("was expecting muls")
