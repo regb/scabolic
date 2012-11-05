@@ -3,6 +3,8 @@ package regolic.asts.theories.real
 import regolic.asts.theories.real.Trees._
 import regolic.asts.core.Trees.{Formula, Term, Variable}
 import regolic.asts.core.Manip._
+import regolic.asts.fol.Trees.{Equals => FOLEquals, _}
+import regolic.asts.fol.Manip._
 import regolic.algebra.Rational
 import regolic.tools.Math.fix
 import regolic.tools.SeqTools.mapUnique
@@ -319,6 +321,18 @@ object Manip {
 
     val Div(numerator, denominator) = expandedRationalForm(term)
     Div(polynomialForm(numerator, variable), polynomialForm(denominator, variable))
+  }
+
+  //disjunctive normal form with each linear being of the form 0 < t or 0 = t
+  def linearStandardForm(formula: Formula): Formula = {
+    val miniFormula = mapPostorder(formula, (f: Formula) => f match {
+      case LessThan(t1, t2) => LessThan(Num(0), Sub(t2, t1))
+      case LessEqual(t1, t2) => Or(LessThan(Num(0), Sub(t2, t1)), Equals(Num(0), Sub(t2, t1)))
+      case GreaterThan(t1, t2) => LessThan(Num(0), Sub(t1, t2))
+      case GreaterEqual(t1, t2) => Or(LessThan(Num(0), Sub(t1, t2)), Equals(Num(0), Sub(t1, t2)))
+      case f => f
+    }, (t: Term) => t)
+    disjunctiveNormalForm(miniFormula)
   }
 
   /* Apply local simplifications, only if the size of the tree is reduced */

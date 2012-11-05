@@ -10,11 +10,11 @@ libraryDependencies += "org.scalatest" %% "scalatest" % "1.6.1" % "test"
 
 libraryDependencies += "net.sf.squirrel-sql.thirdparty.non-maven" % "java-cup" % "11a"
 
-script <<= (baseDirectory, fullClasspath in Runtime, mainClass in Runtime) map { (base, cp, main) =>
+script <<= (baseDirectory, fullClasspath in Runtime) map { (base, cp) =>
   val template = """#!/bin/sh
 java -classpath "%s" %s "$@"
 """
-    val mainStr = main getOrElse error("No main class specified")
+    val mainStr = "regolic.Main"
     val contents = template.format(cp.files.absString, mainStr)
     val out = base / "regolic"
     IO.write(out, contents)

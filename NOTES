@@ -60,3 +60,5 @@ environment of Scala, should make a solid tool to solve various problems. Potent
 look like an interactive theorem prover in that mode ?
 
 A third alternative to use the tool is as a API for Scala programs.
+
+-- renaming smt to dp
