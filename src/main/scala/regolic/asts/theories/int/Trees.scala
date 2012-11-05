@@ -169,9 +169,9 @@ object Trees {
     }
   }
   object MulConst {
-    def apply(t: Term, n: BigInt) = FunctionApplication(MulConstSymbol(n), List(t))
-    def unapply(appli: FunctionApplication): Option[(Term, BigInt)] = appli match {
-      case FunctionApplication(MulConstSymbol(n), List(t)) => Some((t, n))
+    def apply(n: BigInt, t: Term) = FunctionApplication(MulConstSymbol(n), List(t))
+    def unapply(appli: FunctionApplication): Option[(BigInt, Term)] = appli match {
+      case FunctionApplication(MulConstSymbol(n), List(t)) => Some((n, t))
       case _ => None
     }
   }
