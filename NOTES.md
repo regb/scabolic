@@ -69,6 +69,7 @@ look like an interactive theorem prover in that mode ?
 
 A third alternative to use the tool is as a API for Scala programs.
 
-##renaming smt to dp
+renaming smt to dp
+------------------
 
 dp stands for decision procedure and seems more general and standard.
