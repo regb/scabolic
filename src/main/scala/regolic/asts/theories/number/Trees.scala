@@ -178,9 +178,22 @@ object Trees {
     }
   }
   object Neg {
-    def apply(t: Term) = FunctionApplication(NegSymbol(), List(t))
     def unapply(appli: FunctionApplication): Option[Term] = appli match {
       case FunctionApplication(NegSymbol(), List(t)) => Some(t)
+      case _ => None
+    }
+  }
+
+  object PowSymbol {
+    def unapply(symb: FunctionSymbol): Boolean = symb match {
+      case FunctionSymbol("^", List(RealSort(), RealSort()), RealSort()) => true
+      case FunctionSymbol("^", List(IntSort(), IntSort()), IntSort()) => true
+      case _ => false
+    }
+  }
+  object Pow {
+    def unapply(appli: FunctionApplication): Option[(Term, Term)] = appli match {
+      case FunctionApplication(PowSymbol(), List(t1, t2)) => Some((t1, t2))
       case _ => None
     }
   }

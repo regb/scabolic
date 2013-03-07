@@ -221,6 +221,21 @@ object Trees {
     }
   }
 
+  object PowSymbol {
+    def apply() = FunctionSymbol("^", List(IntSort(), IntSort()), IntSort())
+    def unapply(symb: FunctionSymbol): Boolean = symb match {
+      case FunctionSymbol("^", List(IntSort(), IntSort()), IntSort()) => true
+      case _ => false
+    }
+  }
+  object Pow {
+    def apply(t1: Term, t2: Term) = FunctionApplication(PowSymbol(), List(t1, t2))
+    def unapply(appli: FunctionApplication): Option[(Term, Term)] = appli match {
+      case FunctionApplication(PowSymbol(), List(t1, t2)) => Some((t1, t2))
+      case _ => None
+    }
+  }
+
   object AbsSymbol {
     def apply() = FunctionSymbol("abs", List(IntSort()), IntSort())
     def unapply(symb: FunctionSymbol): Boolean = symb match {
