@@ -1,7 +1,8 @@
 package regolic.asts.theories.number
 
-import regolic.asts.theories.real.{Trees => R}
-import regolic.asts.theories.int.{Trees => I}
+import regolic.asts.theories.number.Trees._
+import regolic.asts.theories.int.{Trees => IntT}
+import regolic.asts.theories.real.{Trees => RealT}
 import regolic.asts.core.Trees.{Formula, Term, Variable}
 import regolic.asts.core.Manip._
 import regolic.asts.fol.Trees.{Equals => FOLEquals, _}
@@ -9,8 +10,6 @@ import regolic.asts.fol.Manip._
 import regolic.algebra.Rational
 import regolic.tools.Math.fix
 import regolic.tools.SeqTools.mapUnique
-
-import Trees._
 
 /*
  * One of the design principle of the Manip object is to contain only basic "syntactic"
@@ -40,7 +39,6 @@ object Manip {
     case Add(ts) => ts.forall(isPolynomial(_))
     case Sub(t1, t2) => isPolynomial(t1) && isPolynomial(t2)
     case Mul(ts) => ts.forall(isPolynomial(_))
-    case MulConst(_, t) => isPolynomial(t)
     case Neg(t) => isPolynomial(t)
     case Div(t1, Num(_)) => isPolynomial(t1)
     case Pow(t1, Num(r)) => isPolynomial(t1) && r.isInteger
@@ -50,19 +48,17 @@ object Manip {
 
   def polynomialDegree(polynomial: Term, variable: Variable): BigInt = {
     require(isPolynomialForm(polynomial, variable))
-    val ts = polynomial match {
-			case Add(ts) => ts
-		}
-		val (v, degree) = ts.head match {
-			case Mul(_ :: Pow(v, Num(degree))) if degree.isInteger => (v, degree.toBigInt)
-		}
-    assert(v == variable)
-    degree
+    val Add(ts) = polynomial
+    val Mul(_ :: Pow(v, Num(degree)) :: ms) = ts.head
+    require(v == variable)
+    assert(degree.isInteger)
+    degree.toBigInt
   }
+
 
   //checking that the term in in polynomial standard form
   //an*x^n + ... + a0*x^0, with an != 0
-  //def isPolynomialForm(term: Term, variable: Variable): Boolean = {
+  def isPolynomialForm(term: Term, variable: Variable): Boolean = {
     def isCorrectPower(n: Rational, ts: List[Term]): Boolean = ts match {
       case Mul(List(coef, Pow(v, Num(r)))) :: Nil => variable == v && !contains(coef, variable) && r == n && n.isZero
       case Mul(List(coef, Pow(v, Num(r)))) :: ts => variable == v && !contains(coef, variable) && r == n && isCorrectPower(n-1, ts)

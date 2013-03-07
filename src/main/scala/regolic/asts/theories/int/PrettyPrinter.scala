@@ -27,7 +27,7 @@ object PrettyPrinter {
     case Add(ts) => Some(ts.map(apply).mkString("(", ADDSTR, ")"))
     case Sub(t1, t2) => Some("(" + apply(t1) + SUBSTR + apply(t2) + ")")
     case Mul(ts) => Some(ts.map(apply).mkString("(", MULSTR, ")"))
-    case MulConst(t, n) => Some("(" + apply(t) + MULSTR + n + ")")
+    case MulConst(n, t) => Some("(" + n + MULSTR + apply(t) + ")")
     case _ => None
   }
 

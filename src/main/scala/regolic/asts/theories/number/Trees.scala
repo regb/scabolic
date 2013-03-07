@@ -1,10 +1,11 @@
-package regolic.asts.theories.numbers
+package regolic.asts.theories.number
 
 import regolic.asts.core.Trees._
 import regolic.asts.fol.Trees.Constant
 import regolic.asts.fol.{Trees => FolT}
 import regolic.asts.theories.int.{Trees => IntT}
 import regolic.asts.theories.real.{Trees => RealT}
+import regolic.algebra.Rational
 
 object Trees {
 
