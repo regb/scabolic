@@ -1,11 +1,15 @@
+DEVELOPMENT NOTES
+=================
+
 This file will collect all relevant notes for the project, such as design
 decision that might need to be reconsidered or any general advice in building
 this kind of system.  This is mostly to be used as a remainder of some
 sensitive point in the project.
 
--------------------------------------------------------------------------------
 
--- Variable vs Uninterpreted Function Symbol 
+
+Variable vs Uninterpreted Function Symbol 
+-----------------------------------------
 
 The difference is not clear, especially in SMTLIB where it is necessary to
 collect uninterpreted symbol as free variables.
@@ -14,18 +18,21 @@ Now it seems that in satisfiability type problems, we should be using uninterpre
 symbol instead of variable. An interpretation/assignment would then be a mapping from
 uninterpreted symbols to Terms.
 
--- Formula + Term vs all terms with boolean sort used to build formulas 
+Formula + Term vs all terms with boolean sort used to build formulas 
+--------------------------------------------------------------------
 
 Having a static type distinction can allow some static checking by the
 compiler, but this makes the definition of maps and fold over tree very heavy
 with the need to carry around both functions to map formulas and terms
 
--- Semantics of tree transformation over binded variable
+Semantics of tree transformation over binded variable
+-----------------------------------------------------
 
 What should be the semantic of substitute or map with variable that are bound
 to a quantifier?
 
--- Minicore + extractors
+Minicore + extractors
+---------------------
 
 This is, I believe, a very elegant way to have a compatible tree among all
 theories that can be extended with any operator with very minimal amount of
@@ -37,7 +44,8 @@ I believe this is not foundamentally a performence issue because the dynamic
 check can simply be ignore once the code is sufficiently tested and every
 function is used with the correct kind of arguments.
 
--- How to use
+How to use
+----------
 
 The idea is to support many different ways of using the solver. In particular, we
 will support several standard file format. For now, we identified 3 file formats
@@ -61,4 +69,6 @@ look like an interactive theorem prover in that mode ?
 
 A third alternative to use the tool is as a API for Scala programs.
 
--- renaming smt to dp
+##renaming smt to dp
+
+dp stands for decision procedure and seems more general and standard.
