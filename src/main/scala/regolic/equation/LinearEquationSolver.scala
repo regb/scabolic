@@ -13,9 +13,9 @@ object LinearEquationSolver {
   }
 
   //find one particular instance of a solution to the equation
-  def particularSolution(eq: PredicateApplication): Map[Variable, Term] {
-    val lhSide: Term = polynomialForm(eq.map{ case Equals(t1, t2) => Sub(t1, t2) })
-    val varsToCoef: Map[Variable, Term] = 
-  }
+  //def particularSolution(eq: PredicateApplication): Map[Variable, Term] {
+  //  val lhSide: Term = polynomialForm(eq.map{ case Equals(t1, t2) => Sub(t1, t2) })
+  //  val varsToCoef: Map[Variable, Term] = 
+  //}
 
 }

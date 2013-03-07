@@ -229,7 +229,7 @@ object Manip {
         case List(I.Mul(List(I.Num(i)))) =>
           if(i == 0) sumProduct(I.One()) else multiply((1 to i).map(_ => t1).toList)
         case List(I.Mul(List(v@I.Var(_)))) => t1 match {
-          case I.Add(List(I.Mul(List(n@I.Num.(_))))) => I.Pow(n, v)
+          case I.Add(List(I.Mul(List(n@I.Num(_))))) => I.Pow(n, v)
           case _ => throw new IllegalArgumentException
         }
         case _ => throw new IllegalArgumentException
