@@ -12,7 +12,7 @@ import regolic.asts.core.Trees.{Term, Variable}
 object Eval {
 
   def apply(t: Term, v: Variable, r: Rational): Rational = eval(t, Map(v -> r))
-  def apply(t: Term, context: Map[Variable, Rational]): Rational = eval(t, context)
+  def apply(t: Term, context: Map[Variable, Rational] = Map()): Rational = eval(t, context)
 
   private def eval(t: Term, context: Map[Variable, Rational]): Rational = t match {
     case v@Var(_) => context(v)

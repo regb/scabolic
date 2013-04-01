@@ -7,6 +7,13 @@ import regolic.asts.theories.int.{Trees => IntT}
 import regolic.asts.theories.real.{Trees => RealT}
 import regolic.algebra.Rational
 
+/*
+ * An attempt to make it easy to extract int or real
+ * in a generic way, however cannot build any tree
+ * from one or the other, so this makes the whole thing
+ * pretty pointless
+ */
+
 object Trees {
 
   object NumberSort {
@@ -32,7 +39,6 @@ object Trees {
 
   object LessThanSymbol {
     def unapply(symb: PredicateSymbol): Boolean = symb match {
-      case PredicateSymbol("<", List(NumberSort(), NumberSort())) => true
       case PredicateSymbol("<", List(NumberSort(), NumberSort())) => true
       case _ => false
     }
