@@ -1,4 +1,4 @@
-package scala.regolic.tools
+package regolic.tools
 
 import org.scalatest.FunSuite
 import Math._
