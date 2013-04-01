@@ -32,8 +32,8 @@ object Trees {
 
   object LessThanSymbol {
     def unapply(symb: PredicateSymbol): Boolean = symb match {
-      case PredicateSymbol("<", List(RealSort(), RealSort())) => true
-      case PredicateSymbol("<", List(IntSort(), IntSort())) => true
+      case PredicateSymbol("<", List(NumberSort(), NumberSort())) => true
+      case PredicateSymbol("<", List(NumberSort(), NumberSort())) => true
       case _ => false
     }
   }
@@ -46,8 +46,7 @@ object Trees {
 
   object LessEqualSymbol {
     def unapply(symb: PredicateSymbol): Boolean = symb match {
-      case PredicateSymbol("<=", List(RealSort(), RealSort())) => true
-      case PredicateSymbol("<=", List(IntSort(), IntSort())) => true
+      case PredicateSymbol("<=", List(NumberSort(), NumberSort())) => true
       case _ => false
     }
   }
@@ -60,8 +59,7 @@ object Trees {
 
   object GreaterThanSymbol {
     def unapply(symb: PredicateSymbol): Boolean = symb match {
-      case PredicateSymbol(">", List(RealSort(), RealSort())) => true
-      case PredicateSymbol(">", List(IntSort(), IntSort())) => true
+      case PredicateSymbol(">", List(NumberSort(), NumberSort())) => true
       case _ => false
     }
   }
@@ -74,8 +72,7 @@ object Trees {
 
   object GreaterEqualSymbol {
     def unapply(symb: PredicateSymbol): Boolean = symb match {
-      case PredicateSymbol(">=", List(RealSort(), RealSort())) => true
-      case PredicateSymbol(">=", List(IntSort(), IntSort())) => true
+      case PredicateSymbol(">=", List(NumberSort(), NumberSort())) => true
       case _ => false
     }
   }
@@ -88,8 +85,7 @@ object Trees {
 
   object Var {
     def unapply(v: Variable): Option[String] = v match {
-      case Variable(name, RealSort()) => Some(name)
-      case Variable(name, IntSort()) => Some(name)
+      case Variable(name, NumberSort()) => Some(name)
       case _ => None
     }
   }
@@ -117,8 +113,11 @@ object Trees {
 
   object AddSymbol {
     def unapply(symb: FunctionSymbol): Option[Int] = symb match {
-      case FunctionSymbol("+", argsSort, RealSort()) if argsSort.forall(s => s == RealSort()) => Some(argsSort.size)
-      case FunctionSymbol("+", argsSort, IntSort()) if argsSort.forall(s => s == IntSort()) => Some(argsSort.size)
+      case FunctionSymbol("+", argsSort, NumberSort()) if 
+        argsSort.forall{
+          case NumberSort() => true
+          case _ => false
+        } => Some(argsSort.size)
       case _ => None
     }
   }
@@ -131,8 +130,7 @@ object Trees {
 
   object SubSymbol {
     def unapply(symb: FunctionSymbol): Boolean = symb match {
-      case FunctionSymbol("-", List(RealSort(), RealSort()), RealSort()) => true
-      case FunctionSymbol("-", List(IntSort(), IntSort()), IntSort()) => true
+      case FunctionSymbol("-", List(NumberSort(), NumberSort()), NumberSort()) => true
       case _ => false
     }
   }
@@ -145,8 +143,11 @@ object Trees {
 
   object MulSymbol {
     def unapply(symb: FunctionSymbol): Option[Int] = symb match {
-      case FunctionSymbol("*", argsSort, RealSort()) if argsSort.forall(s => s == RealSort()) => Some(argsSort.size)
-      case FunctionSymbol("*", argsSort, IntSort()) if argsSort.forall(s => s == IntSort()) => Some(argsSort.size)
+      case FunctionSymbol("*", argsSort, NumberSort()) if 
+        argsSort.forall{
+          case NumberSort() => true
+          case _ => false
+        } => Some(argsSort.size)
       case _ => None
     }
   }
@@ -159,8 +160,7 @@ object Trees {
 
   object DivSymbol {
     def unapply(symb: FunctionSymbol): Boolean = symb match {
-      case FunctionSymbol("/", List(RealSort(), RealSort()), RealSort()) => true
-      case FunctionSymbol("/", List(IntSort(), IntSort()), IntSort()) => true
+      case FunctionSymbol("/", List(NumberSort(), NumberSort()), NumberSort()) => true
       case _ => false
     }
   }
@@ -173,8 +173,7 @@ object Trees {
 
   object NegSymbol {
     def unapply(symb: FunctionSymbol): Boolean = symb match {
-        case FunctionSymbol("-", List(RealSort()), RealSort()) => true
-        case FunctionSymbol("-", List(IntSort()), IntSort()) => true
+        case FunctionSymbol("-", List(NumberSort()), NumberSort()) => true
         case _ => false
     }
   }
@@ -187,8 +186,7 @@ object Trees {
 
   object PowSymbol {
     def unapply(symb: FunctionSymbol): Boolean = symb match {
-      case FunctionSymbol("^", List(RealSort(), RealSort()), RealSort()) => true
-      case FunctionSymbol("^", List(IntSort(), IntSort()), IntSort()) => true
+      case FunctionSymbol("^", List(NumberSort(), NumberSort()), NumberSort()) => true
       case _ => false
     }
   }

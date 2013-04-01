@@ -2,6 +2,18 @@ package regolic.asts.theories.int
 
 import Trees._
 
+/*
+ * One of the design principle of the Manip object is to contain only basic "syntactic"
+ * operation on the associated tree. Any "advanced" algorithm should be provide as a separate code
+ * in a separate package. This Manip object tries to provide the most comonly used features.
+ *
+ * Note also that most of these methods do not do anything too smart, in particular a method like
+ * isPolynomial will not give a "correct" answer (depending how you defined correct), in particular 
+ * it will not attemp to simplify the formula to see whether some terms cancels out
+ *
+ * This object supports operation that can be applied to both formula over integer and real.
+ *
+ */
 object Manip {
 
 /*
