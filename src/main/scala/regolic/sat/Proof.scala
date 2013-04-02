@@ -4,11 +4,11 @@ import scala.collection.mutable.HashMap
 import scala.collection.mutable.HashSet
 import scala.collection.mutable.Queue
 
-class Proof(inputs: Set[InputInference]) {
+class Proof(inputs: Set[Set[Literal]]) {
 
 
   private val literalsToInferences: HashMap[Set[Literal], Inference] = new HashMap()
-  literalsToInferences ++= inputs.map(r => (r.clause, r))
+  literalsToInferences ++= inputs.map(clause => (clause, new InputInference(clause)))
 
   //this builds a resolution inference without any check
   //we assume that a separate proof checker has the duty to make sure
