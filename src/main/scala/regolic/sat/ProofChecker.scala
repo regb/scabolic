@@ -4,15 +4,12 @@ import scala.collection.mutable.HashMap
 
 object ProofChecker {
 
-  def apply(proof: Proof, fact: Set[Literal]): Boolean = {
-    val inferences = proof.linearize(fact)
-
+  def apply(inferences: Array[Inference], fact: Set[Literal]): Boolean = {
     val lastInference = inferences.last
 
     if(lastInference.clause != fact) false else {
 
       val infToIndex = new HashMap[Inference, Int]
-      infToIndex(lastInference) = inferences.size - 1
 
       var i = 0
       var isValid = true
@@ -28,9 +25,13 @@ object ProofChecker {
               val rightIndex = infToIndex(right)
               if(leftIndex >= i || rightIndex >= i) //only refer to previous inferences
                 isValid = false
-              else if(!isResolvent(cl, left.clause, right.clause))
+              else if(!isResolvent(cl, left.clause, right.clause)) {
+                println("INVALID INFERENCE !")
+                println("\tleft premise: " + left.clause)
+                println("\tright premise: " + right.clause)
+                println("\t => " + cl)
                 isValid = false
-              else
+              } else
                 infToIndex(inf) = i
             }
           }
