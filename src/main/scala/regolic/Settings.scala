@@ -7,4 +7,6 @@ object Settings {
 
   var stats = false
 
+  var timeout: Option[Int] = None
+
 }
