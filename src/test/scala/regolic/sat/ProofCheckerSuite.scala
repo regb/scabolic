@@ -51,6 +51,7 @@ class ProofCheckerSuite extends FunSuite {
     proof.infer(cl10, cl4, cl11)
     proof.infer(cl11, cl8, emptyClause)
     proof.linearize(emptyClause)
+    println(ProofPrinter.toDot(proof.inferences))
     assert(ProofChecker(proof.inferences, emptyClause))
   }
 
