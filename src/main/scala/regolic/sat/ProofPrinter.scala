@@ -23,12 +23,23 @@ object ProofPrinter {
     }.toSeq
 
     "digraph proof {\n" +
-      vertexLabels.mkString("\n") + "\n" +
-      edges.mkString("\n") +"\n" + "}"
+      vertexLabels.mkString("  ", "\n  ", "\n") +
+      edges.mkString("  ", "\n  ", "\n") + "}"
   }
 
   def toString(inferences: Array[Inference]): String = {
     val infToIndex = inferences.zipWithIndex.toMap
+    
+    inferences.zipWithIndex.map{
+      case (InputInference(cl), i) => 
+        "[" + i + "] " + 
+        cl.mkString(", ") +
+        " INPUT"
+      case (ResolutionInference(cl, left, right), i) =>
+        "[" + i + "] " + 
+        cl.mkString(", ") +
+        " RESOL {" + infToIndex(left) + ", " + infToIndex(right) + "}"
+    }.mkString("\n")
   }
 
 }
