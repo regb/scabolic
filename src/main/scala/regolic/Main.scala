@@ -49,10 +49,10 @@ object Main {
       val (options0, trueArgs) = args.partition(str => str.startsWith("--"))
       val options = options0.map(str => str.substring(2))
       processOptions(options)
-      val inputFile = trueArgs(0)
-      val is = new java.io.FileInputStream(inputFile)
 
       if(cmd == "sat") {
+        val inputFile = trueArgs(0)
+        val is = new java.io.FileInputStream(inputFile)
         val (satInstance, nbVars) = regolic.parsers.Dimacs.cnf(is)
         val res = regolic.sat.DPLL.isSat(satInstance, nbVars)
         res match {
@@ -60,8 +60,27 @@ object Main {
           case None => println("unsat")
         }
       } else if(cmd == "smt") {
+        val inputFile = trueArgs(0)
+        val is = new java.io.FileInputStream(inputFile)
         val smtInstance = regolic.parsers.SmtLib2(is)
         regolic.smt.Solver.execute(smtInstance)
+      } else if(cmd == "satlib") {
+        val dir = trueArgs(0)
+        val dirFile = new java.io.File(dir)
+        val benchmarks = recursiveListFiles(dirFile)
+
+        benchmarks.foreach(name => {
+          print("Solving " + name + " ... ")
+          val is = new java.io.FileInputStream(name)
+          val (satInstance, nbVars) = regolic.parsers.Dimacs.cnf(is)
+          val res = regolic.sat.DPLL.isSat(satInstance, nbVars)
+          res match {
+            case Some(_) => println("SAT")
+            case None => println("UNSAT")
+          }
+        })
+      } else {
+        println("Unknown command: " + cmd)
       }
     } catch {
       case e =>
