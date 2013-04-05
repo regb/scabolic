@@ -58,12 +58,23 @@ object DPLL extends Solver {
   private[this] def getWatched(id: Int, pol: Int) = watched((id<<1) | pol) //2*id + pol, dunno if this is faster, does not really semm to make a difference
 
   def isSat(clauses: List[Clause], nbVars: Int): Option[Array[Boolean]] = {
+    //stats
+    nbConflicts = 0
+    nbDecisions = 0
+    nbPropagations = 0
+    nbLearntClauseTotal = 0
+    nbLearntLiteralTotal = 0
+    nbRemovedClauses = 0
+    nbRemovedLiteral = 0
+    nbRestarts = 0
+    
     val (st, newClauses, forcedVars, oldVarToNewVar) = Stats.time("preprocess")(preprocess(clauses, nbVars))
 
     status = st
     if(status == Unknown) {
       //INITIALIZATION
       cnfFormula = newClauses
+      conflict = null
       trail = new FixedIntStack(cnfFormula.nbVar)
       qHead = 0
       model = Array.fill(cnfFormula.nbVar)(-1)
@@ -74,6 +85,7 @@ object DPLL extends Solver {
       nextRestart = restartInterval
       reasons = new Array(cnfFormula.nbVar)
       levels = Array.fill(cnfFormula.nbVar)(-1)
+      decisionLevel = 0
 
       //assertNoUnits
       //assertWatchedInvariant
