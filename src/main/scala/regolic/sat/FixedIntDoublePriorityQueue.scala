@@ -30,6 +30,7 @@ class FixedIntDoublePriorityQueue(val maxSize: Int) {
     index(i-1) = i
   }
 
+  //careful, should not modify heap(0) since it is used by caller
   private def siftUp(pos: Int, score: Double) {
     val element = heapElements(pos)
 
@@ -51,30 +52,45 @@ class FixedIntDoublePriorityQueue(val maxSize: Int) {
     val element = heapElements(pos)
 
     var i = pos
-    var left = 2*i
-    var right = left + 1
-    var scoreLeft = heapScores(left)
-    var scoreRight = heapScores(right)
-    while(right <= size && (score < scoreLeft || score < scoreRight)) {
-      if(scoreLeft > scoreRight) {
-        heapScores(i) = scoreLeft
-        val parentElement = heapElements(left)
-        heapElements(i) = parentElement
-        index(parentElement) = i
-        i = left
-      } else {
-        heapScores(i) = scoreRight
-        val parentElement = heapElements(right)
-        heapElements(i) = parentElement
-        index(parentElement) = i
-        i = right
+    var correctPos = false
+    do {
+      val left = 2*i
+      val right = left + 1
+      if(right <= size) { //two children
+        val scoreLeft = heapScores(left)
+        val scoreRight = heapScores(right)
+        if(scoreLeft > score || scoreRight > score) {
+          if(scoreLeft > scoreRight) {
+            heapScores(i) = scoreLeft
+            val parentElement = heapElements(left)
+            heapElements(i) = parentElement
+            index(parentElement) = i
+            i = left
+          } else {
+            heapScores(i) = scoreRight
+            val parentElement = heapElements(right)
+            heapElements(i) = parentElement
+            index(parentElement) = i
+            i = right
+          }
+        } else { //keep element in place
+          correctPos = true
+        }
+      } else if(left <= size) {//only left child
+        val scoreLeft = heapScores(left)
+        if(score < scoreLeft) {
+          heapScores(i) = scoreLeft
+          val parentElement = heapElements(left)
+          heapElements(i) = parentElement
+          index(parentElement) = i
+          i = left
+        } else {
+          correctPos = true
+        }
+      } else { //element is a leaf
+        correctPos = true
       }
-
-      left = 2*i
-      right = left + 1
-      scoreLeft = heapScores(left)
-      scoreRight = heapScores(right)
-    }
+    } while(!correctPos)
 
     heapScores(i) = score
     heapElements(i) = element
@@ -89,7 +105,10 @@ class FixedIntDoublePriorityQueue(val maxSize: Int) {
     require(offset >= 0)
     val pos = index(el)
     val newScore = heapScores(pos) + offset
-    siftUp(pos, newScore)
+    if(pos <= size)
+      siftUp(pos, newScore)
+    else
+      heapScores(pos) = newScore
   }
 
   def max: Int = heapElements(1)
@@ -108,8 +127,31 @@ class FixedIntDoublePriorityQueue(val maxSize: Int) {
     maxElement
   }
 
+  def insert(el: Int) = {
+    val pos = index(el)
+    require(pos > size)
+    
+    if(pos == size + 1) {
+      //then already at correct position for sifting up
+      _size += 1
+      siftUp(pos, heapScores(pos))
+    } else {
+      //make space for the new leaf
+      heapScores(0) = heapScores(size+1)
+      heapElements(0) = heapElements(size+1)
 
-  /**
+      _size += 1
+      heapElements(size) = heapElements(pos)
+      siftUp(size, heapScores(pos))
+
+      heapScores(pos) = heapScores(0)
+      heapElements(pos) = heapElements(0)
+      index(heapElements(pos)) = pos
+    }
+  }
+
+
+  /*
    * verify that the invariant is true.
    * Meant to be called internally by the testing framework
    * Not efficient!
