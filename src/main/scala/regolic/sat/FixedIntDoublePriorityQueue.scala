@@ -100,8 +100,9 @@ class FixedIntDoublePriorityQueue(val maxSize: Int) {
   /**
    * Increment the score
    * @require offset is positive
+   * @return the new score of the element
    */
-  def incScore(el: Int, offset: Double) {
+  def incScore(el: Int, offset: Double): Double = {
     require(offset >= 0)
     val pos = index(el)
     val newScore = heapScores(pos) + offset
@@ -109,22 +110,42 @@ class FixedIntDoublePriorityQueue(val maxSize: Int) {
       siftUp(pos, newScore)
     else
       heapScores(pos) = newScore
+    newScore
   }
+
+  /**
+   * Rescale every score by the factor
+   * This does not impact the ordering
+   */
+  def rescaleScores(factor: Double) {
+    var i = 0
+    while(i < maxSize) {
+      heapScores(i) *= factor
+      i += 1
+    }
+  }
+
+  def isEmpty: Boolean = _size == 0
 
   def max: Int = heapElements(1)
 
   def deleteMax: Int = {
-    val maxElement = heapElements(1)
-    heapScores(0) = heapScores(1)
-    heapElements(1) = heapElements(_size)
-    val score = heapScores(_size)
-    index(heapElements(1)) = 1
-    heapElements(_size) = maxElement
-    heapScores(_size) = heapScores(0)
-    index(maxElement) = _size
-    _size -= 1
-    siftDown(1, score)
-    maxElement
+    if(size == 1) {
+      _size -= 1
+      heapElements(1)
+    } else {
+      val maxElement = heapElements(1)
+      heapScores(0) = heapScores(1)
+      heapElements(1) = heapElements(_size)
+      val score = heapScores(_size)
+      index(heapElements(1)) = 1
+      heapElements(_size) = maxElement
+      heapScores(_size) = heapScores(0)
+      index(maxElement) = _size
+      _size -= 1
+      siftDown(1, score)
+      maxElement
+    }
   }
 
   def insert(el: Int) = {
@@ -152,6 +173,7 @@ class FixedIntDoublePriorityQueue(val maxSize: Int) {
 
   def remove(el: Int) = {
     val pos = index(el)
+    require(pos <= size)
     if(pos == size) {
       _size -= 1
     } else {

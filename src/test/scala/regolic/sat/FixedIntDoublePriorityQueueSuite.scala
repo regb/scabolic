@@ -111,6 +111,28 @@ class FixedIntDoublePriorityQueueSuite extends FunSuite {
     assert(q3.invariant)
   }
 
+  test("empty queue") {
+    val q1 = new FixedIntDoublePriorityQueue(4)
+    q1.incScore(3, 1.25)
+    q1.incScore(2, 1.)
+    q1.incScore(0, 0.5)
+    q1.incScore(1, 1.5)
+    assert(!q1.isEmpty)
+    assert(q1.invariant)
+    assert(q1.deleteMax === 1)
+    assert(!q1.isEmpty)
+    assert(q1.invariant)
+    assert(q1.deleteMax === 3)
+    assert(!q1.isEmpty)
+    assert(q1.invariant)
+    assert(q1.deleteMax === 2)
+    assert(!q1.isEmpty)
+    assert(q1.invariant)
+    assert(q1.deleteMax === 0)
+    assert(q1.isEmpty)
+  }
+
+
   test("deleteMax-insert") {
     val q3 = new FixedIntDoublePriorityQueue(8)
     assert(q3.size == 8)
@@ -167,6 +189,5 @@ class FixedIntDoublePriorityQueueSuite extends FunSuite {
     assert(q1.invariant)
     assert(q1.deleteMax == 3)
     assert(q1.invariant)
-    println(q1)
   }
 }

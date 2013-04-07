@@ -378,26 +378,7 @@ object DPLL extends Solver {
     }
 
     /*
-     * Next comes a bunch of stuff to maintain VSIDS scores for all variable.
-     * we use two arrays, one for the score, sorted from highest to lowest and
-     * associated with the corresponding id and polarity.
-     * The second array is used as an index, to be able to find in constant time in
-     * the vsids array the current score for a literal.
-     * We decided to use an encoding from literal to index taking 2*id + pol, which
-     * seems to be not optimal in scala because pol needs to be translated to an int
-     * with an if-then-else anyway.
-     *
-     * I think this is better than using a heap/priority queue because there is no
-     * insert during the actual execution, the inserts only comes at the beginning
-     * when building the array, then the only two needed operations are incrementKey
-     * and findMax, which can be both completed in O(1) (actually there is a loop in the
-     * increment, but it should only swap sums locally).
-     *
-     * The initial construction is done without mainting the order and index, and once all
-     * variables are counted, we apply a sort algorithm and then update the index with
-     * one sweep. I believe this is more efficient than using the incrementKey.
-     *
-     * Finally the decay mechanism is from MiniSAT, instead of periodically scaling down
+     * The decay mechanism is from MiniSAT, instead of periodically scaling down
      * each variable, it is equivalent to just augment the value of the increment, since
      * the scale down will not change any order and only the relative value are important.
      * We use doubles and we use the upper bound of 1e100 before scaling down everything, to
@@ -413,83 +394,25 @@ object DPLL extends Solver {
     private var vsidsClauseInc: Double = 1.
     private val vsidsClauseDecay: Double = 1./VSIDS_CLAUSE_DECAY
 
-    //we only wants to init the VSIDS sum to 0, the (Int, Boolean) literal will get
-    //update in the following
-    val vsids: Array[(Int, Boolean, Double)] = Array.fill(2*nbVar)(0, false, 0)
-    //init the VSIDS array
+    val vsidsQueue = new FixedIntDoublePriorityQueue(nbVar)
     originalClauses.foreach(cl => cl.lits.foreach(lit => {
-      val index = litToIndex(lit.id, lit.polarity)
-      vsids(index) = (lit.id, lit.polarity, vsids(index)._3 + vsidsInc)
+      vsidsQueue.incScore(lit.id, vsidsInc)
     }))
-    //and now sort it, we only do that for the initial preprocessing
-    scala.util.Sorting.quickSort(vsids)(new Ordering[(Int, Boolean, Double)] { 
-      def compare(e1: (Int, Boolean, Double), e2: (Int, Boolean, Double)): Int = (e2._3 - e1._3).toInt
-    })
-    //now create an index for these variables
-    private val vsidsIndex: Array[Int] = new Array(2*nbVar)
-    vsids.zipWithIndex.foreach{
-      case ((id, pol, _), i) =>
-        val index = litToIndex(id, pol)
-        vsidsIndex(index) = i
-    }
 
-    //invariant is true initially
-    assert(invariantVSIDS)
-
-    private def invariantVSIDS: Boolean = {
-      vsids.zipWithIndex.zip(vsids.tail).forall{
-        case (((id, pol, sum1), i), (_, _, sum2)) => 
-          val b = sum1 >= sum2 && i == vsidsIndex(litToIndex(id, pol))
-          if(!b) println((id, pol, sum1, sum2, i, litToIndex(id, pol)))
-          b
-      }
-    }
-
-    private def litToIndex(id: Int, pol: Boolean): Int = 2*id + (if(pol) 1 else 0)
-
-    //this gets called for each learned literal, need to maintain the index and the ordered array
-    def incVSIDS(id: Int, pol: Boolean) {
-      val index = litToIndex(id, pol)
-      val indexInSorted = vsidsIndex(index)
-      val (id2, pol2, sum) = vsids(indexInSorted)
-      assert(id2 == id)
-      assert(pol2 == pol)
-      val newSum = sum + vsidsInc
-
-      if(indexInSorted == 0) vsids(indexInSorted) = (id, pol, newSum) else {
-        var newIndex = indexInSorted
-        var t = vsids(newIndex-1)
-        while(newIndex != 0 && t._3 < newSum) {
-          vsids(newIndex) = t
-          vsidsIndex(litToIndex(t._1, t._2)) = newIndex
-          newIndex -= 1
-          if(newIndex != 0)
-            t = vsids(newIndex-1)
-        }
-        vsids(newIndex) = (id, pol, newSum)
-        vsidsIndex(index) = newIndex
-      }
-
-      if(newSum > 1e100) {
+    def incVSIDS(id: Int) {
+      val newScore = vsidsQueue.incScore(id, vsidsInc)
+      if(newScore > 1e100)
         rescaleVSIDS()
-      }
-
     }
 
     def rescaleVSIDS() {
-      var i = 0
-      val size = vsids.size
-      while(i < size) {
-        val (id, pol, v) = vsids(i)
-        vsids(i) = (id, pol, v*1e-100)
-        i += 1
-      }
+      vsidsQueue.rescaleScores(1e-100)
       vsidsInc *= 1e-100
     }
+
     def decayVSIDS() {
       vsidsInc *= vsidsDecay
     }
-
 
     def incVSIDSClause(cl: Clause) {
       cl.activity = cl.activity + vsidsClauseInc
@@ -512,7 +435,7 @@ object DPLL extends Solver {
       nbClauses += 1
       nbLearntClauses += 1
       for(lit <- clause.lits)
-        incVSIDS(lit.id, lit.polarity)
+        incVSIDS(lit.id)
       incVSIDSClause(clause)
       if(!clause.lits.tail.isEmpty)//only record if not unit
         recordClause(clause)
@@ -556,6 +479,7 @@ object DPLL extends Solver {
 
   //maybe use Lit instead of (id, pol). For that we need decide() to be able to find a Literal
   private[this] def enqueueLiteral(lit: Int, pol: Int, from: Clause = null) {
+    cnfFormula.vsidsQueue.remove(lit)
     assert(model(lit) == -1)
     model(lit) = pol
     trail.push(lit)
@@ -568,22 +492,12 @@ object DPLL extends Solver {
   private[this] def decide() {
     nbDecisions += 1
 
-    var lit: Option[(Int, Boolean)] = None
-    var i = 0
-    val size = cnfFormula.vsids.size
-    while(lit == None && i < size) {
-      val (id, pol, top) = cnfFormula.vsids(i)
-      if(model(id) == -1)
-        lit = Some((id, pol))
-      i += 1
-    }
-
-    if(lit == None) {
+    if(cnfFormula.vsidsQueue.isEmpty) 
       status = Satisfiable
-    } else {
-      val fLit = lit.get
+    else {
+      val lit = cnfFormula.vsidsQueue.max
       decisionLevel += 1
-      enqueueLiteral(fLit._1, if(fLit._2) 1 else 0)
+      enqueueLiteral(lit, 1)
     }
   }
 
@@ -636,6 +550,7 @@ object DPLL extends Solver {
 
   private[this] def undo(id: Int) {
     assert(model(id) != -1)
+    cnfFormula.vsidsQueue.insert(id)
     model(id) = -1
     levels(id) = -1
     val reasonClause = reasons(id)
