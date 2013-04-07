@@ -5,8 +5,17 @@ package regolic.sat
  * to a double value.
  * Scores are initialized to 0, while the elements are initialized
  * from 0 to length-1
+ *
+ * Elements are fixed, taking value between 0 and maxSize-1
+ * When an element is removed, we remember its score, it is still
+ * possible to augment its score, and when the element is added back, it
+ * takes a position according to its current score.
  */
-class FixedIntDoublePriorityQueue(val size: Int) {
+class FixedIntDoublePriorityQueue(val maxSize: Int) {
+
+  private var _size = maxSize
+
+  def size: Int = _size
 
   //uses 1-indexed arrays, this makes the parent/child relationship simpler and more efficient to compute
   private val heapScores: Array[Double] = new Array(1+size)
@@ -38,6 +47,40 @@ class FixedIntDoublePriorityQueue(val size: Int) {
     index(element) = i
   }
 
+  private def siftDown(pos: Int, score: Double) {
+    val element = heapElements(pos)
+
+    var i = pos
+    var left = 2*i
+    var right = left + 1
+    var scoreLeft = heapScores(left)
+    var scoreRight = heapScores(right)
+    while(right <= size && (score < scoreLeft || score < scoreRight)) {
+      if(scoreLeft > scoreRight) {
+        heapScores(i) = scoreLeft
+        val parentElement = heapElements(left)
+        heapElements(i) = parentElement
+        index(parentElement) = i
+        i = left
+      } else {
+        heapScores(i) = scoreRight
+        val parentElement = heapElements(right)
+        heapElements(i) = parentElement
+        index(parentElement) = i
+        i = right
+      }
+
+      left = 2*i
+      right = left + 1
+      scoreLeft = heapScores(left)
+      scoreRight = heapScores(right)
+    }
+
+    heapScores(i) = score
+    heapElements(i) = element
+    index(element) = i
+  }
+
   /**
    * Increment the score
    * @require offset is positive
@@ -51,7 +94,20 @@ class FixedIntDoublePriorityQueue(val size: Int) {
 
   def max: Int = heapElements(1)
 
-  //def apply(i: Int): Int = heapElements(i+1)
+  def deleteMax: Int = {
+    val maxElement = heapElements(1)
+    heapScores(0) = heapScores(1)
+    heapElements(1) = heapElements(_size)
+    val score = heapScores(_size)
+    index(heapElements(1)) = 1
+    heapElements(_size) = maxElement
+    heapScores(_size) = heapScores(0)
+    index(maxElement) = _size
+    _size -= 1
+    siftDown(1, score)
+    maxElement
+  }
+
 
   /**
    * verify that the invariant is true.
