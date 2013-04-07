@@ -152,4 +152,21 @@ class FixedIntDoublePriorityQueueSuite extends FunSuite {
     assert(q3.deleteMax == 3)
   }
 
+  test("remove arbitrary") {
+    val q1 = new FixedIntDoublePriorityQueue(7)
+    q1.incScore(3, 1.25)
+    q1.incScore(2, 1.)
+    q1.incScore(6, 2.)
+    q1.incScore(3, 1.)
+    q1.incScore(0, 0.5)
+    q1.incScore(1, 1.5)
+    q1.incScore(4, 0.7)
+    assert(q1.size == 7)
+    q1.remove(6)
+    assert(q1.size == 6)
+    assert(q1.invariant)
+    assert(q1.deleteMax == 3)
+    assert(q1.invariant)
+    println(q1)
+  }
 }

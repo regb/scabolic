@@ -150,6 +150,25 @@ class FixedIntDoublePriorityQueue(val maxSize: Int) {
     }
   }
 
+  def remove(el: Int) = {
+    val pos = index(el)
+    if(pos == size) {
+      _size -= 1
+    } else {
+      heapScores(0) = heapScores(pos)
+      heapElements(pos) = heapElements(size)
+      val score = heapScores(size)
+      _size -= 1
+      if(score > heapScores(pos/2))
+        siftUp(pos, score)
+      else
+        siftDown(pos, score)
+      heapElements(size + 1) = el
+      heapScores(size + 1) = heapScores(0)
+      index(heapElements(size+1)) = size+1
+    }
+  }
+
 
   /*
    * verify that the invariant is true.
