@@ -49,6 +49,10 @@ class FixedIntDoublePriorityQueue(val size: Int) {
     siftUp(pos, newScore)
   }
 
+  def max: Int = heapElements(1)
+
+  //def apply(i: Int): Int = heapElements(i+1)
+
   /**
    * verify that the invariant is true.
    * Meant to be called internally by the testing framework

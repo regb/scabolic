@@ -15,6 +15,7 @@ class FixedIntDoublePriorityQueueSuite extends FunSuite {
     q1.incScore(1, 1.5)
     q1.incScore(4, 0.7)
     assert(q1.invariant)
+    assert(q1.max == 3)
 
     val q2 = new FixedIntDoublePriorityQueue(8)
     q2.incScore(7, 1.25)
@@ -25,10 +26,10 @@ class FixedIntDoublePriorityQueueSuite extends FunSuite {
     q2.incScore(1, 1.5)
     q2.incScore(4, 0.7)
     q2.incScore(0, 1.7)
-    q2.incScore(2, 1.7)
+    q2.incScore(2, 1.6)
     q2.incScore(3, 1.7)
-    println(q2)
     assert(q2.invariant)
+    assert(q2.max == 3)
   }
 
 }
