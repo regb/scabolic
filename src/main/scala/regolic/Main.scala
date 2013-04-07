@@ -42,6 +42,16 @@ object Main {
     }
   }
 
+  def satSolver(f: File) {
+    val is = new java.io.FileInputStream(f)
+    val (satInstance, nbVars) = regolic.parsers.Dimacs.cnf(is)
+    val res = regolic.sat.DPLL.isSat(satInstance, nbVars)
+    res match {
+      case Some(_) => println("sat")
+      case None => println("unsat")
+    }
+  }
+
   def main(arguments: Array[String]) {
     val cmd = arguments(0)
     val args = arguments.tail
@@ -52,13 +62,7 @@ object Main {
 
       if(cmd == "sat") {
         val inputFile = trueArgs(0)
-        val is = new java.io.FileInputStream(inputFile)
-        val (satInstance, nbVars) = regolic.parsers.Dimacs.cnf(is)
-        val res = regolic.sat.DPLL.isSat(satInstance, nbVars)
-        res match {
-          case Some(_) => println("sat")
-          case None => println("unsat")
-        }
+        satSolver(new java.io.File(inputFile))
       } else if(cmd == "smt") {
         val inputFile = trueArgs(0)
         val is = new java.io.FileInputStream(inputFile)
@@ -69,16 +73,18 @@ object Main {
         val dirFile = new java.io.File(dir)
         val benchmarks = recursiveListFiles(dirFile)
 
-        benchmarks.foreach(name => {
-          print("Solving " + name + " ... ")
-          val is = new java.io.FileInputStream(name)
-          val (satInstance, nbVars) = regolic.parsers.Dimacs.cnf(is)
-          val res = regolic.sat.DPLL.isSat(satInstance, nbVars)
-          res match {
-            case Some(_) => println("SAT")
-            case None => println("UNSAT")
-          }
+        //letting some time to hotspot
+        val benchmark = benchmarks.head
+        (1 to 3).foreach{_ => satSolver(benchmark)}
+
+        val start = System.currentTimeMillis
+        benchmarks.foreach(file => {
+          print("Solving " + file + " ... ")
+          satSolver(file)
         })
+        val end = System.currentTimeMillis
+        val elapsed = end - start
+        println("Total solving time: " + (elapsed/1000.))
       } else {
         println("Unknown command: " + cmd)
       }
