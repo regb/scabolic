@@ -1,5 +1,5 @@
-MASTER="d1a05bc2" #MASTER contains the needed files for running benchmarks, not necessarly master branch
-COMMITS="d1a05bc2"
+MASTER="dabd406b" #MASTER contains the needed files for running benchmarks, not necessarly master branch
+COMMITS="dabd406b"
 RESULTS_DIR="results"
 
 if [ ! -d $RESULTS_DIR ]; then mkdir $RESULTS_DIR; fi
