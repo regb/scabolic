@@ -1,7 +1,7 @@
 TIMEFORMAT=%R
-TIMEOUT=5m
+TIMEOUT=30s
 echo "#Benchmarking regolic"
-echo "Timeout is set to 5m and results are in seconds"
+echo "Timeout is set to $TIMEOUT and results are in seconds"
 for benchmarks in satlib/*; do
   echo "##Benchmarking $benchmarks"
   sum=0
