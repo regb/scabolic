@@ -1,5 +1,5 @@
 MASTER="dabd406b" #MASTER contains the needed files for running benchmarks, not necessarly master branch
-COMMITS="dabd406b"
+COMMITS="391b6440 dabd406b"
 RESULTS_DIR="results"
 
 RUNNER=run-benchmark.sh
