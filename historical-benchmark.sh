@@ -9,7 +9,7 @@ for commit in $COMMITS; do
   git checkout $MASTER run-benchmarks.sh
   git checkout $MASTER src/main/scala/regolic/Main.scala
   sbt compile
-  ./run-benchmarks.sh > $RESULTS_DIR/$commit
+  ./run-benchmark.sh > $RESULTS_DIR/$commit
   git reset HEAD run-benchmarks.sh
   git checkout run-benchmarks.sh
   git reset HEAD src/main/scala/regolic/Main.scala
