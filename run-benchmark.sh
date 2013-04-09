@@ -23,6 +23,7 @@ for benchmarks in satlib/*; do
   if [ $nbsuccess -eq 0 ]; then
     echo "###No benchmark completed"
   else
-    echo "###Average time over successes: $(echo "$sum / $nbsuccess" | bc)"
+    echo "###Number of success: $nbsuccess"
+    echo "###Average time over success: $(echo "scale=3;$sum / $nbsuccess" | bc)"
   fi
 done
