@@ -2,18 +2,21 @@ MASTER="dabd406b" #MASTER contains the needed files for running benchmarks, not 
 COMMITS="dabd406b"
 RESULTS_DIR="results"
 
+RUNNER=run-benchmark.sh
+MAIN=src/main/scala/regolic/Main.scala
+
 if [ ! -d $RESULTS_DIR ]; then mkdir $RESULTS_DIR; fi
 for commit in $COMMITS; do
 
   git checkout $commit
-  git checkout $MASTER run-benchmarks.sh
-  git checkout $MASTER src/main/scala/regolic/Main.scala
+  git checkout $MASTER $RUNNER
+  git checkout $MASTER $MAIN
   sbt compile
-  ./run-benchmark.sh > $RESULTS_DIR/$commit
-  git reset HEAD run-benchmarks.sh
-  git checkout run-benchmarks.sh
-  git reset HEAD src/main/scala/regolic/Main.scala
-  git checkout src/main/scala/regolic/Main.scala
+  ./$RUNNER > $RESULTS_DIR/$commit
+  git reset HEAD $RUNNER
+  git checkout $RUNNER
+  git reset HEAD $MAIN
+  git checkout $MAIN
 
 done
 
