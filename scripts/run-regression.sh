@@ -6,7 +6,7 @@ echo "Running SAT solver on satisfiable instances ..."
 for f in regression/dimacs/sat/*.cnf
 do
   echo -n "Testing $f ..."
-  if ! res=$(./regolic --dimacs $f 2> /dev/null); then
+  if ! res=$(./regolic sat --dimacs $f 2> /dev/null); then
     echo "The solver did not exit correctly"
     error=true
   else
@@ -19,7 +19,7 @@ echo "Running SAT solver on unsatisfiable instances ..."
 for f in regression/dimacs/unsat/*.cnf
 do
   echo -n "Testing $f ..."
-  if ! res=$(./regolic --dimacs $f 2> /dev/null); then
+  if ! res=$(./regolic sat --dimacs $f 2> /dev/null); then
     echo "The solver did not exit correctly"
     error=true
   else

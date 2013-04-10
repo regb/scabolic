@@ -24,6 +24,8 @@ class FixedIntDoublePriorityQueue(val maxSize: Int) {
   //index is still 0-indexed
   private val index: Array[Int] = new Array(size)
 
+  def apply(id: Int) = heapElements(id)
+
   //and so are elements
   for(i <- 1 to size) {
     heapElements(i) = i-1
@@ -148,15 +150,15 @@ class FixedIntDoublePriorityQueue(val maxSize: Int) {
     }
   }
 
+  //insert will simply ignore if el is already in the heap
+  //it keeps the element at its current position and score
   def insert(el: Int) = {
     val pos = index(el)
-    require(pos > size)
-    
     if(pos == size + 1) {
       //then already at correct position for sifting up
       _size += 1
       siftUp(pos, heapScores(pos))
-    } else {
+    } else if(pos > size + 1) {
       //make space for the new leaf
       heapScores(0) = heapScores(size+1)
       heapElements(0) = heapElements(size+1)

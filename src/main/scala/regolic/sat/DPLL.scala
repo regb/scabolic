@@ -479,7 +479,6 @@ object DPLL extends Solver {
 
   //maybe use Lit instead of (id, pol). For that we need decide() to be able to find a Literal
   private[this] def enqueueLiteral(lit: Int, pol: Int, from: Clause = null) {
-    cnfFormula.vsidsQueue.remove(lit)
     assert(model(lit) == -1)
     model(lit) = pol
     trail.push(lit)
@@ -490,14 +489,18 @@ object DPLL extends Solver {
   }
 
   private[this] def decide() {
-    nbDecisions += 1
-
-    if(cnfFormula.vsidsQueue.isEmpty) 
+    if(cnfFormula.vsidsQueue.isEmpty)
       status = Satisfiable
     else {
-      val lit = cnfFormula.vsidsQueue.max
-      decisionLevel += 1
-      enqueueLiteral(lit, 1)
+      var next = cnfFormula.vsidsQueue.deleteMax
+      while(model(next) != -1 && !cnfFormula.vsidsQueue.isEmpty)
+        next = cnfFormula.vsidsQueue.deleteMax
+      if(model(next) == -1) {
+        nbDecisions += 1
+        decisionLevel += 1
+        enqueueLiteral(next, 1)
+      } else
+        status = Satisfiable
     }
   }
 
