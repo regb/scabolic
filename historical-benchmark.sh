@@ -1,4 +1,4 @@
-MASTER="dabd406b" #MASTER contains the needed files for running benchmarks, not necessarly master branch
+MASTER="143b3c205" #MASTER contains the needed files for running benchmarks, not necessarly master branch
 COMMITS="391b6440 dabd406b"
 RESULTS_DIR="results"
 
