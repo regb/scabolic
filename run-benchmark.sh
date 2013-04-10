@@ -1,7 +1,7 @@
 TIMEFORMAT=%R
-TIMEOUT=30s
+TIMEOUT=30
 echo "#Benchmarking regolic"
-echo "Timeout is set to $TIMEOUT and results are in seconds"
+echo "Timeout is set to ${TIMEOUT}s and results are in seconds"
 for benchmarks in satlib/*; do
   echo "##Benchmarking $benchmarks"
   sum=0
@@ -9,7 +9,7 @@ for benchmarks in satlib/*; do
   nbfailure=0
   for benchmark in $benchmarks/*.cnf; do
     echo -n "$benchmark ... "
-    TIMERES=$( (time timeout $TIMEOUT ./regolic sat $benchmark > /dev/null) 2>&1)
+    TIMERES=$( (time timeout ${TIMEOUT}s ./regolic sat $benchmark > /dev/null) 2>&1)
     status=$?
     if [ $status -eq 124 ]; then
       echo "Timeout"
@@ -29,5 +29,6 @@ for benchmarks in satlib/*; do
   else
     echo "###Number of success: $nbsuccess"
     echo "###Average time over success: $(echo "scale=3;$sum / $nbsuccess" | bc)"
+    echo "###Total average time: $(echo "scale=3;($sum + ($nbfailure * $TIMEOUT)) / ($nbsuccess + $nbfailure)" | bc)"
   fi
 done
