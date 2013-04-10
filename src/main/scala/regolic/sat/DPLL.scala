@@ -498,7 +498,7 @@ object DPLL extends Solver {
       if(model(next) == -1) {
         nbDecisions += 1
         decisionLevel += 1
-        enqueueLiteral(next, 1)
+        enqueueLiteral(next, nbDecisions & 1)
       } else
         status = Satisfiable
     }
