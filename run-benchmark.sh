@@ -6,20 +6,24 @@ for benchmarks in satlib/*; do
   echo "##Benchmarking $benchmarks"
   sum=0
   nbsuccess=0
-  nbtimeout=0
+  nbfailure=0
   for benchmark in $benchmarks/*.cnf; do
     echo -n "$benchmark ... "
     TIMERES=$( (time timeout $TIMEOUT ./regolic sat $benchmark > /dev/null) 2>&1)
-    if [ $? -eq 124 ]; then
+    status=$?
+    if [ $status -eq 124 ]; then
       echo "Timeout"
-      nbtimeout=$((nbtimeout + 1))
-    else
+      nbfailure=$((nbfailure + 1))
+    elif [ $status -eq 0 ]; then
       echo $TIMERES
       nbsuccess=$((nbsuccess + 1))
       sum=$(echo "$sum + $TIMERES" | bc)
+    else
+      echo "ERROR !!!"
+      nbfailure=$((nbfailure + 1))
     fi
   done
-  echo "###Number of timeouts: $nbtimeout"
+  echo "###Number of failure: $nbfailure"
   if [ $nbsuccess -eq 0 ]; then
     echo "###No benchmark completed"
   else
