@@ -1,4 +1,4 @@
-MASTER="16cc4717" #MASTER contains the needed files for running benchmarks, not necessarly master branch
+MASTER="afc83ae25" #MASTER contains the needed files for running benchmarks, not necessarly master branch
 COMMITS="d43db7f3 e2294b10 94372963 391b6440"
 RESULTS_DIR="results"
 
@@ -14,6 +14,7 @@ for commit in $COMMITS; do
   git checkout $MASTER $RUNNER
   git checkout $MASTER $MAIN
   git checkout $MASTER $SETTINGS
+  sbt clean
   sbt compile
   sbt script
   ./$RUNNER > $RESULTS_DIR/$commit
