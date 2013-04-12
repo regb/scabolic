@@ -9,7 +9,7 @@ for benchmarks in satlib/*; do
   nbfailure=0
   for benchmark in $benchmarks/*.cnf; do
     echo -n "$benchmark ... "
-    TIMERES=$(timeout ${TIMEOUT}s ./regolic sat --time $benchmark | tail -n 1)
+    TIMERES=$(./regolic sat --timeout=${TIMEOUT} --time $benchmark | tail -n 1)
     status=$?
     if [ $status -eq 124 ]; then
       echo "Timeout"
