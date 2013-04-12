@@ -1,0 +1,27 @@
+992028f9 --- Using AST, simple BCP with pattern matching and recursion, pick first unassigned variable found
+
+d947f11c2 --- Use clause data structure. adjacency lists of clauses
+for each variable, and counters for true/false literal in each
+clause. Branch decision is first free index. Backtracking is done
+via a stack of decision + inferences. Always explore true first
+and backtrack to the first non false and assign false.
+
+66e551729ec --- This is more close to a real SAT solver, with long
+backtracking, clause learning, restart and decision heuristic
+(VSIDS). BCP is still two counter, and the conflict analysis is not
+done efficiently. We explicitly build an implication graph, and we
+also do a preprocessing more costly than before (but also more
+correct in the general case, which was not the case before).  This
+probably explain why the results are mostly less good, all the
+important mechanisms are there, but nothing is really implemented
+efficiently.  In particular clause learning adds new clauses and it
+is likely that the two-counter is then more and more expensive.
+Still, some testcases improve drastically.
+
+d43db7f34 --- 2-watched literals.
+
+e2294b10 --- trail based implementation of conflict analysis.
+
+94372963 --- clause deletion and learning with minimization
+
+391b6440 --- Optimized with dedicated data structure.

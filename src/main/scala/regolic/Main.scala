@@ -8,6 +8,7 @@ object Main {
 
   private var dimacs = true
   private var smtlib2 = true
+  private var time = false
 
   private val optionsHelp: String = (
     "  --dimacs             The input file is to be interpreted as a DIMACS CNF SAT problem" + "\n" +
@@ -15,7 +16,8 @@ object Main {
     "  --debug=[1-5]        Debug level" + "\n" +
     "  --tags=t1:...        Filter out debug information that are not of one of the given tags" + "\n" +
     "  --timeout=N          Timeout in seconds" + "\n" +
-    "  --stats              Print statistics information"
+    "  --stats              Print statistics information" +
+    "  --time               Time the solving phase"
   )
 
   def processOptions(options: Array[String]) {
@@ -23,6 +25,7 @@ object Main {
       option match {
         case "dimacs"        =>                     dimacs = true
         case "smtlib2"        =>                    smtlib2 = true
+        case "time"        =>                       time = true
 
         case "stats"         =>                     Settings.stats = true
 
@@ -62,7 +65,12 @@ object Main {
 
       if(cmd == "sat") {
         val inputFile = trueArgs(0)
+        val start = System.currentTimeMillis
         satSolver(new java.io.File(inputFile))
+        val end = System.currentTimeMillis
+        val elapsed = end - start
+        if(time)
+          println(elapsed/1000.)
       } else if(cmd == "smt") {
         val inputFile = trueArgs(0)
         val is = new java.io.FileInputStream(inputFile)
