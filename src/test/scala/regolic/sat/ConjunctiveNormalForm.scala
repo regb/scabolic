@@ -33,13 +33,17 @@ class ConjunctiveNormalFormSuite extends FunSuite {
     }
   }
 
-  test("cnf") {
+  test("cnf basic") {
     val f1 = Or(And(q1,q2,q3), And(r1,r2))
     checkEncoding(f1, true)
     val f2 = And(Or(q1,q2,q3), Or(q1,Not(q2)), Or(q2, Not(q3)))
     checkEncoding(f2, true)
     val f3 = And(Or(Not(q1),q3), Or(q1,Not(q2)), Or(q2, Not(q3)), Or(q3, q2), Or(Not(q1), Not(q2)))
     checkEncoding(f3, false)
+    val f4 = Implies(Or(Not(q1),q3), Or(q1,Not(q2)))
+    checkEncoding(f4, true)
+    val f5 = Iff(Or(Not(q1),q3), And(q1,Not(q2)))
+    checkEncoding(f5, false)
   }
 
 }

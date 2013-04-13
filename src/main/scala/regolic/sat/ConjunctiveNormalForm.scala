@@ -44,25 +44,25 @@ object ConjunctiveNormalForm {
         constraints += (new Literal(repr, false) :: fsRepr.map(fRepr => new Literal(fRepr, true))).toSet
         repr
       }
-      //case Implies(f1, f2) => {
-      //  val repr = freshPropositionalVariable("P")
-      //  val id = nextId()
-      //  varToLiteral(repr) = id
-      //  constraints += Or(Not(repr), Not(f1), f2)
-      //  constraints += Or(repr, f1)
-      //  constraints += Or(repr, Not(f2))
-      //  repr
-      //}
-      //case Iff(f1, f2) => {
-      //  val repr = freshPropositionalVariable("P")
-      //  val id = nextId()
-      //  varToLiteral(repr) = id
-      //  constraints += Or(Not(repr), Not(f1), f2)
-      //  constraints += Or(Not(repr), f1, Not(f2))
-      //  constraints += Or(repr, Not(f1), Not(f2))
-      //  constraints += Or(repr, f1, f2)
-      //  repr
-      //}
+      case Implies(f1, f2) => {
+        val repr = nextId()
+        val f1Repr = rec(f1)
+        val f2Repr = rec(f2)
+        constraints += Set(new Literal(repr, false), new Literal(f1Repr, false), new Literal(f2Repr, true))
+        constraints += Set(new Literal(repr, true), new Literal(f1Repr, true))
+        constraints += Set(new Literal(repr, true), new Literal(f2Repr, false))
+        repr
+      }
+      case Iff(f1, f2) => {
+        val repr = nextId()
+        val f1Repr = rec(f1)
+        val f2Repr = rec(f2)
+        constraints += Set(new Literal(repr, false), new Literal(f1Repr, false), new Literal(f2Repr, true))
+        constraints += Set(new Literal(repr, false), new Literal(f1Repr, true), new Literal(f2Repr, false))
+        constraints += Set(new Literal(repr, false), new Literal(f1Repr, false), new Literal(f2Repr, false))
+        constraints += Set(new Literal(repr, false), new Literal(f1Repr, true), new Literal(f2Repr, true))
+        repr
+      }
       case p@PropositionalVariable(_) => varToLiteral.get(p) match {
         case Some(repr) => repr
         case None => {
