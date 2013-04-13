@@ -9,7 +9,7 @@ Scabolic is written in the Scala programming language and provide (well, it
 will provide it in the near future) a nice Domain Specific Language (DSL) to be
 used either as an interactive tool within the Scala REPL or as a Scala library.
 
-Currently, Scabolic provides two stable interfaces:
+Currently, Scabolic provides two documented interfaces:
 
 - The CafeSat tool
 - A Scala API to use inner SAT solver
