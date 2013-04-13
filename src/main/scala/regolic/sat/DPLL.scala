@@ -211,16 +211,6 @@ object DPLL extends Solver {
     var marked: Set[Int] = learntClause.map(_.id).toSet
     val levelsInClause: Set[Int] = marked.map(levels(_)) //we can optimize the search, if we see a node of a level not in the set, then for sure there will be a decision node of the same level
 
-    //def isDominated(lit: Int): Boolean = {
-    //  val res = if(marked.contains(lit) || levels(lit) == 0) true else if(reasons(lit) == null || !levelsInClause.contains(lit)) false else {
-    //    val reasonClause = reasons(lit)
-    //    reasonClause.lits.forall(l => l.id == lit || isDominated(l.id))
-    //  }
-    //  if(res)
-    //    marked += lit //for caching
-    //  res
-    //}
-
     def litRedundant(lit: Int, abstractLevel: Int): Boolean = {
       var stack = List(lit)
       var analyzeToclear: List[Int] = Nil
@@ -255,7 +245,7 @@ object DPLL extends Solver {
 
     learntClause = learntClause.filterNot(lit => {
       val reasonClause = reasons(lit.id) 
-      reasonClause != null && litRedundant(lit.id, absLevel) //reasonClause.lits.forall(pre => isDominated(pre.id))
+      reasonClause != null && litRedundant(lit.id, absLevel)
     })
 
     //compute backtrack level
@@ -285,76 +275,6 @@ object DPLL extends Solver {
     var arrayLits: Array[Literal] = lits.toArray
     var wli1: Int = 0
     var wli2: Int = 1
-
-    //one of the watched lit is negated
-    //def watchedLitNeg(id: Int, node: ClauseList#Iterator) {
-    //  val lit = if(id == wl1.id) wl1 else wl2
-    //  assert(wl1 == lit || wl2 == lit)
-
-    //  if(size == 2) {
-    //    if(wl1.isUnsat && wl2.isUnsat) {
-    //      status = Conflict
-    //      conflict = this
-    //    } else if(wl2.isUnassigned) {
-    //      unitClauses ::= (this, wl2)
-    //    } else if(wl1.isUnassigned) {
-    //      unitClauses ::= (this, wl1)
-    //    }
-    //  } else if(size == 3) {
-    //    if((uwl.isUnassigned || uwl.isSat) && lit == wl1) {
-    //      val tmp = uwl
-    //      uwl = wl1
-    //      wl1 = tmp
-    //      changedWatched(uwl, wl1, node)
-    //    } else if((uwl.isUnassigned || uwl.isSat) && lit == wl2) {
-    //      val tmp = uwl
-    //      uwl = wl2
-    //      wl2 = tmp
-    //      changedWatched(uwl, wl2, node)
-    //    } else if(wl1.isUnassigned) { 
-    //      unitClauses ::= (this, wl1)
-    //    } else if(wl2.isUnassigned) {
-    //      unitClauses ::= (this, wl2)
-    //    } else if(wl1.isUnsat && wl2.isUnsat) {
-    //      status = Conflict
-    //      conflict = this
-    //    }
-    //  } else {
-    //    var newWatchedIndex = 0
-    //    var found = false
-    //    while(!found && newWatchedIndex < size) {
-    //      val l = arrayLits(newWatchedIndex)
-    //      if(newWatchedIndex != wli1 && newWatchedIndex != wli2 && !l.isUnsat)
-    //        found = true
-    //      else
-    //        newWatchedIndex += 1
-    //    }
-
-    //    if(found) {
-    //      if(wl1 == lit) {
-    //        wl1 = arrayLits(newWatchedIndex) 
-    //        wli1 = newWatchedIndex
-    //      } else {
-    //        wl2 = arrayLits(newWatchedIndex) 
-    //        wli2 = newWatchedIndex
-    //      }
-    //      changedWatched(lit, arrayLits(newWatchedIndex), node)
-    //    } else {
-    //      val owl = if(wl1 == lit) wl2 else wl1
-    //      if(owl.isUnassigned)
-    //        unitClauses ::= (this, owl)
-    //      else if(owl.isUnsat && status != Conflict) {
-    //        status = Conflict
-    //        conflict = this
-    //      }
-    //    }
-    //  }
-    //}
-
-    //private def changedWatched(oldLit: Literal, newLit: Literal, node: ClauseList#Iterator) {
-    //  node.remove()
-    //  getWatched(newLit.id, newLit.polInt).prepend(this)
-    //}
 
     override def toString: String = lits.mkString(", ") + " | wl1: " + wl1 + ", wl2: " + wl2
   }
@@ -811,29 +731,5 @@ object DPLL extends Solver {
     lst.foreach(i => trail.push(i))
 
   }
-
-    //def toDotString: String = {
-    //  var res = "digraph {\n"
-
-    //  res += nodes.map(n => if(n==null) "" else n match {
-    //    case DecisionNode(id, pol, level) => id + " [label=\"" + (if(pol) "" else "-") + id + " @" + level + "\" color=blue];"
-    //    case ConsequenceNode(id, pol, level) => id + " [label=\"" + (if(pol) "" else "-") + id + " @" + level + "\" color=green];"
-    //    case ConflictNode(_) => "C"
-    //  }).mkString("\n")
-    //  res += "\n"
-
-    //  def printNode(n: Node): String = n match {
-    //    case DecisionNode(id, _, _) => id.toString
-    //    case ConsequenceNode(id, _, _) => id.toString
-    //    case ConflictNode(_) => "C"
-    //  }
-    //  
-    //  res += nodes.map(n => if(n == null) "" else {
-    //    n.outs.map(out => printNode(n) + " -> " + printNode(out) + ";").mkString("\n")
-    //  }).mkString("\n")
-
-    //  res += "\n}"
-    //  res
-    //}
 
 }
