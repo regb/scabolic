@@ -1,14 +1,9 @@
 package regolic.sat
 
 import regolic.asts.core.Trees._
-import regolic.asts.core.Manip._
-import regolic.asts.fol.Trees._
-import regolic.asts.fol.Manip._
 
 import regolic.Settings
 import regolic.Stats
-
-import scala.collection.mutable.HashSet
 
 object DPLL extends Solver {
 
