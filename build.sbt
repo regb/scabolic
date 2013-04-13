@@ -8,13 +8,25 @@ scalacOptions ++= Seq("-unchecked", "-deprecation")
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "1.6.1" % "test"
 
-script <<= (baseDirectory, fullClasspath in Runtime) map { (base, cp) =>
+scabolic <<= (baseDirectory, fullClasspath in Runtime) map { (base, cp) =>
   val template = """#!/bin/sh
 java -classpath "%s" %s "$@"
 """
     val mainStr = "regolic.Main"
     val contents = template.format(cp.files.absString, mainStr)
-    val out = base / "regolic"
+    val out = base / "scabolic"
+    IO.write(out, contents)
+    out.setExecutable(true)
+    out
+}
+
+cafesat <<= (baseDirectory, fullClasspath in Runtime) map { (base, cp) =>
+  val template = """#!/bin/sh
+java -classpath "%s" %s sat "$@"
+"""
+    val mainStr = "regolic.Main"
+    val contents = template.format(cp.files.absString, mainStr)
+    val out = base / "cafesat"
     IO.write(out, contents)
     out.setExecutable(true)
     out

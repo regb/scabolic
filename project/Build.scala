@@ -6,7 +6,8 @@ object Regolic extends Build {
   //val testIntegration: TaskKey[Unit] = TaskKey[Unit]("test-integration", "Execute integration tests")
   //val testAll: TaskKey[Unit] = TaskKey[Unit]("test-all", "Execute unit and integration tests")
   //val smtlibParser: TaskKey[File] = TaskKey[File]("smtlib-parser", "Build the smtlib parser")
-  val script: TaskKey[File] = TaskKey[File]("script", "Create the run script")
+  val scabolic: TaskKey[File] = TaskKey[File]("scabolic", "Create the main run script")
+  val cafesat: TaskKey[File] = TaskKey[File]("cafesat", "Create the sat solver script")
 
   //val testIntegrationTask = testIntegration <<= (compile in Compile, baseDirectory, script) map { (_, base, _) => 
   //  val exitCode = base + "/scripts/run-regression.sh" !;
