@@ -14,17 +14,18 @@ class ConjunctiveNormalFormSuite extends FunSuite {
   val r2 = freshPropositionalVariable("R")
 
   def checkEncoding(f: Formula, isSat: Boolean) {
+    import Solver.Results._
     val (cnf, nb, map) = ConjunctiveNormalForm(f)
-    val model = DPLL.isSat(cnf.map(lits => new DPLL.Clause(lits.toList)).toList, nb)
+    val model = Solver.solve(cnf.map(lits => new Solver.Clause(lits.toList)).toList, nb)
     if(isSat) {
-      if(model == None) {
+      if(model == Unsatisfiable) {
         println(f + " was not encoded correctly")
         println("encoding was: " + cnf)
         println("with: " + map)
         assert(false)
       }
     } else {
-      if(model != None) {
+      if(model.isInstanceOf[Satisfiable]) {
         println(f + " was not encoded correctly")
         println("encoding was: " + cnf)
         println("with: " + map)
