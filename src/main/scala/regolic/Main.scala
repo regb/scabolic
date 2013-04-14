@@ -4,19 +4,6 @@ import regolic.asts.core.Trees._
 import regolic.asts.fol.Trees._
 import java.io.File
 
-object Scheduler {
-  import java.util.concurrent.Executors
-  import scala.compat.Platform
-  import java.util.concurrent.TimeUnit
-
-  private lazy val sched = Executors.newSingleThreadScheduledExecutor();
-  def schedule(f: => Unit, time: Long) {
-    sched.schedule(new Runnable {
-      def run = f
-    }, time , TimeUnit.MILLISECONDS)
-  }
-}
-
 object Main {
 
   private var dimacs = true
@@ -59,16 +46,16 @@ object Main {
   }
 
   def satSolver(f: File) {
-    Settings.timeout match {
-      case Some(secs) => Scheduler.schedule(sys.exit(42), 1000*secs)
-      case None =>
-    }
+    import regolic.sat.Solver
+    import Solver.Results._
+
     val is = new java.io.FileInputStream(f)
     val (satInstance, nbVars) = regolic.parsers.Dimacs.cnf(is)
-    val res = regolic.sat.DPLL.isSat(satInstance, nbVars)
+    val res = Solver.solve(satInstance, nbVars)
     res match {
-      case Some(_) => println("sat")
-      case None => println("unsat")
+      case Satisfiable(_) => println("sat")
+      case Unsatisfiable => println("unsat")
+      case Unknown => println("unknown")
     }
   }
 

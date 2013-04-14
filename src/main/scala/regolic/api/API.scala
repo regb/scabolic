@@ -4,8 +4,9 @@ import regolic.asts.core.Trees._
 import regolic.asts.fol.Trees._
 import regolic.asts.fol.Manip._
 
-import regolic.sat.DPLL._
-import regolic.sat.DPLL
+import regolic.sat.Solver
+import regolic.sat.Solver.Results._
+import regolic.sat.Solver.Clause
 import regolic.sat.ConjunctiveNormalForm
 import regolic.sat.Literal
 
@@ -27,10 +28,12 @@ object API {
     val (clauses, nbVars, mapping) = ConjunctiveNormalForm(f)
 
     println("cnf form computed")
-    isSat(clauses.map(lits => new Clause(lits.toList)).toList, nbVars) match {
-      case None => None
-      case Some(model) =>
+    Solver.solve(clauses.map(lits => new Clause(lits.toList)).toList, nbVars) match {
+      case Satisfiable(model) =>
         Some(mapping.map(p => (p._1, model(p._2))))
+      case Unsatisfiable => None
+      case Unknown =>
+        sys.error("shouldn't be unknown")
     }
 
   }

@@ -6,7 +6,7 @@ import java.io.InputStream
 import regolic.asts.core.Trees._
 import regolic.asts.fol.Trees._
 
-import regolic.sat.DPLL._
+import regolic.sat.Solver._
 import regolic.sat.Literal
 
 /*

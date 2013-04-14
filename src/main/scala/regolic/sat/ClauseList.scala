@@ -1,6 +1,6 @@
 package regolic.sat
 
-import regolic.sat.DPLL._
+import regolic.sat.Solver._
 
 
 /*
