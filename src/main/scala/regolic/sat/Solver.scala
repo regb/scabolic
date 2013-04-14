@@ -28,7 +28,6 @@ object Solver {
     case object Unknown extends Result
   }
   
-  //Statistics, should move them to the Stats object in some way
   private[this] var nbConflicts = 0
   private[this] var nbDecisions = 0
   private[this] var nbPropagations = 0
@@ -55,7 +54,13 @@ object Solver {
   private[this] def getWatched(id: Int, pol: Int) = watched((id<<1) | pol) //2*id + pol, dunno if this is faster, does not really semm to make a difference
 
   def solve(clauses: List[Clause], nbVars: Int): Results.Result = {
-    //stats
+
+    val preprocessStopWatch = StopWatch("preprocess")
+    val deduceStopWatch = StopWatch("deduce")
+    val decideStopWatch = StopWatch("decide")
+    val backtrackStopWatch = StopWatch("backtrack")
+    val topLevelStopWatch = StopWatch("toplevelloop")
+    
     nbConflicts = 0
     nbDecisions = 0
     nbPropagations = 0
@@ -65,69 +70,75 @@ object Solver {
     nbRemovedLiteral = 0
     nbRestarts = 0
 
-    val preprocessStopWatch = StopWatch("preprocess")
-    val deduceStopWatch = StopWatch("deduce")
-    val decideStopWatch = StopWatch("decide")
-    val backtrackStopWatch = StopWatch("backtrack")
-    val topLevelStopWatch = StopWatch("toplevelloop")
-    
-    val (st, newClauses, forcedVars, oldVarToNewVar) = preprocessStopWatch.time(preprocess(clauses, nbVars))
+    status = Unknown
+    conflict = null
+    trail = new FixedIntStack(nbVars)
+    qHead = 0
+    model = Array.fill(nbVars)(-1)
+    watched = Array.fill(2*nbVars)(new ClauseList(20))
+    restartInterval = 32
+    nextRestart = restartInterval
+    reasons = new Array(nbVars)
+    levels = Array.fill(nbVars)(-1)
+    decisionLevel = 0
 
-    status = st
-    if(status == Unknown) {
-      //INITIALIZATION
-      cnfFormula = newClauses
-      conflict = null
-      trail = new FixedIntStack(cnfFormula.nbVar)
-      qHead = 0
-      model = Array.fill(cnfFormula.nbVar)(-1)
-      watched = Array.fill(2*cnfFormula.nbVar)(new ClauseList(20))
-      for(clause <- cnfFormula.originalClauses)
-        recordClause(clause)
-      restartInterval = 32
-      nextRestart = restartInterval
-      reasons = new Array(cnfFormula.nbVar)
-      levels = Array.fill(cnfFormula.nbVar)(-1)
-      decisionLevel = 0
+    var newClauses: List[Clause] = Nil
+    clauses.foreach(cl => {
+      val litsUnique = cl.lits.map(lit => (lit.id, lit.polInt)).toSet
+      if(litsUnique.size == 1) {
+        val id = litsUnique.head._1
+        val pol = litsUnique.head._2
+        if(model(id) == -1)
+          enqueueLiteral(id, litsUnique.head._2)
+        else if(model(id) == 1 - pol)
+          status = Unsatisfiable
+      }
+      else if(!litsUnique.exists(p => litsUnique.count(_._1 == p._1) > 1)) {
+        val newLits = new Clause(litsUnique.map(p => new Literal(p._1, p._2)).toList)
+        newClauses ::= newLits
+      }
+    })
+    cnfFormula = new CNFFormula(newClauses, nbVars)
+    for(clause <- newClauses)
+      recordClause(clause)
 
-      val timeout: Option[Int] = Settings.timeout
-      var elapsedTime: Long = 0 //in ms
-      //assertNoUnits
-      //assertWatchedInvariant
-      //assertTrailInvariant
-      //MAIN LOOP
-      topLevelStopWatch.time {
-        while(status == Unknown) {
-          val startTime = System.currentTimeMillis
-          //assertNoUnits
+    val timeout: Option[Int] = Settings.timeout
+    var elapsedTime: Long = 0 //in ms
+    //assertNoUnits
+    //assertWatchedInvariant
+    //assertTrailInvariant
+    //MAIN LOOP
+    topLevelStopWatch.time {
+      while(status == Unknown) {
+        val startTime = System.currentTimeMillis
+        //assertNoUnits
+        //assertWatchedInvariant
+        //assertTrailInvariant
+        decideStopWatch.time {
+          decide()
+        }
+
+        var cont = true
+        while(cont) {
           //assertWatchedInvariant
           //assertTrailInvariant
-          decideStopWatch.time {
-            decide()
+          deduceStopWatch.time {
+            deduce()
           }
 
-          var cont = true
-          while(cont) {
-            //assertWatchedInvariant
-            //assertTrailInvariant
-            deduceStopWatch.time {
-              deduce()
+          if(status == Conflict) {
+            backtrackStopWatch.time {
+              backtrack()
             }
-
-            if(status == Conflict) {
-              backtrackStopWatch.time {
-                backtrack()
-              }
-            } else {
-              cont = false
-              //if(status != Unsatisfiable)
-              //  assertNoUnits
-            }
+          } else {
+            cont = false
+            //if(status != Unsatisfiable)
+            //  assertNoUnits
           }
-          val endTime = System.currentTimeMillis
-          elapsedTime += (endTime - startTime)
-          timeout.foreach(timeout => if(elapsedTime > 1000*timeout) status = Timeout)
         }
+        val endTime = System.currentTimeMillis
+        elapsedTime += (endTime - startTime)
+        timeout.foreach(timeout => if(elapsedTime > 1000*timeout) status = Timeout)
       }
     }
 
@@ -152,17 +163,7 @@ object Solver {
       case Unknown | Conflict => sys.error("unexpected")
       case Timeout => Results.Unknown
       case Unsatisfiable => Results.Unsatisfiable
-      case Satisfiable => {
-        val completeModel: Array[Boolean] = new Array(nbVars)
-        (0 until nbVars).foreach(i => forcedVars(i) match {
-          case None => //then this is a new var
-            val newId = oldVarToNewVar(i)
-            completeModel(i) = model(newId) != 0
-          case Some(v) =>
-            completeModel(i) = v
-        })
-        Results.Satisfiable(completeModel)
-      }
+      case Satisfiable => Results.Satisfiable(model.map(pol => pol == 1))
     }
   }
 
@@ -546,129 +547,6 @@ object Solver {
     }
 
   }
-
-
-  //TODO: this is slow and could probably be replaced by the deduce + clause removal during the search, just need to ensure the basic constraints
-  //if a var only appear with the same polarity then set it to be true
-  //all unit clause are eliminated and the corresponding variables deleted
-  //keep a map from original var id to new ones
-  //must also ensure that in each clause at most one occurence of the same variable can occur
-  private[this] def preprocess(clauses: List[Clause], nbVars: Int): (Status, CNFFormula, Array[Option[Boolean]], Array[Int]) = {
-    var conflictDetected = false
-    var forcedVars: Array[Option[Boolean]] = Array.fill(nbVars)(None) //list of variable that are forced to some value
-    //force a var to a pol, record the information into the forcedVars array, may detect a conflict
-    def force(id: Int, pol: Boolean) {
-      forcedVars(id) match {
-        case None => forcedVars(id) = Some(pol)
-        case Some(p) if(p != pol) => conflictDetected = true
-        case _ => //here it was already forced at the same polarity
-      }
-    }
-    def isForced(id: Int): Boolean = forcedVars(id) != None
-
-    var oldClauses: List[List[Literal]] = clauses.map(_.lits)
-    var newClauses: List[List[Literal]] = Nil
-
-    //first we eliminate duplicate in the same clause as well as clauses containing both polarity
-    //of same variable. This is only needed once
-    for(clause <- oldClauses) {
-      val varOccurences: Array[Option[Boolean]] = Array.fill(nbVars)(None)
-      var newLits: List[Literal] = Nil
-      var ignoreClause = false
-      for(lit <- clause) {
-        varOccurences(lit.id) match {
-          case None => 
-            varOccurences(lit.id) = Some(lit.polarity)
-            newLits ::= lit
-          case Some(p) if(p != lit.polarity) => ignoreClause = true
-          case _ => //ignore lit
-        }
-      }
-      if(!ignoreClause)
-        newClauses ::= newLits
-    }
-
-
-    oldClauses = newClauses
-    newClauses = Nil
-    var needRecheck = true
-    while(needRecheck && !conflictDetected) {
-      needRecheck = false //this flag is only set to true when a change really require to redo the counting and everything
-
-      //first we count all occurence in the current situation and the unit clauses
-      val varsCounters: Array[(Int, Int)] = Array.fill(nbVars)((0, 0))
-      for(clause <- oldClauses) {
-        var nbLits = 0
-        for(lit <- clause) {
-          nbLits += 1
-          val counters = varsCounters(lit.id)
-          if(lit.polarity)
-            varsCounters(lit.id) = (counters._1 + 1, counters._2)
-          else
-            varsCounters(lit.id) = (counters._1, counters._2 + 1)
-        }
-        if(nbLits == 1)
-          force(clause.head.id, clause.head.polarity)
-      }
-
-      //here we detect the same polarity occurence and fill forcedVariables
-      varsCounters.zipWithIndex.foreach(arg => {
-        val ((posCount, negCount), id) = arg
-        if(posCount == 0 && negCount == 0)
-          forcedVars(id) = Some(forcedVars(id).getOrElse(true))
-        else if(negCount == 0)
-          force(id, true)
-        else if(posCount == 0)
-          force(id, false)
-      })
-
-      //finally we apply all forced variables
-      for(clause <- oldClauses) {
-        var newLits: List[Literal] = Nil
-        var ignoreClause = false
-        for(lit <- clause) {
-          forcedVars(lit.id) match {
-            case None => newLits ::= lit
-            case Some(p) if(p == lit.polarity) => ignoreClause = true
-            case _ => //just ignore the literal
-          }
-        }
-        if(ignoreClause) {
-          //the clause can be remove, we will need to recheck for global effects
-          needRecheck = true
-        } else {
-          newLits match {
-            case Nil => conflictDetected = true //each literal of the clause were set to false
-            case lit::Nil => //we identified a new unit clause, we need to redo the loop
-              needRecheck = true
-              newClauses ::= newLits
-            case _ => newClauses ::= newLits
-          }
-        }
-      }
-
-      oldClauses = newClauses
-      newClauses = Nil
-    }
-
-    if(conflictDetected)
-      (Unsatisfiable, null, null, null)
-    else if(oldClauses.isEmpty)
-      (Satisfiable, null, forcedVars, null)
-    else {
-      val oldVarToNewVar: Array[Int] = new Array(nbVars)
-      val newVarToOldVar = new scala.collection.mutable.ArrayBuffer[Int]
-      var nbVarsRemoved = 0 //will be used as a shifter for the variable id
-      (0 until nbVars).foreach(i => if(isForced(i)) nbVarsRemoved += 1 else {
-        oldVarToNewVar(i) = i - nbVarsRemoved
-        newVarToOldVar += i
-      })
-      val finalClauses: List[Clause] = oldClauses.map(clause => new Clause(clause.map(lit => new Literal(oldVarToNewVar(lit.id), lit.polInt))))
-      val newNbVars = nbVars - nbVarsRemoved
-      (Unknown, new CNFFormula(finalClauses, newNbVars), forcedVars, oldVarToNewVar)
-    }
-  }
-
 
   //some debugging assertions that can be introduced in the code to check for correctness
 
