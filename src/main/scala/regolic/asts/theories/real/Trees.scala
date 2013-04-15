@@ -104,7 +104,7 @@ object Trees {
       case Constant(str, RealSort()) => try {
         Some(Rational(str))
       } catch {
-        case _ => None
+        case (_: Throwable) => None
       }
       case _ => None
     }
@@ -116,7 +116,7 @@ object Trees {
       case Constant(str, RealSort()) => try {
         Rational(str).isZero
       } catch {
-        case _ => false
+        case (_: Throwable) => false
       }
       case _ => false
     }
@@ -127,7 +127,7 @@ object Trees {
       case Constant(str, RealSort()) => try {
         Rational(str).isOne
       } catch {
-        case _ => false
+        case (_: Throwable) => false
       }
       case _ => false
     }
@@ -159,7 +159,7 @@ object Trees {
             else
               None
           } catch {
-            case _ => None
+            case (_: Throwable) => None
           }
         }
         case _ => None

@@ -104,7 +104,7 @@ object Trees {
       case Constant(n, IntSort()) => try {
         Some(BigInt(n))
       } catch {
-        case _ => None
+        case (_: Throwable) => None
       }
       case _ => None
     }

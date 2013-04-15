@@ -1,8 +1,10 @@
 package regolic.tools
 
+import scala.reflect.ClassTag
+
 object ArrayTools {
 
-	def arrayCopy[T](src: Array[T])(implicit m: ClassManifest[T]): Array[T] = {
+	def arrayCopy[T](src: Array[T])(implicit ct: ClassTag[T]): Array[T] = {
 		val l = src.length
 		val res = new Array[T](l)
 		var i = 0
@@ -13,7 +15,7 @@ object ArrayTools {
 		res
 	}
 
-	def matrixCopy[T](src: Array[Array[T]])(implicit m: ClassManifest[T]): Array[Array[T]] = {
+	def matrixCopy[T](src: Array[Array[T]])(implicit ct: ClassTag[T]): Array[Array[T]] = {
 		val row = src.length
 		var i = 0
 		var j = 0

@@ -1,8 +1,9 @@
 package regolic.algebra
 
 import regolic.tools.ArrayTools
+import scala.reflect.ClassTag
 
-class Matrix[T <: Field[T]](m: Array[Array[T]])(implicit field: Field[T], man: ClassManifest[T]) extends LinearMap[Matrix[T], T, Vector[T], Vector[T]] {
+class Matrix[T <: Field[T]](m: Array[Array[T]])(implicit field: Field[T], ct: ClassTag[T]) extends LinearMap[Matrix[T], T, Vector[T], Vector[T]] {
 
   val nbRow = m.length
   require(nbRow > 0)
@@ -125,11 +126,11 @@ class Matrix[T <: Field[T]](m: Array[Array[T]])(implicit field: Field[T], man: C
 
   def transpose: Matrix[T] = new Matrix(matrix.transpose)
 
-  def map[S <: Field[S]](f: ((T) => (S)))(implicit fi: Field[S], m: ClassManifest[S]): Matrix[S] = {
+  def map[S <: Field[S]](f: ((T) => (S)))(implicit fi: Field[S], m: ClassTag[S]): Matrix[S] = {
     val newArray = matrix.map(x => x.map(y => f(y)))
     new Matrix(newArray)
   }
-  def mapWithIndex[S <: Field[S]](f: ((T, Int, Int) => (S)))(implicit fi: Field[S], m: ClassManifest[S]): Matrix[S] = {
+  def mapWithIndex[S <: Field[S]](f: ((T, Int, Int) => (S)))(implicit fi: Field[S], m: ClassTag[S]): Matrix[S] = {
     val newArray = Array.ofDim[S](nbRow, nbCol)
     for(row <- 0 until nbRow)
       for(col <- 0 until nbCol)
@@ -201,7 +202,7 @@ class Matrix[T <: Field[T]](m: Array[Array[T]])(implicit field: Field[T], man: C
       this.inverse
       true
     } catch {
-      case _ => false
+      case (_: Throwable) => false
     }
   }
 
@@ -324,7 +325,7 @@ class Matrix[T <: Field[T]](m: Array[Array[T]])(implicit field: Field[T], man: C
 object Matrix {
 
   //convert the vector to a one column matrix
-  def apply[F <: Field[F]](vec: Vector[F])(implicit field: Field[F], man: ClassManifest[F]): Matrix[F] = try {
+  def apply[F <: Field[F]](vec: Vector[F])(implicit field: Field[F], ct: ClassTag[F]): Matrix[F] = try {
     val vecArray: Array[F] = vec.toArray
     val nbElements = vecArray.size
     val matArray: Array[Array[F]] = Array.ofDim(nbElements, 1)
@@ -332,10 +333,10 @@ object Matrix {
       matArray(i)(0) = vecArray(i)
     new Matrix(matArray)
   }
-  def apply[F <: Field[F]](mat: Array[Array[F]])(implicit field: Field[F],  man: ClassManifest[F]): Matrix[F] =
+  def apply[F <: Field[F]](mat: Array[Array[F]])(implicit field: Field[F],  ct: ClassTag[F]): Matrix[F] =
     new Matrix(mat)
 
-  def identity[T <: Field[T]](n: Int)(implicit field: Field[T], man: ClassManifest[T]): Matrix[T] = {
+  def identity[T <: Field[T]](n: Int)(implicit field: Field[T], ct: ClassTag[T]): Matrix[T] = {
     val matrix = Array.ofDim[T](n, n)
     for(i <- 0 until n)
       for(j <- 0 until n)
@@ -343,8 +344,8 @@ object Matrix {
     new Matrix(matrix)
   }
 
-  def zero[T <: Field[T]](n: Int)(implicit field: Field[T], man: ClassManifest[T]): Matrix[T] = Matrix.zero(n, n)
-  def zero[T <: Field[T]](n: Int, m: Int)(implicit field: Field[T], man: ClassManifest[T]): Matrix[T] =
+  def zero[T <: Field[T]](n: Int)(implicit field: Field[T], ct: ClassTag[T]): Matrix[T] = Matrix.zero(n, n)
+  def zero[T <: Field[T]](n: Int, m: Int)(implicit field: Field[T], ct: ClassTag[T]): Matrix[T] =
     new Matrix(Array.fill[T](n, m)(field.zero))
 
 }

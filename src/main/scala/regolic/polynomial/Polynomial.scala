@@ -1,12 +1,13 @@
 package regolic.polynomial
 
 import regolic.algebra.Ring
+import scala.reflect.ClassTag
 
 /* Let's say we only need uni-variable polynomials */
 
 /* TODO: I believe Polynomial over ring/field are themself ring or fields */
 /* First element is higher degree */
-class Polynomial[T <: Ring[T]](coefs: Seq[T])(implicit field: Ring[T], man: ClassManifest[T]) {
+class Polynomial[T <: Ring[T]](coefs: Seq[T])(implicit field: Ring[T], ct: ClassTag[T]) {
 
   private val repr: Array[T] = coefs.toArray
 

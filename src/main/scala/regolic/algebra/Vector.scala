@@ -1,8 +1,9 @@
 package regolic.algebra
 
 import regolic.tools.ArrayTools
+import scala.reflect.ClassTag
 
-class Vector[T <: Field[T]](v: Array[T])(implicit field: Field[T], man: ClassManifest[T]) extends VectorSpace[Vector[T], T] {
+class Vector[T <: Field[T]](v: Array[T])(implicit field: Field[T], ct: ClassTag[T]) extends VectorSpace[Vector[T], T] {
 
   private val nbElement = v.length
   require(nbElement > 0)
@@ -57,8 +58,8 @@ class Vector[T <: Field[T]](v: Array[T])(implicit field: Field[T], man: ClassMan
   }
   def *(mat: Matrix[T]): Vector[T] = Vector(Matrix(this).transpose * mat)
 
-  def map[S <: Field[S]](f: (T) => S)(implicit fi: Field[S], m: ClassManifest[S]): Vector[S] = new Vector(vector.map(f))
-  def mapWithIndex[S <: Field[S]](f: ((T, Int) => (S)))(implicit fi: Field[S], m: ClassManifest[S]): Vector[S] = {
+  def map[S <: Field[S]](f: (T) => S)(implicit fi: Field[S], ct: ClassTag[S]): Vector[S] = new Vector(vector.map(f))
+  def mapWithIndex[S <: Field[S]](f: ((T, Int) => (S)))(implicit fi: Field[S], ct: ClassTag[S]): Vector[S] = {
     val newArray = Array.ofDim[S](size)
     for(i <- 0 until size)
       newArray(i) = f(vector(i), i)
@@ -136,9 +137,9 @@ class Vector[T <: Field[T]](v: Array[T])(implicit field: Field[T], man: ClassMan
 
 object Vector {
 
-  def apply[F <: Field[F]](mat: Array[F])(implicit field: Field[F],  man: ClassManifest[F]): Vector[F] = new Vector(mat)
+  def apply[F <: Field[F]](mat: Array[F])(implicit field: Field[F],  ct: ClassTag[F]): Vector[F] = new Vector(mat)
   //try to use the matrix as a vector, if it has one column or one row
-  def apply[T <: Field[T]](m: Matrix[T])(implicit field: Field[T], man: ClassManifest[T]): Vector[T] = {
+  def apply[T <: Field[T]](m: Matrix[T])(implicit field: Field[T], ct: ClassTag[T]): Vector[T] = {
     require(m.nbCol == 1 || m.nbRow == 1)
     if(m.nbCol == 1)
       new Vector(m.toArray.map{case Array(el) => el})
@@ -146,7 +147,7 @@ object Vector {
       new Vector(m.toArray(0))
   }
 
-  def zero[T <: Field[T]](n: Int)(implicit field: Field[T], man: ClassManifest[T]): Vector[T] = 
+  def zero[T <: Field[T]](n: Int)(implicit field: Field[T], ct: ClassTag[T]): Vector[T] = 
         new Vector(Array.fill[T](n)(field.zero))
 
 }

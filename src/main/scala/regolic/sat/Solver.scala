@@ -277,7 +277,7 @@ object Solver {
 
 
   class Clause(val lits: List[Literal]) {
-    var activity: Double = 0.
+    var activity: Double = 0d
     var locked = false
     val size = lits.size
 
@@ -323,11 +323,11 @@ object Solver {
     private val VSIDS_DECAY: Double = 0.95
     private val VSIDS_CLAUSE_DECAY: Double = 0.999
 
-    private var vsidsInc: Double = 1.
-    private val vsidsDecay: Double = 1./VSIDS_DECAY
+    private var vsidsInc: Double = 1d
+    private val vsidsDecay: Double = 1d/VSIDS_DECAY
 
-    private var vsidsClauseInc: Double = 1.
-    private val vsidsClauseDecay: Double = 1./VSIDS_CLAUSE_DECAY
+    private var vsidsClauseInc: Double = 1d
+    private val vsidsClauseDecay: Double = 1d/VSIDS_CLAUSE_DECAY
 
     val vsidsQueue = new FixedIntDoublePriorityQueue(nbVar)
     originalClauses.foreach(cl => cl.lits.foreach(lit => {

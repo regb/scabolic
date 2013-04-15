@@ -36,7 +36,7 @@ object ProofChecker {
             }
           }
         } catch {
-          case _ => isValid = false
+          case (_: Throwable) => isValid = false
         }
         i += 1
       }

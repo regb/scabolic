@@ -74,7 +74,7 @@ object Main {
         val end = System.currentTimeMillis
         val elapsed = end - start
         if(time)
-          println(elapsed/1000.)
+          println(elapsed/1000d)
         sys.exit(0)
       } else if(cmd == "smt") {
         val inputFile = trueArgs(0)
@@ -97,12 +97,12 @@ object Main {
         })
         val end = System.currentTimeMillis
         val elapsed = end - start
-        println("Total solving time: " + (elapsed/1000.))
+        println("Total solving time: " + (elapsed/1000d))
       } else {
         println("Unknown command: " + cmd)
       }
     } catch {
-      case e =>
+      case (e: Throwable) =>
         e.printStackTrace
         sys.exit(1)
     }
