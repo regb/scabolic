@@ -101,6 +101,11 @@ object Solver {
     cnfFormula = new CNFFormula(newClauses, nbVars)
     for(clause <- newClauses)
       recordClause(clause)
+    deduceStopWatch.time {
+      deduce()
+    }
+    if(status == Conflict)
+      status = Unsatisfiable
 
     val timeout: Option[Int] = Settings.timeout
     var elapsedTime: Long = 0 //in ms
