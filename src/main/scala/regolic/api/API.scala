@@ -10,19 +10,14 @@ import regolic.sat.Solver.Clause
 import regolic.sat.ConjunctiveNormalForm
 import regolic.sat.Literal
 
-import scala.language.implicitConversions
-
 object API {
 
-  case class FormulaWrapper(f: Formula) {
+  implicit class FormulaWrapper(f: Formula) {
     def &&(f2: Formula): Formula = And(f, f2)
     def ||(f2: Formula): Formula = Or(f, f2)
     def unary_!(): Formula = Not(f)
   }
-  case class TermWrapper(t: Term)
-
-  implicit def wrapFormula(f: Formula) = FormulaWrapper(f)
-  implicit def wrapTerm(t: Term) = TermWrapper(t)
+  implicit class TermWrapper(t: Term)
 
   def boolVar(): Formula = freshPropositionalVariable("v")
 
