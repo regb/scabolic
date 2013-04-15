@@ -1,5 +1,7 @@
 package regolic.algebra
 
+import scala.language.implicitConversions
+
 class Integer(val value: BigInt) extends Ring[Integer] {
   def this(v: Int) = this(BigInt(v))
 

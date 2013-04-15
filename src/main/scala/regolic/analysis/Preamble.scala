@@ -10,6 +10,8 @@ import regolic.equation.LinearSystemSolver
 import regolic.equation.PolynomialSolver
 import regolic.simplifier.PolynomialFactorizer
 
+import scala.language.implicitConversions
+
 object Preamble {
 
   type Term = CoreT.Term

@@ -10,6 +10,8 @@ import regolic.sat.Solver.Clause
 import regolic.sat.ConjunctiveNormalForm
 import regolic.sat.Literal
 
+import scala.language.implicitConversions
+
 object API {
 
   case class FormulaWrapper(f: Formula) {

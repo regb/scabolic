@@ -2,6 +2,8 @@ package regolic.algebra
 
 import regolic.tools.Math
 
+import scala.language.implicitConversions
+
 class Rational private (num: BigInt, denom: BigInt) extends Field[Rational] with Ordered[Rational] {
 
   require(denom != 0)
