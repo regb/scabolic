@@ -45,9 +45,10 @@ object Main {
     }
   }
 
-  def satSolver(f: File) {
-    import regolic.sat.Solver
-    import Solver.Results._
+  import regolic.sat.Solver
+  import Solver.Results._
+
+  def satSolver(f: File) = {
 
     val is = new java.io.FileInputStream(f)
     val (satInstance, nbVars) = regolic.parsers.Dimacs.cnf(is)
@@ -57,6 +58,7 @@ object Main {
       case Unsatisfiable => println("unsat")
       case Unknown => println("unknown")
     }
+    res
   }
 
   def main(arguments: Array[String]) {
@@ -86,18 +88,23 @@ object Main {
         val dirFile = new java.io.File(dir)
         val benchmarks = recursiveListFiles(dirFile)
 
-        //letting some time to hotspot
+        //jvm's warmup
         val benchmark = benchmarks.head
         (1 to 3).foreach{_ => satSolver(benchmark)}
 
         val start = System.currentTimeMillis
+        var nbTimeout = 0
         benchmarks.foreach(file => {
           print("Solving " + file + " ... ")
-          satSolver(file)
+          val res = satSolver(file)
+          if(res == Unknown)
+            nbTimeout += 1
         })
         val end = System.currentTimeMillis
-        val elapsed = end - start
+        val elapsed = end - start - Settings.timeout.getOrElse(0)*nbTimeout
+        println("Number of timeout: " + nbTimeout)
         println("Total solving time: " + (elapsed/1000d))
+        println("Average solving time: " + (elapsed/1000d)/(benchmarks.size - nbTimeout))
       } else {
         println("Unknown command: " + cmd)
       }
