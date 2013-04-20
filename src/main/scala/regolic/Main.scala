@@ -17,29 +17,41 @@ object Main {
     "  --tags=t1:...        Filter out debug information that are not of one of the given tags" + "\n" +
     "  --timeout=N          Timeout in seconds" + "\n" +
     "  --stats              Print statistics information" +
+    "  --restartfactor=N    Restart strategy factor" + "\n" +
+    "  --restartinterval=N  Restart strategy initial interval" + "\n" +
     "  --time               Time the solving phase"
   )
 
   def processOptions(options: Array[String]) {
     for(option <- options) {
       option match {
-        case "dimacs"        =>                     dimacs = true
-        case "smtlib2"        =>                    smtlib2 = true
-        case "time"        =>                       time = true
+        case "dimacs"        =>                           dimacs = true
+        case "smtlib2"        =>                          smtlib2 = true
+        case "time"        =>                             time = true
 
-        case "stats"         =>                     Settings.stats = true
+        case "stats"         =>                           Settings.stats = true
 
-        case s if s.startsWith("debug=") =>         Settings.debugLevel = try { 
-                                                      s.substring("debug=".length, s.length).toInt 
-                                                    } catch { 
-                                                      case _ => 0 
-                                                    }
-        case s if s.startsWith("tags=") =>          Settings.debugTags = Set(splitList(s.substring("tags=".length, s.length)): _*)
-        case s if s.startsWith("timeout=") =>       Settings.timeout = try { 
-                                                      Some(s.substring("timeout=".length, s.length).toInt)
-                                                    } catch { 
-                                                      case _ => None
-                                                    }
+        case s if s.startsWith("debug=") =>               Settings.debugLevel = try { 
+                                                            s.substring("debug=".length, s.length).toInt 
+                                                          } catch { 
+                                                            case _ => 0 
+                                                          }
+        case s if s.startsWith("tags=") =>                Settings.debugTags = Set(splitList(s.substring("tags=".length, s.length)): _*)
+        case s if s.startsWith("timeout=") =>             Settings.timeout = try { 
+                                                            Some(s.substring("timeout=".length, s.length).toInt)
+                                                          } catch { 
+                                                            case (_: Throwable) => None
+                                                          }
+        case s if s.startsWith("restartinterval=") =>     try { 
+                                                            Settings.restartInterval = s.substring("restartInterval=".length, s.length).toInt
+                                                          } catch { 
+                                                            case (_: Throwable) =>
+                                                          }
+        case s if s.startsWith("restartfactor=") =>       try { 
+                                                            Settings.restartFactor = s.substring("restartFactor=".length, s.length).toDouble
+                                                          } catch { 
+                                                            case (_: Throwable) =>
+                                                          }
         case _ => Reporter.error("Invalid option: " + option + "\nValid options are:\n" + optionsHelp)
       }
     }

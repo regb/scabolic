@@ -47,9 +47,9 @@ object Solver {
   private[this] var watched: Array[ClauseList] = null
   private[this] var cnfFormula: CNFFormula = null
   private[this] var status: Status = Unknown
-  private[this] var restartInterval = 32
+  private[this] var restartInterval = Settings.restartInterval
   private[this] var nextRestart = restartInterval
-  private[this] val restartFactor = 1.1
+  private[this] val restartFactor = Settings.restartFactor
 
   private[this] def getWatched(id: Int, pol: Int) = watched((id<<1) | pol) //2*id + pol, dunno if this is faster, does not really semm to make a difference
 
@@ -76,7 +76,7 @@ object Solver {
     qHead = 0
     model = Array.fill(nbVars)(-1)
     watched = Array.fill(2*nbVars)(new ClauseList(20))
-    restartInterval = 32
+    restartInterval = Settings.restartInterval
     nextRestart = restartInterval
     reasons = new Array(nbVars)
     levels = Array.fill(nbVars)(-1)

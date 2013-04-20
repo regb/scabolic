@@ -9,4 +9,7 @@ object Settings {
 
   var timeout: Option[Int] = None
 
+  var restartInterval: Int = 0
+  var restartFactor: Double = 1.1
+
 }
