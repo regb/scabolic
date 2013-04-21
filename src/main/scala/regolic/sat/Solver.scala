@@ -68,7 +68,7 @@ object Solver {
 
     status = Unknown
     conflict = null
-    trail = new FixedIntStack(nbVars)
+    trail = new FixedIntStack(nbVars) //store literals, but only one polarity at the same time, so nbVar size is enough
     qHead = 0
     model = Array.fill(nbVars)(-1)
     watched = Array.fill(2*nbVars)(new ClauseList(20))
@@ -163,7 +163,7 @@ object Solver {
     }
   }
 
-  private[this] def conflictAnalysis: (Clause, Int) = if(decisionLevel == 0) (null, -1) else {
+  private[this] def conflictAnalysis: Clause = {
     assert(conflict != null)
 
     import scala.collection.mutable.Queue
@@ -173,7 +173,7 @@ object Solver {
     //it stops when only one node of the current decision level (the UIP) remain in the cut
     val seen: Array[Boolean] = Array.fill(cnfFormula.nbVar)(false) // default value of false
     var learntClause: List[Int] = Nil
-    var p: Int = -1
+    var p: Int = -1 //literal
     var c = 0
     var confl = conflict
     conflict = null
@@ -181,7 +181,7 @@ object Solver {
     //find 1-UIP
     do {
       if(p != -1)
-        assert(p == (confl.lits(0) >> 1))
+        assert(p == (confl.lits(0)))
       cnfFormula.incVSIDSClause(confl)
 
       val lits = confl.lits
@@ -200,28 +200,28 @@ object Solver {
         i += 1
       }
 
-      assert(learntClause.forall(lit => levels(lit >> 1) != decisionLevel))
+      //assert(learntClause.forall(lit => levels(lit >> 1) != decisionLevel))
 
       do { //we already start undo the trail here, probably not the cleanest approach but if we are careful this should work, and this is more efficient
         if(p != -1) //p must be undo, except for the last one which we will need its value in the end
           undo(p)
         p = trail.pop()
-      } while(!seen(p))
+      } while(!seen(p>>1))
 
       c = c - 1
 
-      confl = reasons(p)
-      if(confl != null) {
-        assert(confl.lits(0) >> 1 == p)
-        assert(isSat(confl.lits(0)))
-        assert(confl.lits.tail.forall(lit => isUnsat(lit)))
-      }
+      confl = reasons(p>>1)
+      //if(confl != null) {
+      //  assert(confl.lits(0) >> 1 == p)
+      //  assert(isSat(confl.lits(0)))
+      //  assert(confl.lits.tail.forall(lit => isUnsat(lit)))
+      //}
     } while(c > 0)
-    seen(p) = true
+    //seen(p>>1) = true //I think this is unnecessary
     trail.push(p) //need to keep p in the trail
-    assert(model(p) != -1)
+    assert(isAssigned(p))
     //p is 1-UIP
-    assert(learntClause.forall(lit => isUnsat(lit)))
+    //assert(learntClause.forall(lit => isUnsat(lit)))
 
     def getAbstractLevel(id: Int) = 1 << (levels(id) & 31)
     //clause minimalization
@@ -266,11 +266,10 @@ object Solver {
     })
 
     //compute backtrack level
-    val backtrackLevel = if(learntClause.isEmpty) 0 else learntClause.map(lit => levels(lit >> 1)).max
-    learntClause ::= (p + p + model(p))  //don't forget to add p in the clause !
+    learntClause = learntClause.sortWith((lit1, lit2) => levels(lit1 >> 1) > levels(lit2 >> 1))
+    learntClause ::= (p ^ 1)  //don't forget to add p in the clause !
 
-    //TODO: why am I sorting this already ?
-    (new Clause(learntClause.sortWith((lit1, lit2) => levels(lit1 >> 1) > levels(lit2 >> 1)).toArray), backtrackLevel)
+    new Clause(learntClause.toArray)
   }
 
   def litToVar(lit: Int): Int = lit >> 1
@@ -413,8 +412,7 @@ object Solver {
     val pol = (lit & 1) ^ 1
     assert(model(id) == -1)
     model(id) = pol
-    trail.push(id)
-    assert(model(id) != -1)
+    trail.push(lit)
     reasons(id) = from
     if(from != null) {
       //assert(from.lits.head == lit)
@@ -443,13 +441,15 @@ object Solver {
   }
 
   private[this] def backtrack() {
-    nbConflicts += 1
-    cnfFormula.decayVSIDS()
-    cnfFormula.decayVSIDSClause()
-    val (learntClause, backtrackLevel) = conflictAnalysis
-    if(backtrackLevel == -1)
+    if(decisionLevel == 0)
       status = Unsatisfiable
     else {
+      nbConflicts += 1
+      cnfFormula.decayVSIDS()
+      cnfFormula.decayVSIDSClause()
+      val learntClause = conflictAnalysis
+      val backtrackLevel = if(learntClause.size == 1) 0 else levels(learntClause.lits(1)>>1)
+      assert(backtrackLevel >= 0)
       if(nbConflicts == nextRestart) {
         if(Settings.stats) {
           println("restart after " + nbConflicts + " nb conflicts")
@@ -478,21 +478,21 @@ object Solver {
   private[this] def backtrackTo(lvl: Int) {
     while(decisionLevel > lvl && !trail.isEmpty) {
       val head = trail.pop()
-      decisionLevel = levels(head)
+      decisionLevel = levels(head >> 1)
       if(decisionLevel > lvl)
         undo(head)
-      else {
+      else
         trail.push(head)
-        assert(model(head) != -1)
-      }
     }
     qHead = trail.size
     if(trail.isEmpty)
       decisionLevel = 0
+    assert(decisionLevel == lvl) //TODO replace by this assignment
   }
 
-  private[this] def undo(id: Int) {
-    assert(model(id) != -1)
+  private[this] def undo(lit: Int) {
+    assert(isSat(lit))
+    val id = lit>>1
     cnfFormula.vsidsQueue.insert(id)
     model(id) = -1
     levels(id) = -1
@@ -507,9 +507,9 @@ object Solver {
 
     while(qHead < trail.size && status != Conflict) {
 
-      val forcedVar = trail(qHead)
+      val forcedLit = trail(qHead)
       //negatedLit is the literals that are made false and need updating of watchers
-      val negatedLit = forcedVar + forcedVar + model(forcedVar)
+      val negatedLit = forcedLit ^ 1
       assert(isAssigned(negatedLit))
       qHead += 1
 
@@ -615,24 +615,22 @@ object Solver {
 
     while(!trail.isEmpty) {
       val head = trail.pop()
-      if(levels(head) == currentLevel - 1)
+      assert(isSat(head))
+      if(levels(head>>1) == currentLevel - 1)
         currentLevel -= 1
       else {
-       assert(levels(head) == currentLevel)
+       assert(levels(head>>1) == currentLevel)
       }
-      assert(model(head) != -1)
       lst ::= head
       
-      if(reasons(head) != null) {
-        assert(reasons(head).lits.forall(lit => 
-          model(lit >> 1) != -1 ))
-        assert(reasons(head).lits.tail.forall(lit => 
-          trail.contains(lit>>1) ))
-        assert(reasons(head).lits.forall(lit => 
-          !seen(lit >> 1) ))
+      if(reasons(head>>1) != null) {
+        assert(isSat(reasons(head>>1).lits.head))
+        assert(reasons(head>>1).lits.tail.forall(lit => isUnsat(lit)))
+        assert(reasons(head>>1).lits.tail.forall(lit => trail.contains(lit ^ 1) ))
+        assert(reasons(head>>1).lits.forall(lit => !seen(lit >> 1) ))
       }
 
-      seen(head) = true
+      seen(head>>1) = true
     }
     assert(currentLevel == 1 || currentLevel == 0)
 
