@@ -153,7 +153,7 @@ object Solver {
     if(Settings.stats) {
       println("Conflicts: " + nbConflicts)
       println("Decisions: " + nbDecisions)
-      println("Propagations: " + nbPropagations + " ( " + nbPropagations/deduceStopWatch.seconds + " / sec)")
+      println("Propagations: " + nbPropagations + " ( " + (nbPropagations/deduceStopWatch.seconds).toInt + " / sec)")
       println("Restarts: " + nbRestarts)
       println("Learned Literals: " + nbLearntLiteralTotal + " (" + nbLearntClauseTotal + " clauses) --- " + nbLearntLiteralTotal.toDouble/nbLearntClauseTotal.toDouble + " per clause")
       println("Removed Literals: " + nbRemovedLiteral + "(" + nbRemovedClauses + " clauses) --- " + nbRemovedLiteral.toDouble/nbRemovedClauses.toDouble + " per clause")
