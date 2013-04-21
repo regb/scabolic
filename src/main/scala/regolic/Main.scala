@@ -113,10 +113,10 @@ object Main {
             nbTimeout += 1
         })
         val end = System.currentTimeMillis
-        val elapsed = end - start - Settings.timeout.getOrElse(0)*nbTimeout
+        val elapsed = (end - start) - (Settings.timeout.getOrElse(0)*1000d*nbTimeout)
         println("Number of timeout: " + nbTimeout)
-        println("Total solving time: " + (elapsed/1000d))
-        println("Average solving time: " + (elapsed/1000d)/(benchmarks.size - nbTimeout))
+        println("Total solving time (w/o Timeouts): " + (elapsed/1000d))
+        println("Average solving time (w/o Timeouts): " + (elapsed/1000d)/(benchmarks.size - nbTimeout))
       } else {
         println("Unknown command: " + cmd)
       }
