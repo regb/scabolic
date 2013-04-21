@@ -43,19 +43,28 @@ object Solver {
   private[this] var conflict: Clause = null
   private[this] var model: Array[Int] = null
   private[this] var watched: Array[ClauseList] = null
+  /*
+   * seen can be used locally for algorithms to maintain variables that have been seen
+   * They should maintain the invariant that seen is set to false everywhere.
+   * History proved that locally initializing this array where needed was a killer for performance.
+   */
+  private[this] var seen: Array[Boolean] = null 
   private[this] var cnfFormula: CNFFormula = null
   private[this] var status: Status = Unknown
   private[this] var restartInterval = Settings.restartInterval
   private[this] var nextRestart = restartInterval
   private[this] val restartFactor = Settings.restartFactor
 
+  private[this] val conflictAnalysisStopWatch = StopWatch("backtrack.conflictanalysis")
+  private[this] val find1UIPStopWatch = StopWatch("backtrack.conflictanalysis.find1uip")
+  private[this] val clauseMinimizationStopWatch = StopWatch("backtrack.conflictanalysis.clauseminimization")
+
   def solve(clauses: List[Clause], nbVars: Int): Results.Result = {
 
-    val preprocessStopWatch = StopWatch("preprocess")
+    val topLevelStopWatch = StopWatch("toplevelloop")
     val deduceStopWatch = StopWatch("deduce")
     val decideStopWatch = StopWatch("decide")
     val backtrackStopWatch = StopWatch("backtrack")
-    val topLevelStopWatch = StopWatch("toplevelloop")
     
     nbConflicts = 0
     nbDecisions = 0
@@ -72,6 +81,7 @@ object Solver {
     qHead = 0
     model = Array.fill(nbVars)(-1)
     watched = Array.fill(2*nbVars)(new ClauseList(20))
+    seen = Array.fill(nbVars)(false)
     restartInterval = Settings.restartInterval
     nextRestart = restartInterval
     reasons = new Array(nbVars)
@@ -96,18 +106,20 @@ object Solver {
     cnfFormula = new CNFFormula(newClauses, nbVars)
     for(clause <- newClauses)
       recordClause(clause)
-    deduceStopWatch.time {
-      deduce()
-    }
-    if(status == Conflict)
-      status = Unsatisfiable
 
-    val timeout: Option[Int] = Settings.timeout
-    var elapsedTime: Long = 0 //in ms
-    //assertWatchedInvariant
-    //assertTrailInvariant
-    //MAIN LOOP
     topLevelStopWatch.time {
+
+      deduceStopWatch.time {
+        deduce()
+      }
+      if(status == Conflict)
+        status = Unsatisfiable
+
+      val timeout: Option[Int] = Settings.timeout
+      var elapsedTime: Long = 0 //in ms
+      //assertWatchedInvariant
+      //assertTrailInvariant
+      //MAIN LOOP
       while(status == Unknown) {
         val startTime = System.currentTimeMillis
         //assertWatchedInvariant
@@ -148,11 +160,13 @@ object Solver {
       println("Active Literals: " + (nbLearntLiteralTotal - nbRemovedLiteral) + "(" + (nbLearntClauseTotal - nbRemovedClauses) + ") --- " + (nbLearntLiteralTotal - nbRemovedLiteral).toDouble/(nbLearntClauseTotal-nbRemovedClauses).toDouble + " per clause")
 
       println("Time spend in:\n")
-      println("  preprocess:           " + preprocessStopWatch.seconds + " sec")
       println("  toplevelloop:         " + topLevelStopWatch.seconds + " sec")
       println("    decide:             " + decideStopWatch.seconds + " sec")
       println("    deduce:             " + deduceStopWatch.seconds + " sec")
       println("    backtrack:          " + backtrackStopWatch.seconds + " sec")
+      println("      conflictanalysis: " + conflictAnalysisStopWatch.seconds + " sec")
+      println("        clausemin:      " + clauseMinimizationStopWatch.seconds + " sec")
+      println("        find1uip:       " + find1UIPStopWatch.seconds + " sec")
     }
 
     status match {
@@ -165,103 +179,115 @@ object Solver {
 
   private[this] def conflictAnalysis: Clause = {
     assert(conflict != null)
+    //assert(seen.forall(b => !b))
 
     //the algorithm augment the cut closest to the conflict node successively by doing
     //a BFS while only searching through the nodes of the current decision level
     //it stops when only one node of the current decision level (the UIP) remain in the cut
-    val seen: Array[Boolean] = Array.fill(cnfFormula.nbVar)(false) // default value of false
+
     var learntClause: List[Int] = Nil
     var p: Int = -1 //literal
     var c = 0
+    var trailIndex = trail.size
     var confl = conflict
     conflict = null
 
     //find 1-UIP
-    do {
-      if(p != -1)
-        assert(p == (confl.lits(0)))
-      cnfFormula.incVSIDSClause(confl)
+    find1UIPStopWatch.time {
+      do {
+        if(p != -1)
+          assert(p == (confl.lits(0)))
+        cnfFormula.incVSIDSClause(confl)
 
-      val lits = confl.lits
-      var i = if(p == -1) 0 else 1
-      while(i < lits.size) {
-        //assert(isUnsat(lits(i)))
-        val id = lits(i) >> 1
-        val lvl = levels(id)
-        if(!seen(id) && lvl > 0) {
-          seen(id) = true
-          if(lvl == decisionLevel)
-            c += 1
-          else
-            learntClause ::= lits(i)
+        val lits = confl.lits
+        var i = if(p == -1) 0 else 1
+        while(i < lits.size) {
+          //assert(isUnsat(lits(i)))
+          val id = lits(i) >> 1
+          val lvl = levels(id)
+          if(!seen(id) && lvl > 0) {
+            seen(id) = true
+            if(lvl == decisionLevel)
+              c += 1
+            else
+              learntClause ::= lits(i)
+          }
+          i += 1
         }
-        i += 1
-      }
 
-      //assert(learntClause.forall(lit => levels(lit >> 1) != decisionLevel))
+        //assert(learntClause.forall(lit => levels(lit >> 1) != decisionLevel))
 
-      do { //we already start undo the trail here, probably not the cleanest approach but if we are careful this should work, and this is more efficient
-        if(p != -1) //p must be undo, except for the last one which we will need its value in the end
-          undo(p)
-        p = trail.pop()
-      } while(!seen(p>>1))
+        do {
+          trailIndex -= 1
+          p = trail(trailIndex)
+        } while(!seen(p>>1))
 
-      c = c - 1
+        confl = reasons(p>>1)
+        c = c - 1
+        seen(p>>1) = false
 
-      confl = reasons(p>>1)
-      //if(confl != null) {
-      //  assert(confl.lits(0) >> 1 == p)
-      //  assert(isSat(confl.lits(0)))
-      //  assert(confl.lits.tail.forall(lit => isUnsat(lit)))
-      //}
-    } while(c > 0)
-    //seen(p>>1) = true //I think this is unnecessary
-    trail.push(p) //need to keep p in the trail
+        //if(confl != null) {
+        //  assert(confl.lits(0) >> 1 == p)
+        //  assert(isSat(confl.lits(0)))
+        //  assert(confl.lits.tail.forall(lit => isUnsat(lit)))
+        //}
+      } while(c > 0)
+    }
     assert(isAssigned(p))
     //p is 1-UIP
     //assert(learntClause.forall(lit => isUnsat(lit)))
 
-    def getAbstractLevel(id: Int) = 1 << (levels(id) & 31)
-    //clause minimalization
-    var marked: Set[Int] = learntClause.map(_ >> 1).toSet
-    val levelsInClause: Set[Int] = marked.map(levels(_)) //we can optimize the search, if we see a node of a level not in the set, then for sure there will be a decision node of the same level
+    var toSetUnseen: List[Int] = learntClause
 
-    def litRedundant(id: Int, abstractLevel: Int): Boolean = {
-      var stack = List(id)
-      var analyzeToclear: List[Int] = Nil
-      var res = true
-      while(!stack.isEmpty && res) {
-        val reasonClause = reasons(stack.head)
-        stack = stack.tail
+    clauseMinimizationStopWatch.time {
+      def getAbstractLevel(id: Int) = 1 << (levels(id) & 31)
+      //clause minimalization
+      var marked: Set[Int] = learntClause.map(_ >> 1).toSet
+      val levelsInClause: Set[Int] = marked.map(levels(_)) //we can optimize the search, if we see a node of a level not in the set, then for sure there will be a decision node of the same level
 
-        reasonClause.lits.foreach(l => if((l>>1) != id && res) {
-          val id = l>>1
+      def litRedundant(id: Int, abstractLevel: Int): Boolean = {
+        var stack = List(id)
+        var analyzeToclear: List[Int] = Nil
+        var res = true
+        while(!stack.isEmpty && res) {
+          val reasonClause = reasons(stack.head)
+          stack = stack.tail
 
-          if(!seen(id) && levels(id) > 0) {
-            if(reasons(id) != null && (getAbstractLevel(id) & abstractLevel) != 0) {
-              seen(id) = true
-              stack ::= id
-              analyzeToclear ::= id
-            } else {
-              while(!analyzeToclear.isEmpty) {
-                seen(analyzeToclear.head) = false;
-                analyzeToclear = analyzeToclear.tail
+          reasonClause.lits.foreach(l => if((l>>1) != id && res) {
+            val id = l>>1
+
+            if(!seen(id) && levels(id) > 0) {
+              if(reasons(id) != null && (getAbstractLevel(id) & abstractLevel) != 0) {
+                seen(id) = true
+                stack ::= id
+                analyzeToclear ::= id
+                toSetUnseen ::= l
+              } else {
+                while(!analyzeToclear.isEmpty) {
+                  seen(analyzeToclear.head) = false;
+                  analyzeToclear = analyzeToclear.tail
+                }
+                res = false
               }
-              res = false
             }
-          }
-        })
+          })
+        }
+        res
       }
-      res
+
+      var absLevel: Int = 0
+      learntClause.foreach(lit => absLevel |= getAbstractLevel(lit >> 1)) //maintain an abstract level
+      learntClause = learntClause.filterNot(lit => {
+        val reasonClause = reasons(lit >> 1) 
+        reasonClause != null && litRedundant(lit >> 1, absLevel)
+      })
     }
 
-    var absLevel: Int = 0
-    learntClause.foreach(lit => absLevel |= getAbstractLevel(lit >> 1)) //maintain an abstract level
-
-    learntClause = learntClause.filterNot(lit => {
-      val reasonClause = reasons(lit >> 1) 
-      reasonClause != null && litRedundant(lit >> 1, absLevel)
-    })
+    toSetUnseen.foreach(lit => seen(lit>>1) = false)
+    while(trailIndex < trail.size) {
+      seen(trail(trailIndex) >> 1) = false
+      trailIndex += 1
+    }
 
     learntClause ::= (p ^ 1)  //don't forget to add p in the clause !
     new Clause(learntClause.toArray)
@@ -356,16 +382,19 @@ object Solver {
 
     def learn(clause: Clause) {
       assert(clause.size > 1)
+
       learntClauses ::= clause
       nbClauses += 1
       nbLearntClauses += 1
+
+      nbLearntClauseTotal += 1
+      nbLearntLiteralTotal += clause.lits.size
+
       for(lit <- clause.lits)
         incVSIDS(lit >> 1)
       incVSIDSClause(clause)
-      if(!clause.lits.tail.isEmpty)//only record if not unit
-        recordClause(clause)
-      nbLearntClauseTotal += 1
-      nbLearntLiteralTotal += clause.lits.size
+
+      recordClause(clause)
       if(nbLearntClauses > maxLearnt)
         reduceLearntClauses()
     }
@@ -442,15 +471,23 @@ object Solver {
       nbConflicts += 1
       cnfFormula.decayVSIDS()
       cnfFormula.decayVSIDSClause()
-      val learntClause = conflictAnalysis
+      val learntClause = conflictAnalysisStopWatch.time { conflictAnalysis }
 
-      var backtrackLevel = 0
-      var i = 1
-      while(i < learntClause.lits.size) {
-        val lvl = levels(learntClause.lits(i) >> 1)
-        if(lvl > backtrackLevel)
-          backtrackLevel = lvl
-        i += 1
+      var lits = learntClause.lits
+      val backtrackLevel = if(lits.size == 1) 0 else {
+        var m = levels(lits(1) >> 1)
+        var i = 2
+        while(i < lits.size) {
+          val lvl = levels(lits(i) >> 1)
+          if(lvl > m) {
+            val tmp = lits(1)
+            lits(1) = lits(i)
+            lits(i) = tmp
+            m = lvl
+          }
+          i += 1
+        }
+        m
       }
 
       if(nbConflicts == nextRestart) {
@@ -468,8 +505,8 @@ object Solver {
         assert(decisionLevel > backtrackLevel)
         backtrackTo(backtrackLevel)
         val lit = learntClause.lits(0)
-        assert(isUnassigned(lit))
-        assert(learntClause.lits.tail.forall(isUnsat))
+        //assert(isUnassigned(lit))
+        //assert(learntClause.lits.tail.forall(isUnsat))
         enqueueLiteral(lit, learntClause) //only on non restart
         //note that if the unitClause is of size 1, there will be an auto-reset to backtrack level 0 so this is correct as well
       }
@@ -521,16 +558,15 @@ object Solver {
         val clause = ws.next()
         val lits = clause.lits
 
-        if(!isAssigned(lits(0)) || isUnsat(lits(0))) {
+        assert(lits(0) == negatedLit || lits(1) == negatedLit)
+        if(lits(1) != negatedLit) {
+          val tmp = lits(1)
+          lits(1) = negatedLit
+          lits(0) = tmp
+        }
+        assert(lits(1) == negatedLit)
 
-          assert(lits(0) == negatedLit || lits(1) == negatedLit)
-          if(lits(1) != negatedLit) {
-            val tmp = lits(1)
-            lits(1) = negatedLit
-            lits(0) = tmp
-          }
-          assert(lits(1) == negatedLit)
-
+        if(isUnassigned(lits(0)) || isUnsat(lits(0))) {
           var i = 2
           var found = false
           while(!found && i < lits.size) {
@@ -550,7 +586,7 @@ object Solver {
             if(isUnassigned(lits(0))) {
               nbPropagations += 1
               enqueueLiteral(lits(0), clause)
-            } else if(isUnsat(lits(0))) { //TODO: we should be able to move this block before the inspection of the clause
+            } else if(isUnsat(lits(0))) {
               status = Conflict
               qHead == trail.size
               conflict = clause
