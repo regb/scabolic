@@ -166,8 +166,6 @@ object Solver {
   private[this] def conflictAnalysis: Clause = {
     assert(conflict != null)
 
-    import scala.collection.mutable.Queue
-
     //the algorithm augment the cut closest to the conflict node successively by doing
     //a BFS while only searching through the nodes of the current decision level
     //it stops when only one node of the current decision level (the UIP) remain in the cut
@@ -265,10 +263,7 @@ object Solver {
       reasonClause != null && litRedundant(lit >> 1, absLevel)
     })
 
-    //compute backtrack level
-    learntClause = learntClause.sortWith((lit1, lit2) => levels(lit1 >> 1) > levels(lit2 >> 1))
     learntClause ::= (p ^ 1)  //don't forget to add p in the clause !
-
     new Clause(learntClause.toArray)
   }
 
@@ -448,8 +443,16 @@ object Solver {
       cnfFormula.decayVSIDS()
       cnfFormula.decayVSIDSClause()
       val learntClause = conflictAnalysis
-      val backtrackLevel = if(learntClause.size == 1) 0 else levels(learntClause.lits(1)>>1)
-      assert(backtrackLevel >= 0)
+
+      var backtrackLevel = 0
+      var i = 1
+      while(i < learntClause.lits.size) {
+        val lvl = levels(learntClause.lits(i) >> 1)
+        if(lvl > backtrackLevel)
+          backtrackLevel = lvl
+        i += 1
+      }
+
       if(nbConflicts == nextRestart) {
         if(Settings.stats) {
           println("restart after " + nbConflicts + " nb conflicts")
@@ -464,7 +467,9 @@ object Solver {
       } else {
         assert(decisionLevel > backtrackLevel)
         backtrackTo(backtrackLevel)
-        val lit = learntClause.lits.find(isUnassigned).get
+        val lit = learntClause.lits(0)
+        assert(isUnassigned(lit))
+        assert(learntClause.lits.tail.forall(isUnsat))
         enqueueLiteral(lit, learntClause) //only on non restart
         //note that if the unitClause is of size 1, there will be an auto-reset to backtrack level 0 so this is correct as well
       }
@@ -485,9 +490,7 @@ object Solver {
         trail.push(head)
     }
     qHead = trail.size
-    if(trail.isEmpty)
-      decisionLevel = 0
-    assert(decisionLevel == lvl) //TODO replace by this assignment
+    decisionLevel = lvl
   }
 
   private[this] def undo(lit: Int) {
