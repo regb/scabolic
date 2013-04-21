@@ -29,10 +29,18 @@ class FixedIntStack(maxSize: Int) {
     false
   }
 
-  def apply(i: Int): Int = {
+  /*
+   * get provides checked access to element in the stack
+   */
+  def get(i: Int): Int = {
     assert(i >= 0 && i <= topIndex)
     stack(i)
   }
+
+  /* 
+   * unchecked access
+   */
+  def apply(i: Int): Int = stack(i)
 
   def size: Int = topIndex + 1
 
