@@ -35,3 +35,12 @@ Scabolic exports a mini API usable from Scala programs. The API is not stable
 yet and is expected to change frequently. It will not be backward compatible.
 The best way to learn the API is to look at the examples in the apps branch of
 this repository.
+
+##Licence
+
+Scabolic is distributed under the terms of The MIT License.
+
+All source code in this repository is distributed under this license. The
+reference text is in the file LICENSE, no copy of the text shall be included in
+any of the source file, but it is implicitly assumed they are available under
+the terms specified in LICENSE.
