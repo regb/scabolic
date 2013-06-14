@@ -16,6 +16,8 @@ Currently, Scabolic provides two documented interfaces:
 
 ##CafeSat
 
+![CafeSat Logo](/logo/cafesat.jpg)
+
 CafeSat is the tool interface to the SAT solver in Scabolic. To build CafeSat:
 
     sbt clean
