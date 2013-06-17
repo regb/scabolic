@@ -49,7 +49,8 @@ reference text is in the file LICENSE, no copy of the text shall be included in
 any of the source file, but it is implicitly assumed they are available under
 the terms specified in LICENSE.
 
-The copyright for each portion of code is owned by the respective commiter. There
+The copyright for each portion of code is owned by the respective commiter, 
+based on the git history. There
 is no per file or per function copyright as this does not make sense in general.
 Sorry to be picky, but that's copyright law for you.
-based on the git history.
+
