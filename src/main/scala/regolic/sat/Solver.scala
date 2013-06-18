@@ -54,12 +54,13 @@ object Solver {
   private[this] var restartInterval = Settings.restartInterval
   private[this] var nextRestart = restartInterval
   private[this] val restartFactor = Settings.restartFactor
+  private[this] var assumptions: Array[Int] = null
 
   private[this] val conflictAnalysisStopWatch = StopWatch("backtrack.conflictanalysis")
   private[this] val find1UIPStopWatch = StopWatch("backtrack.conflictanalysis.find1uip")
   private[this] val clauseMinimizationStopWatch = StopWatch("backtrack.conflictanalysis.clauseminimization")
 
-  def solve(clauses: List[Clause], nbVars: Int): Results.Result = {
+  def solve(clauses: List[Clause], nbVars: Int, assumps: Array[Int]): Results.Result = {
 
     val topLevelStopWatch = StopWatch("toplevelloop")
     val deduceStopWatch = StopWatch("deduce")
@@ -87,6 +88,7 @@ object Solver {
     reasons = new Array(nbVars)
     levels = Array.fill(nbVars)(-1)
     decisionLevel = 0
+    assumptions = assumps
 
     var newClauses: List[Clause] = Nil
     clauses.foreach(cl => {
@@ -103,7 +105,7 @@ object Solver {
         newClauses ::= newLits
       }
     })
-    cnfFormula = new CNFFormula(newClauses, nbVars)
+    cnfFormula = new CNFFormula(newClauses, nbVars) // TODO keep learnt clauses
     for(clause <- newClauses)
       recordClause(clause)
 
@@ -452,7 +454,44 @@ object Solver {
     if(cnfFormula.vsidsQueue.isEmpty)
       status = Satisfiable
     else {
-      var next = cnfFormula.vsidsQueue.deleteMax
+
+      var next = -1
+      var foundNext = false
+      while(decisionLevel < assumptions.size && !foundNext) {
+        val p = model(decisionLevel)
+        //println("p: "+ p)
+        //if(isSat(p)) {
+          //nbDecisions += 1
+          //decisionLevel += 1
+          //// dummy decision level
+        //} else if(isUnsat(p)) {
+          //status = Unsatisfiable
+          //return
+        //} else {
+          //next = p
+          //foundNext = true // break
+        //}
+      }
+      
+      //Lit next = lit_Undef;
+      //while (decisionLevel() < assumptions.size()){
+          //// Perform user provided assumption:
+          //Lit p = assumptions[decisionLevel()];
+          //if (value(p) == l_True){
+              //// Dummy decision level:
+              //newDecisionLevel();
+          //}else if (value(p) == l_False){
+              //analyzeFinal(~p, conflict);
+              //return l_False;
+          //}else{
+              //next = p;
+              //break;
+          //}
+      //}
+      
+
+      //if(next != -1)
+        next = cnfFormula.vsidsQueue.deleteMax
       while(model(next) != -1 && !cnfFormula.vsidsQueue.isEmpty)
         next = cnfFormula.vsidsQueue.deleteMax
       if(model(next) == -1) {
