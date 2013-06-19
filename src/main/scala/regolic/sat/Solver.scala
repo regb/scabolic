@@ -34,6 +34,7 @@ object Solver {
   private[this] var nbRemovedClauses = 0
   private[this] var nbRemovedLiteral = 0
   private[this] var nbRestarts = 0
+  private[this] var nbVars = 0
          
   private[this] var decisionLevel = 0
   private[this] var trail: FixedIntStack = null
@@ -60,6 +61,125 @@ object Solver {
   private[this] val find1UIPStopWatch = StopWatch("backtrack.conflictanalysis.find1uip")
   private[this] val clauseMinimizationStopWatch = StopWatch("backtrack.conflictanalysis.clauseminimization")
 
+  def addClause(clause: Clause) = {
+    val litsUnique = clause.lits.toSet
+    if(litsUnique.size == 1) {
+      val id = litsUnique.head >> 1
+      if(model(id) == -1)
+        enqueueLiteral(litsUnique.head)
+      else if(model(id) == (litsUnique.head & 1))
+        status = Unsatisfiable
+    }
+    else if(!litsUnique.exists(l1 => litsUnique.count(l2 => (l2 >> 1) == (l1 >> 1)) > 1)) {
+      val newLits = new Clause(litsUnique.toArray)
+      cnfFormula.addClause(clause)
+      recordClause(newLits)
+    }
+
+    cnfFormula.addClause(clause)
+    recordClause(clause)
+  }
+
+  def solve(assumps: Array[Int]): Results.Result = {
+
+    val topLevelStopWatch = StopWatch("toplevelloop")
+    val deduceStopWatch = StopWatch("deduce")
+    val decideStopWatch = StopWatch("decide")
+    val backtrackStopWatch = StopWatch("backtrack")
+    
+    nbConflicts = 0
+    nbDecisions = 0
+    nbPropagations = 0
+    nbRemovedClauses = 0
+    nbRemovedLiteral = 0
+    nbRestarts = 0
+
+    status = Unknown
+    conflict = null
+    trail = new FixedIntStack(this.nbVars) //store literals, but only one polarity at the same time, so nbVar size is enough
+    qHead = 0
+    model = Array.fill(this.nbVars)(-1)
+    watched = Array.fill(2*this.nbVars)(new ClauseList(20))
+    seen = Array.fill(this.nbVars)(false)
+    restartInterval = Settings.restartInterval
+    nextRestart = restartInterval
+    reasons = new Array(this.nbVars)
+    levels = Array.fill(this.nbVars)(-1)
+    decisionLevel = 0
+    assumptions = assumps
+
+    topLevelStopWatch.time {
+
+      deduceStopWatch.time {
+        deduce()
+      }
+      if(status == Conflict)
+        status = Unsatisfiable
+
+      val timeout: Option[Int] = Settings.timeout
+      var elapsedTime: Long = 0 //in ms
+      //assertWatchedInvariant
+      //assertTrailInvariant
+      //MAIN LOOP
+      while(status == Unknown) {
+        val startTime = System.currentTimeMillis
+        //assertWatchedInvariant
+        //assertTrailInvariant
+        decideStopWatch.time {
+          decide()
+        }
+
+        var cont = true
+        while(cont) {
+          //assertWatchedInvariant
+          //assertTrailInvariant
+          deduceStopWatch.time {
+            deduce()
+          }
+
+          if(status == Conflict) {
+            backtrackStopWatch.time {
+              backtrack()
+            }
+          } else {
+            cont = false
+          }
+        }
+        val endTime = System.currentTimeMillis
+        elapsedTime += (endTime - startTime)
+        timeout.foreach(timeout => if(elapsedTime > 1000*timeout) status = Timeout)
+      }
+    }
+
+    if(Settings.stats) {
+      println("Conflicts: " + nbConflicts)
+      println("Decisions: " + nbDecisions)
+      println("Propagations: " + nbPropagations + " ( " + (nbPropagations/deduceStopWatch.seconds).toInt + " / sec)")
+      println("Restarts: " + nbRestarts)
+      println("Learned Literals: " + nbLearntLiteralTotal + " (" + nbLearntClauseTotal + " clauses) --- " + nbLearntLiteralTotal.toDouble/nbLearntClauseTotal.toDouble + " per clause")
+      println("Removed Literals: " + nbRemovedLiteral + "(" + nbRemovedClauses + " clauses) --- " + nbRemovedLiteral.toDouble/nbRemovedClauses.toDouble + " per clause")
+      println("Active Literals: " + (nbLearntLiteralTotal - nbRemovedLiteral) + "(" + (nbLearntClauseTotal - nbRemovedClauses) + ") --- " + (nbLearntLiteralTotal - nbRemovedLiteral).toDouble/(nbLearntClauseTotal-nbRemovedClauses).toDouble + " per clause")
+
+      println("Time spend in:\n")
+      println("  toplevelloop:         " + topLevelStopWatch.seconds + " sec")
+      println("    decide:             " + decideStopWatch.seconds + " sec")
+      println("    deduce:             " + deduceStopWatch.seconds + " sec")
+      println("    backtrack:          " + backtrackStopWatch.seconds + " sec")
+      println("      conflictanalysis: " + conflictAnalysisStopWatch.seconds + " sec")
+      println("        clausemin:      " + clauseMinimizationStopWatch.seconds + " sec")
+      println("        find1uip:       " + find1UIPStopWatch.seconds + " sec")
+    }
+
+    status match {
+      case Unknown | Conflict => sys.error("unexpected")
+      case Timeout => Results.Unknown
+      case Unsatisfiable => Results.Unsatisfiable
+      case Satisfiable => Results.Satisfiable(model.map(pol => pol == 1))
+    }
+  }
+  
+
+
   def solve(clauses: List[Clause], nbVars: Int, assumps: Array[Int]): Results.Result = {
 
     val topLevelStopWatch = StopWatch("toplevelloop")
@@ -75,6 +195,7 @@ object Solver {
     nbRemovedClauses = 0
     nbRemovedLiteral = 0
     nbRestarts = 0
+    this.nbVars = nbVars
 
     status = Unknown
     conflict = null
@@ -313,7 +434,7 @@ object Solver {
     override def toString = lits.map(lit => (if(lit % 2 == 0) "" else "-") + (lit >> 1)).mkString("[", ", ", "]")
   }
 
-  class CNFFormula(val originalClauses: List[Clause], val nbVar: Int) {
+  class CNFFormula(var originalClauses: List[Clause], val nbVar: Int) {
     require(originalClauses.forall(cl => cl.lits.forall(lit => lit >= 0 && lit < 2*nbVar)))
     require(originalClauses.forall(cl => cl.lits.size >= 2))
     require(originalClauses.forall(cl => cl.lits.forall(lit => cl.lits.count(l2 => (l2 >> 1) == (lit >> 1)) == 1)))
@@ -417,6 +538,12 @@ object Solver {
           learntClauses ::= cl
         }
       }
+    }
+
+    def addClause(clause: Clause) {
+      require((for(cl <- (originalClauses ::: learntClauses)) yield cl.lits).toSet.contains(clause.lits))
+      originalClauses ::= clause
+      nbClauses += 1
     }
 
     override def toString: String = (learntClauses ++ originalClauses).mkString("{\n", "\n", "\n}")
