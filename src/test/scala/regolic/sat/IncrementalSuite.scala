@@ -15,14 +15,14 @@ class IncrementalSuite extends FunSuite {
   private val nc = new Literal(2, false)
   private val emptyClause = Set[Literal]()
 
-  test("Incremental run sat/unsat") {
-    val clList = List(List(a, nb), List(b))
+  test("Incremental run sat/unsat with assumption") {
+    val clList = List(List(na, b), List(nb, c))
     val clauses = clList.map(lits => new Clause(lits))
-    val result1 = Solver.solve(clauses, 2, Array.empty[Int])
-    assert(result1 == Satisfiable)
-    Solver.addClause(new Clause(List(na)))
-    val result2 = Solver.solve(Array.empty[Int])
-    assert(result2 == Unsatisfiable)
-    //assert(ProofChecker(proof.inferences, emptyClause))
+    val result1 = Solver.solve(clauses, 3, Array.empty[Int])
+    assert(result1.isInstanceOf[Solver.Results.Satisfiable])
+
+    Solver.addClause(new Clause(List(na, nc)))
+    val result2 = Solver.solve(Array(a.id))
+    assert(result2 equals Solver.Results.Unsatisfiable)
   }
 }

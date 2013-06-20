@@ -44,6 +44,7 @@ object Solver {
   private[this] var conflict: Clause = null
   private[this] var model: Array[Int] = null
   private[this] var watched: Array[ClauseList] = null
+  private[this] var incrementallyAddedClauses: List[Clause] = Nil
   /*
    * seen can be used locally for algorithms to maintain variables that have been seen
    * They should maintain the invariant that seen is set to false everywhere.
@@ -62,22 +63,10 @@ object Solver {
   private[this] val clauseMinimizationStopWatch = StopWatch("backtrack.conflictanalysis.clauseminimization")
 
   def addClause(clause: Clause) = {
-    val litsUnique = clause.lits.toSet
-    if(litsUnique.size == 1) {
-      val id = litsUnique.head >> 1
-      if(model(id) == -1)
-        enqueueLiteral(litsUnique.head)
-      else if(model(id) == (litsUnique.head & 1))
-        status = Unsatisfiable
-    }
-    else if(!litsUnique.exists(l1 => litsUnique.count(l2 => (l2 >> 1) == (l1 >> 1)) > 1)) {
-      val newLits = new Clause(litsUnique.toArray)
-      cnfFormula.addClause(clause)
-      recordClause(newLits)
-    }
+    incrementallyAddedClauses ::= clause
+  }
 
-    cnfFormula.addClause(clause)
-    recordClause(clause)
+  def resetSolver() {
   }
 
   def solve(assumps: Array[Int]): Results.Result = {
@@ -99,7 +88,7 @@ object Solver {
     trail = new FixedIntStack(this.nbVars) //store literals, but only one polarity at the same time, so nbVar size is enough
     qHead = 0
     model = Array.fill(this.nbVars)(-1)
-    watched = Array.fill(2*this.nbVars)(new ClauseList(20))
+    watched = Array.fill(2*nbVars)(new ClauseList(20))
     seen = Array.fill(this.nbVars)(false)
     restartInterval = Settings.restartInterval
     nextRestart = restartInterval
@@ -107,6 +96,31 @@ object Solver {
     levels = Array.fill(this.nbVars)(-1)
     decisionLevel = 0
     assumptions = assumps
+
+    val tmpLearntClauses = cnfFormula.learntClauses
+    println("tmpLearntClauses: "+ tmpLearntClauses)
+    println("incrementallyAddedClauses: "+ incrementallyAddedClauses)
+    val clauses = cnfFormula.originalClauses ::: cnfFormula.learntClauses ::: incrementallyAddedClauses
+
+    var newClauses: List[Clause] = Nil
+    clauses.foreach(cl => {
+      val litsUnique = cl.lits.toSet
+      if(litsUnique.size == 1) {
+        val id = litsUnique.head >> 1
+        if(model(id) == -1)
+          enqueueLiteral(litsUnique.head)
+        else if(model(id) == (litsUnique.head & 1))
+          status = Unsatisfiable
+      }
+      else if(!litsUnique.exists(l1 => litsUnique.count(l2 => (l2 >> 1) == (l1 >> 1)) > 1)) {
+        val newLits = new Clause(litsUnique.toArray)
+        newClauses ::= newLits
+      }
+    })
+    cnfFormula = new CNFFormula(newClauses, nbVars) // TODO keep learnt clauses
+    for(clause <- newClauses)
+      recordClause(clause)
+
 
     topLevelStopWatch.time {
 
@@ -470,9 +484,13 @@ object Solver {
     private val vsidsClauseDecay: Double = 1d/VSIDS_CLAUSE_DECAY
 
     val vsidsQueue = new FixedIntDoublePriorityQueue(nbVar)
-    originalClauses.foreach(cl => cl.lits.foreach(lit => {
-      vsidsQueue.incScore(lit >> 1, vsidsInc)
-    }))
+    initVSIDS()
+
+    def initVSIDS() {
+      originalClauses.foreach(cl => cl.lits.foreach(lit => {
+        vsidsQueue.incScore(lit >> 1, vsidsInc)
+      }))
+    }
 
     def incVSIDS(id: Int) {
       val newScore = vsidsQueue.incScore(id, vsidsInc)
@@ -541,7 +559,7 @@ object Solver {
     }
 
     def addClause(clause: Clause) {
-      require((for(cl <- (originalClauses ::: learntClauses)) yield cl.lits).toSet.contains(clause.lits))
+      //require((for(cl <- (originalClauses ::: learntClauses)) yield cl.lits).toSet.contains(clause.lits))
       originalClauses ::= clause
       nbClauses += 1
     }
@@ -578,26 +596,27 @@ object Solver {
   }
 
   private[this] def decide() {
-    if(cnfFormula.vsidsQueue.isEmpty)
+    if(cnfFormula.vsidsQueue.isEmpty) {
+      println("queue empty") // TODO restore vsids queue at start
       status = Satisfiable
-    else {
+    } else {
 
-      var next = -1
+      var next = 0 
       var foundNext = false
       while(decisionLevel < assumptions.size && !foundNext) {
-        val p = model(decisionLevel)
-        //println("p: "+ p)
-        //if(isSat(p)) {
-          //nbDecisions += 1
-          //decisionLevel += 1
-          //// dummy decision level
-        //} else if(isUnsat(p)) {
-          //status = Unsatisfiable
-          //return
-        //} else {
-          //next = p
-          //foundNext = true // break
-        //}
+        val p = assumptions(decisionLevel)
+        println("p: "+ p)
+        if(isSat(p)) {
+          nbDecisions += 1
+          decisionLevel += 1
+          // dummy decision level
+        } else if(isUnsat(p)) {
+          status = Unsatisfiable
+          return
+        } else {
+          next = p
+          foundNext = true // break
+        }
       }
       
       //Lit next = lit_Undef;
@@ -617,16 +636,23 @@ object Solver {
       //}
       
 
-      //if(next != -1)
-        next = cnfFormula.vsidsQueue.deleteMax
-      while(model(next) != -1 && !cnfFormula.vsidsQueue.isEmpty)
-        next = cnfFormula.vsidsQueue.deleteMax
-      if(model(next) == -1) {
-        nbDecisions += 1
+      if(foundNext) {
         decisionLevel += 1
         enqueueLiteral(2*next + (nbDecisions & 1))
-      } else
-        status = Satisfiable
+      } else {
+        next = cnfFormula.vsidsQueue.deleteMax
+        while(model(next) != -1 && !cnfFormula.vsidsQueue.isEmpty)
+          next = cnfFormula.vsidsQueue.deleteMax
+
+        if(model(next) == -1) {
+          nbDecisions += 1
+          decisionLevel += 1
+          enqueueLiteral(2*next + (nbDecisions & 1))
+        } else{
+          println("model(next) != -1")
+          status = Satisfiable
+        }
+      }
     }
   }
 
