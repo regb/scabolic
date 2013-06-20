@@ -6,18 +6,18 @@ import regolic.asts.fol.Trees._
 
 object ConjunctiveNormalForm {
 
-  var literalCounter = -1
-  def nextId(): Int = {
-    literalCounter += 1
-    literalCounter
-  }
-    
-  def apply(formula: Formula): (Set[Set[Literal]], Int, Map[Formula, Int]) = {
+  def apply(formula: Formula): (Set[Set[Literal]], Int, Map[PredicateApplication, Int]) = {
     import scala.collection.mutable.HashMap
     import scala.collection.mutable.ListBuffer
 
     val constraints = new ListBuffer[Set[Literal]]
-    var varToLiteral = new HashMap[Formula, Int]()
+    var varToLiteral = new HashMap[PredicateApplication, Int]()
+
+    var literalCounter = -1
+    def nextId(): Int = {
+      literalCounter += 1
+      literalCounter
+    }
 
     //for each subformula, create a new representation and add the constraints while returning the representation
     def rec(form: Formula): Int = form match {
