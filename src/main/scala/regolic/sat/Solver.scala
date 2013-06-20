@@ -66,252 +66,157 @@ object Solver {
     incrementallyAddedClauses ::= clause
   }
 
-  def resetSolver() {
-  }
-
-  def solve(assumps: Array[Int]): Results.Result = {
-
+  def solve_() = {
     val topLevelStopWatch = StopWatch("toplevelloop")
     val deduceStopWatch = StopWatch("deduce")
     val decideStopWatch = StopWatch("decide")
     val backtrackStopWatch = StopWatch("backtrack")
-    
+
+    topLevelStopWatch.time {
+
+      deduceStopWatch.time {
+        deduce()
+      }
+      if(status == Conflict)
+        status = Unsatisfiable
+
+      val timeout: Option[Int] = Settings.timeout
+      var elapsedTime: Long = 0 //in ms
+      //assertWatchedInvariant
+      //assertTrailInvariant
+      //MAIN LOOP
+      while(status == Unknown) {
+        val startTime = System.currentTimeMillis
+        //assertWatchedInvariant
+        //assertTrailInvariant
+        decideStopWatch.time {
+          decide()
+        }
+
+        var cont = true
+        while(cont) {
+          //assertWatchedInvariant
+          //assertTrailInvariant
+          deduceStopWatch.time {
+            deduce()
+          }
+
+          if(status == Conflict) {
+            backtrackStopWatch.time {
+              backtrack()
+            }
+          } else {
+            cont = false
+          }
+        }
+        val endTime = System.currentTimeMillis
+        elapsedTime += (endTime - startTime)
+        timeout.foreach(timeout => if(elapsedTime > 1000*timeout) status = Timeout)
+      }
+    }
+
+    if(Settings.stats) {
+      println("Conflicts: " + nbConflicts)
+      println("Decisions: " + nbDecisions)
+      println("Propagations: " + nbPropagations + " ( " + (nbPropagations/deduceStopWatch.seconds).toInt + " / sec)")
+      println("Restarts: " + nbRestarts)
+      println("Learned Literals: " + nbLearntLiteralTotal + " (" + nbLearntClauseTotal + " clauses) --- " + nbLearntLiteralTotal.toDouble/nbLearntClauseTotal.toDouble + " per clause")
+      println("Removed Literals: " + nbRemovedLiteral + "(" + nbRemovedClauses + " clauses) --- " + nbRemovedLiteral.toDouble/nbRemovedClauses.toDouble + " per clause")
+      println("Active Literals: " + (nbLearntLiteralTotal - nbRemovedLiteral) + "(" + (nbLearntClauseTotal - nbRemovedClauses) + ") --- " + (nbLearntLiteralTotal - nbRemovedLiteral).toDouble/(nbLearntClauseTotal-nbRemovedClauses).toDouble + " per clause")
+
+      println("Time spend in:\n")
+      println("  toplevelloop:         " + topLevelStopWatch.seconds + " sec")
+      println("    decide:             " + decideStopWatch.seconds + " sec")
+      println("    deduce:             " + deduceStopWatch.seconds + " sec")
+      println("    backtrack:          " + backtrackStopWatch.seconds + " sec")
+      println("      conflictanalysis: " + conflictAnalysisStopWatch.seconds + " sec")
+      println("        clausemin:      " + clauseMinimizationStopWatch.seconds + " sec")
+      println("        find1uip:       " + find1UIPStopWatch.seconds + " sec")
+    }
+
+    status match {
+      case Unknown | Conflict => sys.error("unexpected")
+      case Timeout => Results.Unknown
+      case Unsatisfiable => Results.Unsatisfiable
+      case Satisfiable => Results.Satisfiable(model.map(pol => pol == 1))
+    }
+  
+  }
+
+  def initClauses(clauses: List[Clause]) {
+    var newClauses: List[Clause] = Nil
+    clauses.foreach(cl => {
+      val litsUnique = cl.lits.toSet
+      if(litsUnique.size == 1) {
+        val id = litsUnique.head >> 1
+        if(model(id) == -1)
+          enqueueLiteral(litsUnique.head)
+        else if(model(id) == (litsUnique.head & 1))
+          status = Unsatisfiable
+      }
+      else if(!litsUnique.exists(l1 => litsUnique.count(l2 => (l2 >> 1) == (l1 >> 1)) > 1)) {
+        val newLits = new Clause(litsUnique.toArray)
+        newClauses ::= newLits
+      }
+    })
+    cnfFormula = new CNFFormula(newClauses, nbVars) // TODO keep learnt clauses
+    for(clause <- newClauses)
+      recordClause(clause)
+  }
+
+  def resetSolver() {
     nbConflicts = 0
     nbDecisions = 0
     nbPropagations = 0
     nbRemovedClauses = 0
     nbRemovedLiteral = 0
     nbRestarts = 0
+    nbLearntClauseTotal = 0
+    nbLearntLiteralTotal = 0
 
     status = Unknown
     conflict = null
     trail = new FixedIntStack(this.nbVars) //store literals, but only one polarity at the same time, so nbVar size is enough
     qHead = 0
-    model = Array.fill(this.nbVars)(-1)
+    model = Array.fill(nbVars)(-1)
     watched = Array.fill(2*nbVars)(new ClauseList(20))
     seen = Array.fill(this.nbVars)(false)
     restartInterval = Settings.restartInterval
     nextRestart = restartInterval
-    reasons = new Array(this.nbVars)
+    reasons = new Array(nbVars)
     levels = Array.fill(this.nbVars)(-1)
     decisionLevel = 0
+  }
+
+  def solve(assumps: Array[Int]): Results.Result = {
+
+    resetSolver() 
+    
     assumptions = assumps
 
+    // TODO learnt literals?
+    //      - nbLearntLiteralTotal
+    // adding learntClauses as originalClauses okay?
     val tmpLearntClauses = cnfFormula.learntClauses
-    println("tmpLearntClauses: "+ tmpLearntClauses)
-    println("incrementallyAddedClauses: "+ incrementallyAddedClauses)
     val clauses = cnfFormula.originalClauses ::: cnfFormula.learntClauses ::: incrementallyAddedClauses
 
-    var newClauses: List[Clause] = Nil
-    clauses.foreach(cl => {
-      val litsUnique = cl.lits.toSet
-      if(litsUnique.size == 1) {
-        val id = litsUnique.head >> 1
-        if(model(id) == -1)
-          enqueueLiteral(litsUnique.head)
-        else if(model(id) == (litsUnique.head & 1))
-          status = Unsatisfiable
-      }
-      else if(!litsUnique.exists(l1 => litsUnique.count(l2 => (l2 >> 1) == (l1 >> 1)) > 1)) {
-        val newLits = new Clause(litsUnique.toArray)
-        newClauses ::= newLits
-      }
-    })
-    cnfFormula = new CNFFormula(newClauses, nbVars) // TODO keep learnt clauses
-    for(clause <- newClauses)
-      recordClause(clause)
+    initClauses(clauses)
 
-
-    topLevelStopWatch.time {
-
-      deduceStopWatch.time {
-        deduce()
-      }
-      if(status == Conflict)
-        status = Unsatisfiable
-
-      val timeout: Option[Int] = Settings.timeout
-      var elapsedTime: Long = 0 //in ms
-      //assertWatchedInvariant
-      //assertTrailInvariant
-      //MAIN LOOP
-      while(status == Unknown) {
-        val startTime = System.currentTimeMillis
-        //assertWatchedInvariant
-        //assertTrailInvariant
-        decideStopWatch.time {
-          decide()
-        }
-
-        var cont = true
-        while(cont) {
-          //assertWatchedInvariant
-          //assertTrailInvariant
-          deduceStopWatch.time {
-            deduce()
-          }
-
-          if(status == Conflict) {
-            backtrackStopWatch.time {
-              backtrack()
-            }
-          } else {
-            cont = false
-          }
-        }
-        val endTime = System.currentTimeMillis
-        elapsedTime += (endTime - startTime)
-        timeout.foreach(timeout => if(elapsedTime > 1000*timeout) status = Timeout)
-      }
-    }
-
-    if(Settings.stats) {
-      println("Conflicts: " + nbConflicts)
-      println("Decisions: " + nbDecisions)
-      println("Propagations: " + nbPropagations + " ( " + (nbPropagations/deduceStopWatch.seconds).toInt + " / sec)")
-      println("Restarts: " + nbRestarts)
-      println("Learned Literals: " + nbLearntLiteralTotal + " (" + nbLearntClauseTotal + " clauses) --- " + nbLearntLiteralTotal.toDouble/nbLearntClauseTotal.toDouble + " per clause")
-      println("Removed Literals: " + nbRemovedLiteral + "(" + nbRemovedClauses + " clauses) --- " + nbRemovedLiteral.toDouble/nbRemovedClauses.toDouble + " per clause")
-      println("Active Literals: " + (nbLearntLiteralTotal - nbRemovedLiteral) + "(" + (nbLearntClauseTotal - nbRemovedClauses) + ") --- " + (nbLearntLiteralTotal - nbRemovedLiteral).toDouble/(nbLearntClauseTotal-nbRemovedClauses).toDouble + " per clause")
-
-      println("Time spend in:\n")
-      println("  toplevelloop:         " + topLevelStopWatch.seconds + " sec")
-      println("    decide:             " + decideStopWatch.seconds + " sec")
-      println("    deduce:             " + deduceStopWatch.seconds + " sec")
-      println("    backtrack:          " + backtrackStopWatch.seconds + " sec")
-      println("      conflictanalysis: " + conflictAnalysisStopWatch.seconds + " sec")
-      println("        clausemin:      " + clauseMinimizationStopWatch.seconds + " sec")
-      println("        find1uip:       " + find1UIPStopWatch.seconds + " sec")
-    }
-
-    status match {
-      case Unknown | Conflict => sys.error("unexpected")
-      case Timeout => Results.Unknown
-      case Unsatisfiable => Results.Unsatisfiable
-      case Satisfiable => Results.Satisfiable(model.map(pol => pol == 1))
-    }
+    solve_()
   }
   
 
 
   def solve(clauses: List[Clause], nbVars: Int, assumps: Array[Int]): Results.Result = {
-
-    val topLevelStopWatch = StopWatch("toplevelloop")
-    val deduceStopWatch = StopWatch("deduce")
-    val decideStopWatch = StopWatch("decide")
-    val backtrackStopWatch = StopWatch("backtrack")
     
-    nbConflicts = 0
-    nbDecisions = 0
-    nbPropagations = 0
-    nbLearntClauseTotal = 0
-    nbLearntLiteralTotal = 0
-    nbRemovedClauses = 0
-    nbRemovedLiteral = 0
-    nbRestarts = 0
     this.nbVars = nbVars
+    resetSolver()
 
-    status = Unknown
-    conflict = null
-    trail = new FixedIntStack(nbVars) //store literals, but only one polarity at the same time, so nbVar size is enough
-    qHead = 0
-    model = Array.fill(nbVars)(-1)
-    watched = Array.fill(2*nbVars)(new ClauseList(20))
-    seen = Array.fill(nbVars)(false)
-    restartInterval = Settings.restartInterval
-    nextRestart = restartInterval
-    reasons = new Array(nbVars)
-    levels = Array.fill(nbVars)(-1)
-    decisionLevel = 0
     assumptions = assumps
 
-    var newClauses: List[Clause] = Nil
-    clauses.foreach(cl => {
-      val litsUnique = cl.lits.toSet
-      if(litsUnique.size == 1) {
-        val id = litsUnique.head >> 1
-        if(model(id) == -1)
-          enqueueLiteral(litsUnique.head)
-        else if(model(id) == (litsUnique.head & 1))
-          status = Unsatisfiable
-      }
-      else if(!litsUnique.exists(l1 => litsUnique.count(l2 => (l2 >> 1) == (l1 >> 1)) > 1)) {
-        val newLits = new Clause(litsUnique.toArray)
-        newClauses ::= newLits
-      }
-    })
-    cnfFormula = new CNFFormula(newClauses, nbVars) // TODO keep learnt clauses
-    for(clause <- newClauses)
-      recordClause(clause)
+    initClauses(clauses)
 
-    topLevelStopWatch.time {
-
-      deduceStopWatch.time {
-        deduce()
-      }
-      if(status == Conflict)
-        status = Unsatisfiable
-
-      val timeout: Option[Int] = Settings.timeout
-      var elapsedTime: Long = 0 //in ms
-      //assertWatchedInvariant
-      //assertTrailInvariant
-      //MAIN LOOP
-      while(status == Unknown) {
-        val startTime = System.currentTimeMillis
-        //assertWatchedInvariant
-        //assertTrailInvariant
-        decideStopWatch.time {
-          decide()
-        }
-
-        var cont = true
-        while(cont) {
-          //assertWatchedInvariant
-          //assertTrailInvariant
-          deduceStopWatch.time {
-            deduce()
-          }
-
-          if(status == Conflict) {
-            backtrackStopWatch.time {
-              backtrack()
-            }
-          } else {
-            cont = false
-          }
-        }
-        val endTime = System.currentTimeMillis
-        elapsedTime += (endTime - startTime)
-        timeout.foreach(timeout => if(elapsedTime > 1000*timeout) status = Timeout)
-      }
-    }
-
-    if(Settings.stats) {
-      println("Conflicts: " + nbConflicts)
-      println("Decisions: " + nbDecisions)
-      println("Propagations: " + nbPropagations + " ( " + (nbPropagations/deduceStopWatch.seconds).toInt + " / sec)")
-      println("Restarts: " + nbRestarts)
-      println("Learned Literals: " + nbLearntLiteralTotal + " (" + nbLearntClauseTotal + " clauses) --- " + nbLearntLiteralTotal.toDouble/nbLearntClauseTotal.toDouble + " per clause")
-      println("Removed Literals: " + nbRemovedLiteral + "(" + nbRemovedClauses + " clauses) --- " + nbRemovedLiteral.toDouble/nbRemovedClauses.toDouble + " per clause")
-      println("Active Literals: " + (nbLearntLiteralTotal - nbRemovedLiteral) + "(" + (nbLearntClauseTotal - nbRemovedClauses) + ") --- " + (nbLearntLiteralTotal - nbRemovedLiteral).toDouble/(nbLearntClauseTotal-nbRemovedClauses).toDouble + " per clause")
-
-      println("Time spend in:\n")
-      println("  toplevelloop:         " + topLevelStopWatch.seconds + " sec")
-      println("    decide:             " + decideStopWatch.seconds + " sec")
-      println("    deduce:             " + deduceStopWatch.seconds + " sec")
-      println("    backtrack:          " + backtrackStopWatch.seconds + " sec")
-      println("      conflictanalysis: " + conflictAnalysisStopWatch.seconds + " sec")
-      println("        clausemin:      " + clauseMinimizationStopWatch.seconds + " sec")
-      println("        find1uip:       " + find1UIPStopWatch.seconds + " sec")
-    }
-
-    status match {
-      case Unknown | Conflict => sys.error("unexpected")
-      case Timeout => Results.Unknown
-      case Unsatisfiable => Results.Unsatisfiable
-      case Satisfiable => Results.Satisfiable(model.map(pol => pol == 1))
-    }
+    solve_()
   }
 
   private[this] def conflictAnalysis: Clause = {
@@ -558,12 +463,6 @@ object Solver {
       }
     }
 
-    def addClause(clause: Clause) {
-      //require((for(cl <- (originalClauses ::: learntClauses)) yield cl.lits).toSet.contains(clause.lits))
-      originalClauses ::= clause
-      nbClauses += 1
-    }
-
     override def toString: String = (learntClauses ++ originalClauses).mkString("{\n", "\n", "\n}")
   }
 
@@ -597,15 +496,14 @@ object Solver {
 
   private[this] def decide() {
     if(cnfFormula.vsidsQueue.isEmpty) {
-      println("queue empty") // TODO restore vsids queue at start
       status = Satisfiable
     } else {
 
+      // handle assumptions
       var next = 0 
       var foundNext = false
       while(decisionLevel < assumptions.size && !foundNext) {
         val p = assumptions(decisionLevel)
-        println("p: "+ p)
         if(isSat(p)) {
           nbDecisions += 1
           decisionLevel += 1
@@ -619,27 +517,12 @@ object Solver {
         }
       }
       
-      //Lit next = lit_Undef;
-      //while (decisionLevel() < assumptions.size()){
-          //// Perform user provided assumption:
-          //Lit p = assumptions[decisionLevel()];
-          //if (value(p) == l_True){
-              //// Dummy decision level:
-              //newDecisionLevel();
-          //}else if (value(p) == l_False){
-              //analyzeFinal(~p, conflict);
-              //return l_False;
-          //}else{
-              //next = p;
-              //break;
-          //}
-      //}
-      
-
       if(foundNext) {
         decisionLevel += 1
         enqueueLiteral(2*next + (nbDecisions & 1))
-      } else {
+      }
+      // regular decision
+      else {
         next = cnfFormula.vsidsQueue.deleteMax
         while(model(next) != -1 && !cnfFormula.vsidsQueue.isEmpty)
           next = cnfFormula.vsidsQueue.deleteMax
@@ -649,7 +532,6 @@ object Solver {
           decisionLevel += 1
           enqueueLiteral(2*next + (nbDecisions & 1))
         } else{
-          println("model(next) != -1")
           status = Satisfiable
         }
       }
