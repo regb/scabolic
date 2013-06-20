@@ -21,20 +21,20 @@ object API {
 
   def boolVar(): Formula = freshPropositionalVariable("v")
 
-  def solve(f: Formula, assumptions: List[Formula]): Option[Map[Formula, Boolean]] = {
-    val (clauses, nbVars, mapping) = ConjunctiveNormalForm(f) // TODO nbVars not needed because it would be out of date when there are assumptions
+  //TODO assumptions should only be literals not involved formulas
+  //     runtime check not satisfying
+  def solve(f: Formula, assumptions: List[Formula] = Nil): Option[Map[Formula, Boolean]] = {
+    val (clauses, nbVars, mapping) = ConjunctiveNormalForm(f) 
 
-    val assumps = assumptions.map{ lit =>
-      if(mapping.contains(lit))
-        mapping(lit)
-      else
-        ConjunctiveNormalForm.nextId
-    }.toArray
+    val assumps = assumptions.map{ lit => lit match {
+      case Not(v) if(mapping.contains(v)) => mapping(v)
+      case v@PropositionalVariable(_) if(mapping.contains(v)) => mapping(v)
+      case _ => sys.error(lit +" not a literal or a new variable")
+    }}.toArray
     
     println("cnf form computed")
 
-    Solver.solve(clauses.map(lits => new Clause(lits.toList)).toList,
-      ConjunctiveNormalForm.literalCounter + 1, assumps) match {
+    Solver.solve(clauses.map(lits => new Clause(lits.toList)).toList, nbVars, assumps) match {
       case Satisfiable(model) =>
         Some(mapping.map(p => (p._1, model(p._2))))
       case Unsatisfiable => None

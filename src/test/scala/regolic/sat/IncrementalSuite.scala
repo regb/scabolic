@@ -25,4 +25,6 @@ class IncrementalSuite extends FunSuite {
     val result2 = Solver.solve(Array(a.id))
     assert(result2 equals Solver.Results.Unsatisfiable)
   }
+
+  // TODO add a test where clauses are learnt by the solver
 }

@@ -66,6 +66,40 @@ object Solver {
     incrementallyAddedClauses ::= clause
   }
 
+  def solve(assumps: Array[Int]): Results.Result = {
+
+    resetSolver() 
+    
+    assumptions = assumps
+
+    // TODO learnt literals?
+    //      - nbLearntLiteralTotal
+    // adding learntClauses as originalClauses okay?
+    val tmpLearntClauses = cnfFormula.learntClauses
+    val clauses = cnfFormula.originalClauses ::: cnfFormula.learntClauses ::: incrementallyAddedClauses
+
+    initClauses(clauses)
+
+    solve_()
+  }
+  
+
+
+  def solve(clauses: List[Clause], nbVars: Int, assumps: Array[Int]): Results.Result = {
+    
+    this.nbVars = nbVars
+    resetSolver()
+
+    assumptions = assumps
+
+    // TODO reset incrementallyAddedClauses?
+    incrementallyAddedClauses = Nil
+
+    initClauses(clauses)
+
+    solve_()
+  }
+
   def solve_() = {
     val topLevelStopWatch = StopWatch("toplevelloop")
     val deduceStopWatch = StopWatch("deduce")
@@ -186,37 +220,6 @@ object Solver {
     reasons = new Array(nbVars)
     levels = Array.fill(this.nbVars)(-1)
     decisionLevel = 0
-  }
-
-  def solve(assumps: Array[Int]): Results.Result = {
-
-    resetSolver() 
-    
-    assumptions = assumps
-
-    // TODO learnt literals?
-    //      - nbLearntLiteralTotal
-    // adding learntClauses as originalClauses okay?
-    val tmpLearntClauses = cnfFormula.learntClauses
-    val clauses = cnfFormula.originalClauses ::: cnfFormula.learntClauses ::: incrementallyAddedClauses
-
-    initClauses(clauses)
-
-    solve_()
-  }
-  
-
-
-  def solve(clauses: List[Clause], nbVars: Int, assumps: Array[Int]): Results.Result = {
-    
-    this.nbVars = nbVars
-    resetSolver()
-
-    assumptions = assumps
-
-    initClauses(clauses)
-
-    solve_()
   }
 
   private[this] def conflictAnalysis: Clause = {
