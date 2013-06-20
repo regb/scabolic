@@ -49,8 +49,12 @@ reference text is in the file LICENSE, no copy of the text shall be included in
 any of the source file, but it is implicitly assumed they are available under
 the terms specified in LICENSE.
 
-The copyright for each portion of code is owned by the respective commiter, 
-based on the git history. There
-is no per file or per function copyright as this does not make sense in general.
-Sorry to be picky, but that's copyright law for you.
+BY COMMITTING TO THIS REPOSITORY, YOU ACCEPT TO RELEASE YOUR CODE UNDER
+THE TERMS OF THE MIT LICENSE AS DESCRIBE IN THE LICENSE FILE.
 
+##Copyright
+
+The copyright for each portion of code is owned by the respective committer,
+based on the git history. There is no per file or per function copyright as
+this does not make sense in general. Sorry to be picky, but that's copyright
+law for you. More information can be found in the COPYRIGHT.md file.
