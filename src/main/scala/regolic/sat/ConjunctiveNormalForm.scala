@@ -59,8 +59,8 @@ object ConjunctiveNormalForm {
         val f2Repr = rec(f2)
         constraints += Set(new Literal(repr, false), new Literal(f1Repr, false), new Literal(f2Repr, true))
         constraints += Set(new Literal(repr, false), new Literal(f1Repr, true), new Literal(f2Repr, false))
-        constraints += Set(new Literal(repr, false), new Literal(f1Repr, false), new Literal(f2Repr, false))
-        constraints += Set(new Literal(repr, false), new Literal(f1Repr, true), new Literal(f2Repr, true))
+        constraints += Set(new Literal(repr, true), new Literal(f1Repr, false), new Literal(f2Repr, false))
+        constraints += Set(new Literal(repr, true), new Literal(f1Repr, true), new Literal(f2Repr, true))
         repr
       }
       case p@PropositionalVariable(_) => varToLiteral.get(p) match {
