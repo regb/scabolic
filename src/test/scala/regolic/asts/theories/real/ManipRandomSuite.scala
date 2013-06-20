@@ -42,7 +42,7 @@ class ManipRandomSuite extends FunSuite {
     try {
       Some(Eval(t, context))
     } catch {
-      case _ => None
+      case (_: Throwable) => None
     }
   }
 
