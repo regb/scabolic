@@ -521,8 +521,9 @@ object Solver {
       }
       
       if(foundNext) {
+        nbDecisions += 1
         decisionLevel += 1
-        enqueueLiteral(2*next + (nbDecisions & 1))
+        enqueueLiteral(next)
       }
       // regular decision
       else {
