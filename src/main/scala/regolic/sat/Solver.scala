@@ -614,7 +614,7 @@ class Solver(nbVars: Int) {
 
   private[this] def deduce() {
 
-    while(qHead < trail.size && status != Conflict) {
+    while(qHead < trail.size) {
 
       val forcedLit = trail(qHead)
       //negatedLit is the literals that are made false and need updating of watchers
@@ -629,9 +629,8 @@ class Solver(nbVars: Int) {
 
         assert(lits(0) == negatedLit || lits(1) == negatedLit)
         if(lits(1) != negatedLit) {
-          val tmp = lits(1)
+          lits(0) = lits(1)
           lits(1) = negatedLit
-          lits(0) = tmp
         }
         assert(lits(1) == negatedLit)
 
@@ -646,9 +645,8 @@ class Solver(nbVars: Int) {
               i += 1
           }
           if(found) {
-            val tmp = lits(1)
             lits(1) = lits(i)
-            lits(i) = tmp
+            lits(i) = negatedLit
             watched(lits(1)).prepend(clause)
             ws.remove()
           } else {
@@ -657,7 +655,7 @@ class Solver(nbVars: Int) {
               enqueueLiteral(lits(0), clause)
             } else if(isUnsat(lits(0))) {
               status = Conflict
-              qHead == trail.size
+              qHead = trail.size
               conflict = clause
               assert(conflict.lits.forall(lit => isUnsat(lit)))
             }
