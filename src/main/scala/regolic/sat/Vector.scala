@@ -45,4 +45,28 @@ class Vector[A : ClassTag](initialSize: Int = 50) {
     next -= n        
   }
 
+  /* Linear remove algorithm, requires to find el and shift remaining */
+  def remove(el: A) {
+    var i = 0
+    var j = 0
+    while(i < next) {
+      val current = underlying(i)
+      underlying(j) = current
+      if(current != el)
+        j += 1
+      i += 1
+    }
+    shrink(i - j)
+  }
+
+  def contains(el: A): Boolean = {
+    var i = 0
+    while(i < next) {
+      if(underlying(i) == el)
+        return true
+      i += 1
+    }
+    false
+  }
+
 }

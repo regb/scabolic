@@ -98,4 +98,47 @@ class VectorSuite extends FunSuite {
     assert(v1(2) === 0)
     assert(v1.size === 3)
   }
+
+  test("remove") {
+    val v1 = new Vector[Int](50)
+    v1.append(1)
+    v1.append(2)
+    v1.append(3)
+    assert(v1.size === 3)
+    v1.remove(1)
+    assert(v1.size === 2)
+    assert(v1(0) === 2)
+    assert(v1(1) === 3)
+  }
+
+  test("contains") {
+    val v1 = new Vector[Int](50)
+    v1.append(1)
+    v1.append(2)
+    v1.append(3)
+    assert(v1.contains(2))
+    assert(v1.contains(1))
+    assert(v1.contains(3))
+    assert(!v1.contains(5))
+    assert(!v1.contains(0))
+    assert(v1.contains(2))
+  }
+
+  test("shrink") {
+    val v1 = new Vector[Int](50)
+    v1.append(1)
+    v1.append(2)
+    v1.append(3)
+    v1.append(5)
+    v1.append(1)
+    v1.append(0)
+    v1.append(2)
+    v1.append(3)
+    assert(v1.size === 8)
+    v1.shrink(5)
+    assert(v1.size === 3)
+    assert(v1(0) === 1)
+    assert(v1(1) === 2)
+    assert(v1(2) === 3)
+  }
 }

@@ -57,7 +57,7 @@ class Solver(nbVars: Int) {
   private[this] var reasons: Array[Clause] = new Array(nbVars)
   private[this] var levels: Array[Int] = Array.fill(nbVars)(-1)
   private[this] var model: Array[Int] = Array.fill(nbVars)(-1)
-  private[this] var watched: Array[ClauseList] = Array.fill(2*nbVars)(new ClauseList(20))
+  private[this] var watched: Array[Vector[Clause]] = Array.fill(2*nbVars)(new Vector(20))
   private[this] var incrementallyAddedClauses: List[Clause] = Nil
   private[this] var learntClauses: List[Clause] = Nil
   /*
@@ -93,8 +93,7 @@ class Solver(nbVars: Int) {
     reasons = new Array(nbVars)
     levels = Array.fill(nbVars)(-1)
     model = Array.fill(nbVars)(-1)
-    watched = Array.fill(2*nbVars)(new ClauseList(20))
-    
+    watched = Array.fill(2*nbVars)(new Vector(20))
     seen = Array.fill(nbVars)(false)
     status = Unknown
 
@@ -461,8 +460,8 @@ class Solver(nbVars: Int) {
   }
 
   private[this] def recordClause(cl: Clause) {
-    watched(cl.lits(0)).prepend(cl)
-    watched(cl.lits(1)).prepend(cl)
+    watched(cl.lits(0)).append(cl)
+    watched(cl.lits(1)).append(cl)
   }
 
   private[this] def unrecordClause(cl: Clause) {
@@ -622,10 +621,13 @@ class Solver(nbVars: Int) {
       assert(isAssigned(negatedLit))
       qHead += 1
 
-      val ws = watched(negatedLit).iterator
-      while(ws.hasNext() && status != Conflict) {
-        val clause = ws.next()
+      val ws: Vector[Clause] = watched(negatedLit)
+      var i = 0
+      var j = 0
+      while(i < ws.size) {
+        val clause = ws(i)
         val lits = clause.lits
+        i += 1
 
         assert(lits(0) == negatedLit || lits(1) == negatedLit)
         if(lits(1) != negatedLit) {
@@ -634,22 +636,26 @@ class Solver(nbVars: Int) {
         }
         assert(lits(1) == negatedLit)
 
-        if(isUnassigned(lits(0)) || isUnsat(lits(0))) {
-          var i = 2
+        if(isAssigned(lits(0)) && isSat(lits(0))) {
+          ws(j) = clause
+          j += 1
+        } else {
+          var newWatcherIndex = 2
           var found = false
-          while(!found && i < lits.size) {
-            val l = lits(i)
+          while(!found && newWatcherIndex < lits.size) {
+            val l = lits(newWatcherIndex)
             if(isUnassigned(l) || isSat(l))
               found = true
             else
-              i += 1
+              newWatcherIndex += 1
           }
           if(found) {
-            lits(1) = lits(i)
-            lits(i) = negatedLit
-            watched(lits(1)).prepend(clause)
-            ws.remove()
+            lits(1) = lits(newWatcherIndex)
+            lits(newWatcherIndex) = negatedLit
+            watched(lits(1)).append(clause)
           } else {
+            ws(j) = clause
+            j += 1
             if(isUnassigned(lits(0))) {
               nbPropagations += 1
               enqueueLiteral(lits(0), clause)
@@ -658,10 +664,16 @@ class Solver(nbVars: Int) {
               qHead = trail.size
               conflict = clause
               assert(conflict.lits.forall(lit => isUnsat(lit)))
+              while(i < ws.size) {
+                ws(j) = ws(i)
+                i += 1
+                j += 1
+              }
             }
           }
         }
       }
+      ws.shrink(i - j)
 
     }
 
@@ -698,16 +710,16 @@ class Solver(nbVars: Int) {
 
     for(v <- 0 until cnfFormula.nbVar) {
       val posLit = 2*v + 0
-      var it = watched(posLit).iterator
-      while(it.hasNext()) {
-        val cl = it.next()
+      val ws1 = watched(posLit)
+      for(i <- 0 until ws1.size) {
+        val cl = ws1(i)
         assert(cl.lits(0) == posLit || cl.lits(1) == posLit)
       }
 
       val negLit = 2*v + 1
-      it = watched(negLit).iterator
-      while(it.hasNext()) {
-        val cl = it.next()
+      val ws2 = watched(negLit)
+      for(i <- 0 until ws2.size) {
+        val cl = ws2(i)
         assert(cl.lits(0) == negLit || cl.lits(1) == negLit)
       }
 
