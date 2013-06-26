@@ -16,17 +16,18 @@ object Solver {
   class Clause(val lits: Array[Int]) {
     var activity: Double = 0d
     var locked = false
-    def this(listLits: List[Literal]) = this(listLits.map(lit => lit.id + lit.id + (1 - lit.polInt)).toArray)
+    def this(listLits: Set[Literal]) = this(listLits.map(lit => lit.id + lit.id + (1 - lit.polInt)).toArray)
     val size = lits.size
 
     override def toString = lits.map(lit => (if(lit % 2 == 0) "" else "-") + (lit >> 1)).mkString("[", ", ", "]")
   }
-   
+  
 }
 
 class Solver(nbVars: Int) {
 
   import Solver._
+
   /*
     This is a SAT solver, and I am trying to make it efficient, so don't expect nice functional code
     using immutable data and everything, this will be pure procedural code with many gloabl variables.
@@ -72,7 +73,7 @@ class Solver(nbVars: Int) {
 
   private[this] var cnfFormula: CNFFormula = null
   private[this] var conflict: Clause = null
-  private[this] var assumptions: Array[Int] = null
+  private[this] var assumptions: Array[Literal] = null
 
   private[this] val conflictAnalysisStopWatch = StopWatch("backtrack.conflictanalysis")
   private[this] val find1UIPStopWatch = StopWatch("backtrack.conflictanalysis.find1uip")
@@ -120,11 +121,11 @@ class Solver(nbVars: Int) {
   }
 
 
-  def addClause(clause: Clause) = {
-    incrementallyAddedClauses ::= clause
+  def addClause(lits: Set[Literal]) = {
+    incrementallyAddedClauses ::= new Clause(lits)
   }
 
-  def solve(assumps: Array[Int]): Results.Result = {
+  def solve(assumps: Array[Literal] = Array.empty[Literal]): Results.Result = {
     nbSolveCalls += 1
 
     if(nbSolveCalls > 1) {
@@ -489,7 +490,8 @@ class Solver(nbVars: Int) {
       var next = 0 // TODO next can be both a variable and a literal, which is confusing
       var foundNext = false
       while(decisionLevel < assumptions.size && !foundNext) {
-        val p = assumptions(decisionLevel)
+        val assumptionLit = assumptions(decisionLevel)
+        val p = (assumptionLit.id << 1) + (assumptionLit.polInt ^ 1) //TODO correct Literal to Int conversion
         if(isSat(p)) {
           // dummy decision level
           nbDecisions += 1

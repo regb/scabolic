@@ -67,7 +67,7 @@ object Main {
     val (satInstance, nbVars) = regolic.parsers.Dimacs.cnf(is)
     val s = new Solver(nbVars)
     satInstance.foreach(s.addClause(_))
-    val res = s.solve(Array.empty[Int])
+    val res = s.solve()
     res match {
       case Satisfiable(_) => println("sat")
       case Unsatisfiable => println("unsat")

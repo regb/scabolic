@@ -18,20 +18,19 @@ class IncrementalSuite extends FunSuite {
   test("Incremental run sat/unsat with assumption") {
     val s = new Solver(2)
 
-    val clList = List(List(na, b))
-    val clauses = clList.map(lits => new Clause(lits))
+    val clauses = List(Set(na, b))
     clauses.foreach(s.addClause(_))
-    val result1 = s.solve(Array.empty[Int])
+    val result1 = s.solve()
     assert(result1.isInstanceOf[Solver.Results.Satisfiable])
 
-    s.addClause(new Clause(List(na, nb)))
-    val result2 = s.solve(Array(a.id))
+    s.addClause(Set(na, nb))
+    val result2 = s.solve(Array(a))
     assert(result2 equals Solver.Results.Unsatisfiable)
   }
 
   test("empty solve call") {
     val s = new Solver(0)
-    val result = s.solve(Array.empty[Int])
+    val result = s.solve()
     // vacuously true (sat) should be okay
     assert(result.isInstanceOf[Solver.Results.Satisfiable])
   }
