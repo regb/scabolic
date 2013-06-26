@@ -114,7 +114,7 @@ class Solver(nbVars: Int) {
         newClauses ::= newLits
       }
     })
-    cnfFormula = new CNFFormula(newClauses, nbVars) // TODO keep learnt clauses
+    cnfFormula = new CNFFormula(newClauses, nbVars)
     for(clause <- newClauses)
       recordClause(clause)
   }
@@ -486,14 +486,14 @@ class Solver(nbVars: Int) {
     } else {
 
       // handle assumptions
-      var next = 0 // TODO next can be both a variable and a literal
+      var next = 0 // TODO next can be both a variable and a literal, which is confusing
       var foundNext = false
       while(decisionLevel < assumptions.size && !foundNext) {
         val p = assumptions(decisionLevel)
         if(isSat(p)) {
+          // dummy decision level
           nbDecisions += 1
           decisionLevel += 1
-          // dummy decision level
         } else if(isUnsat(p)) {
           status = Unsatisfiable
           return
