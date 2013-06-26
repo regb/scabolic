@@ -73,7 +73,7 @@ class Solver(nbVars: Int) {
 
   private[this] var cnfFormula: CNFFormula = null
   private[this] var conflict: Clause = null
-  private[this] var assumptions: Array[Literal] = null
+  private[this] var assumptions: Array[Int] = null
 
   private[this] val conflictAnalysisStopWatch = StopWatch("backtrack.conflictanalysis")
   private[this] val find1UIPStopWatch = StopWatch("backtrack.conflictanalysis.find1uip")
@@ -130,11 +130,11 @@ class Solver(nbVars: Int) {
 
     if(nbSolveCalls > 1) {
       resetSolver()
-      this.learntClauses :::= cnfFormula.learntClauses // save learntClauses from previous run
+      this.learntClauses :::= cnfFormula.learntClauses // save learnt clauses from previous run
     }
     initClauses(this.learntClauses ::: incrementallyAddedClauses)
 
-    assumptions = assumps
+    assumptions = assumps.map((lit: Literal) => (lit.id << 1) + lit.polInt ^ 1) // TODO correct literal to int conversion
 
     search()
   }
@@ -490,8 +490,7 @@ class Solver(nbVars: Int) {
       var next = 0 // TODO next can be both a variable and a literal, which is confusing
       var foundNext = false
       while(decisionLevel < assumptions.size && !foundNext) {
-        val assumptionLit = assumptions(decisionLevel)
-        val p = (assumptionLit.id << 1) + (assumptionLit.polInt ^ 1) //TODO correct Literal to Int conversion
+        val p = assumptions(decisionLevel)
         if(isSat(p)) {
           // dummy decision level
           nbDecisions += 1
