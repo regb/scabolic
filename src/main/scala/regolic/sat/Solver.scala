@@ -4,7 +4,29 @@ import regolic.Settings
 import regolic.StopWatch
 
 object Solver {
+  /* The results, unknown means timeout */
+  object Results {
+    sealed trait Result
+    case class Satisfiable(model: Array[Boolean]) extends Result
+    case object Unsatisfiable extends Result
+    case object Unknown extends Result
+  }
 
+  //ignore size 1 for watched literal, they are never kept in the db
+  class Clause(val lits: Array[Int]) {
+    var activity: Double = 0d
+    var locked = false
+    def this(listLits: List[Literal]) = this(listLits.map(lit => lit.id + lit.id + (1 - lit.polInt)).toArray)
+    val size = lits.size
+
+    override def toString = lits.map(lit => (if(lit % 2 == 0) "" else "-") + (lit >> 1)).mkString("[", ", ", "]")
+  }
+   
+}
+
+class Solver(nbVars: Int) {
+
+  import Solver._
   /*
     This is a SAT solver, and I am trying to make it efficient, so don't expect nice functional code
     using immutable data and everything, this will be pure procedural code with many gloabl variables.
@@ -18,14 +40,6 @@ object Solver {
   private case object Unknown extends Status
   private case object Timeout extends Status
 
-  /* The results, unknown means timeout */
-  object Results {
-    sealed trait Result
-    case class Satisfiable(model: Array[Boolean]) extends Result
-    case object Unsatisfiable extends Result
-    case object Unknown extends Result
-  }
-  
   private[this] var nbConflicts = 0
   private[this] var nbDecisions = 0
   private[this] var nbPropagations = 0
@@ -34,73 +48,97 @@ object Solver {
   private[this] var nbRemovedClauses = 0
   private[this] var nbRemovedLiteral = 0
   private[this] var nbRestarts = 0
-  private[this] var nbVars = 0
+  private[this] var nbSolveCalls = 0
          
   private[this] var decisionLevel = 0
-  private[this] var trail: FixedIntStack = null
+  private[this] var trail: FixedIntStack = new FixedIntStack(nbVars) //store literals, but only one polarity at the same time, so nbVar size is enough
   private[this] var qHead = 0
-  private[this] var reasons: Array[Clause] = null
-  private[this] var levels: Array[Int] = null
-  private[this] var conflict: Clause = null
-  private[this] var model: Array[Int] = null
-  private[this] var watched: Array[ClauseList] = null
+  private[this] var reasons: Array[Clause] = new Array(nbVars)
+  private[this] var levels: Array[Int] = Array.fill(nbVars)(-1)
+  private[this] var model: Array[Int] = Array.fill(nbVars)(-1)
+  private[this] var watched: Array[ClauseList] = Array.fill(2*nbVars)(new ClauseList(20))
   private[this] var incrementallyAddedClauses: List[Clause] = Nil
+  private[this] var learntClauses: List[Clause] = Nil
   /*
    * seen can be used locally for algorithms to maintain variables that have been seen
    * They should maintain the invariant that seen is set to false everywhere.
    * History proved that locally initializing this array where needed was a killer for performance.
    */
-  private[this] var seen: Array[Boolean] = null 
-  private[this] var cnfFormula: CNFFormula = null
+  private[this] var seen: Array[Boolean] = Array.fill(nbVars)(false)
   private[this] var status: Status = Unknown
   private[this] var restartInterval = Settings.restartInterval
   private[this] var nextRestart = restartInterval
   private[this] val restartFactor = Settings.restartFactor
+
+  private[this] var cnfFormula: CNFFormula = null
+  private[this] var conflict: Clause = null
   private[this] var assumptions: Array[Int] = null
 
   private[this] val conflictAnalysisStopWatch = StopWatch("backtrack.conflictanalysis")
   private[this] val find1UIPStopWatch = StopWatch("backtrack.conflictanalysis.find1uip")
   private[this] val clauseMinimizationStopWatch = StopWatch("backtrack.conflictanalysis.clauseminimization")
 
+  def resetSolver() {
+    nbConflicts = 0
+    nbDecisions = 0
+    nbPropagations = 0
+    nbRemovedClauses = 0
+    nbRemovedLiteral = 0
+    nbRestarts = 0
+    
+    decisionLevel = 0
+    trail = new FixedIntStack(nbVars) //store literals, but only one polarity at the same time, so nbVar size is enough
+    qHead = 0
+    reasons = new Array(nbVars)
+    levels = Array.fill(nbVars)(-1)
+    model = Array.fill(nbVars)(-1)
+    watched = Array.fill(2*nbVars)(new ClauseList(20))
+    
+    seen = Array.fill(nbVars)(false)
+    status = Unknown
+  }
+
+  def initClauses(clauses: List[Clause]) {
+    var newClauses: List[Clause] = Nil
+    clauses.foreach(cl => {
+      val litsUnique = cl.lits.toSet
+      if(litsUnique.size == 1) {
+        val id = litsUnique.head >> 1
+        if(model(id) == -1)
+          enqueueLiteral(litsUnique.head)
+        else if(model(id) == (litsUnique.head & 1))
+          status = Unsatisfiable
+      }
+      else if(!litsUnique.exists(l1 => litsUnique.count(l2 => (l2 >> 1) == (l1 >> 1)) > 1)) {
+        val newLits = new Clause(litsUnique.toArray)
+        newClauses ::= newLits
+      }
+    })
+    cnfFormula = new CNFFormula(newClauses, nbVars) // TODO keep learnt clauses
+    for(clause <- newClauses)
+      recordClause(clause)
+  }
+
+
   def addClause(clause: Clause) = {
     incrementallyAddedClauses ::= clause
   }
 
   def solve(assumps: Array[Int]): Results.Result = {
+    nbSolveCalls += 1
 
-    resetSolver() 
-    
+    if(nbSolveCalls > 1) {
+      resetSolver()
+      this.learntClauses :::= cnfFormula.learntClauses // save learntClauses from previous run
+    }
+    initClauses(this.learntClauses ::: incrementallyAddedClauses)
+
     assumptions = assumps
 
-    // TODO learnt literals?
-    //      - nbLearntLiteralTotal
-    // adding learntClauses as originalClauses okay?
-    val tmpLearntClauses = cnfFormula.learntClauses
-    val clauses = cnfFormula.originalClauses ::: cnfFormula.learntClauses ::: incrementallyAddedClauses
-
-    initClauses(clauses)
-
-    solve_()
+    search()
   }
   
-
-
-  def solve(clauses: List[Clause], nbVars: Int, assumps: Array[Int]): Results.Result = {
-    
-    this.nbVars = nbVars
-    resetSolver()
-
-    assumptions = assumps
-
-    // TODO reset incrementallyAddedClauses?
-    incrementallyAddedClauses = Nil
-
-    initClauses(clauses)
-
-    solve_()
-  }
-
-  def solve_() = {
+  private[this] def search(): Results.Result = {
     val topLevelStopWatch = StopWatch("toplevelloop")
     val deduceStopWatch = StopWatch("deduce")
     val decideStopWatch = StopWatch("decide")
@@ -175,51 +213,6 @@ object Solver {
       case Satisfiable => Results.Satisfiable(model.map(pol => pol == 1))
     }
   
-  }
-
-  def initClauses(clauses: List[Clause]) {
-    var newClauses: List[Clause] = Nil
-    clauses.foreach(cl => {
-      val litsUnique = cl.lits.toSet
-      if(litsUnique.size == 1) {
-        val id = litsUnique.head >> 1
-        if(model(id) == -1)
-          enqueueLiteral(litsUnique.head)
-        else if(model(id) == (litsUnique.head & 1))
-          status = Unsatisfiable
-      }
-      else if(!litsUnique.exists(l1 => litsUnique.count(l2 => (l2 >> 1) == (l1 >> 1)) > 1)) {
-        val newLits = new Clause(litsUnique.toArray)
-        newClauses ::= newLits
-      }
-    })
-    cnfFormula = new CNFFormula(newClauses, nbVars) // TODO keep learnt clauses
-    for(clause <- newClauses)
-      recordClause(clause)
-  }
-
-  def resetSolver() {
-    nbConflicts = 0
-    nbDecisions = 0
-    nbPropagations = 0
-    nbRemovedClauses = 0
-    nbRemovedLiteral = 0
-    nbRestarts = 0
-    nbLearntClauseTotal = 0
-    nbLearntLiteralTotal = 0
-
-    status = Unknown
-    conflict = null
-    trail = new FixedIntStack(this.nbVars) //store literals, but only one polarity at the same time, so nbVar size is enough
-    qHead = 0
-    model = Array.fill(nbVars)(-1)
-    watched = Array.fill(2*nbVars)(new ClauseList(20))
-    seen = Array.fill(this.nbVars)(false)
-    restartInterval = Settings.restartInterval
-    nextRestart = restartInterval
-    reasons = new Array(nbVars)
-    levels = Array.fill(this.nbVars)(-1)
-    decisionLevel = 0
   }
 
   private[this] def conflictAnalysis: Clause = {
@@ -345,16 +338,6 @@ object Solver {
   def isSat(lit: Int): Boolean = (model(lit >> 1) ^ (lit & 1)) == 1
   def isUnsat(lit: Int): Boolean = (model(lit >> 1) ^ (lit & 1)) == 0
 
-
-  //ignore size 1 for watched literal, they are never kept in the db
-  class Clause(val lits: Array[Int]) {
-    var activity: Double = 0d
-    var locked = false
-    def this(listLits: List[Literal]) = this(listLits.map(lit => lit.id + lit.id + (1 - lit.polInt)).toArray)
-    val size = lits.size
-
-    override def toString = lits.map(lit => (if(lit % 2 == 0) "" else "-") + (lit >> 1)).mkString("[", ", ", "]")
-  }
 
   class CNFFormula(var originalClauses: List[Clause], val nbVar: Int) {
     require(originalClauses.forall(cl => cl.lits.forall(lit => lit >= 0 && lit < 2*nbVar)))
@@ -503,7 +486,7 @@ object Solver {
     } else {
 
       // handle assumptions
-      var next = 0 
+      var next = 0 // TODO next can be both a variable and a literal
       var foundNext = false
       while(decisionLevel < assumptions.size && !foundNext) {
         val p = assumptions(decisionLevel)

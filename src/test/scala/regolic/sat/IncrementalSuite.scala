@@ -16,14 +16,24 @@ class IncrementalSuite extends FunSuite {
   private val emptyClause = Set[Literal]()
 
   test("Incremental run sat/unsat with assumption") {
-    val clList = List(List(na, b), List(nb, c))
+    val s = new Solver(2)
+
+    val clList = List(List(na, b))
     val clauses = clList.map(lits => new Clause(lits))
-    val result1 = Solver.solve(clauses, 3, Array.empty[Int])
+    clauses.foreach(s.addClause(_))
+    val result1 = s.solve(Array.empty[Int])
     assert(result1.isInstanceOf[Solver.Results.Satisfiable])
 
-    Solver.addClause(new Clause(List(na, nc)))
-    val result2 = Solver.solve(Array(a.id))
+    s.addClause(new Clause(List(na, nb)))
+    val result2 = s.solve(Array(a.id))
     assert(result2 equals Solver.Results.Unsatisfiable)
+  }
+
+  test("empty solve call") {
+    val s = new Solver(0)
+    val result = s.solve(Array.empty[Int])
+    // vacuously true (sat) should be okay
+    assert(result.isInstanceOf[Solver.Results.Satisfiable])
   }
 
   // TODO add a test where clauses are learnt by the solver

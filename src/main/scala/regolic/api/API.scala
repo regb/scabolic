@@ -34,7 +34,9 @@ object API {
     
     println("cnf form computed")
 
-    Solver.solve(clauses.map(lits => new Clause(lits.toList)).toList, nbVars, assumps) match {
+    val s = new Solver(nbVars)
+    clauses.foreach((lits: Set[Literal]) => s.addClause(new Clause(lits.toList)))
+    s.solve(assumps) match {
       case Satisfiable(model) =>
         Some(mapping.map(p => (p._1, model(p._2))))
       case Unsatisfiable => None

@@ -62,9 +62,12 @@ object Main {
 
   def satSolver(f: File) = {
 
+
     val is = new java.io.FileInputStream(f)
     val (satInstance, nbVars) = regolic.parsers.Dimacs.cnf(is)
-    val res = Solver.solve(satInstance, nbVars, Array.empty[Int])
+    val s = new Solver(nbVars)
+    satInstance.foreach(s.addClause(_))
+    val res = s.solve(Array.empty[Int])
     res match {
       case Satisfiable(_) => println("sat")
       case Unsatisfiable => println("unsat")
