@@ -97,6 +97,13 @@ class Solver(nbVars: Int) {
     
     seen = Array.fill(nbVars)(false)
     status = Unknown
+
+    restartInterval = Settings.restartInterval
+    nextRestart = restartInterval
+
+    conflictAnalysisStopWatch.reset()
+    find1UIPStopWatch.reset()
+    clauseMinimizationStopWatch.reset()
   }
 
   def initClauses(clauses: List[Clause]) {

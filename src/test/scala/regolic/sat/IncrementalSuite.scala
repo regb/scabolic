@@ -21,19 +21,40 @@ class IncrementalSuite extends FunSuite {
     val clauses = List(Set(na, b))
     clauses.foreach(s.addClause(_))
     val result1 = s.solve()
-    assert(result1.isInstanceOf[Solver.Results.Satisfiable])
+    assert(result1.isInstanceOf[Satisfiable])
 
     s.addClause(Set(na, nb))
     val result2 = s.solve(Array(a))
-    assert(result2 equals Solver.Results.Unsatisfiable)
+    assert(result2 equals Unsatisfiable)
   }
 
   test("empty solve call") {
     val s = new Solver(0)
     val result = s.solve()
     // vacuously true (sat) should be okay
-    assert(result.isInstanceOf[Solver.Results.Satisfiable])
+    assert(result.isInstanceOf[Satisfiable])
   }
 
-  // TODO add a test where clauses are learnt by the solver
+  test("large dimacs example") {
+    val is = getClass.getResourceAsStream("/uuf100-013.cnf")
+    val (satInstance, nbVars) = regolic.parsers.Dimacs.cnf(is)
+    val s = new Solver(nbVars)
+
+    var i = 0
+    var sResult: Result = Unknown
+    for(c <- satInstance) {
+      s.addClause(c)
+      sResult = s.solve()
+      i += 1
+
+      // reference solver (all clauses added immediately)
+      val r = new Solver(nbVars)
+      satInstance.take(i).foreach(r.addClause(_))
+      val rResult = r.solve()
+      assert(sResult.getClass === rResult.getClass) // TODO is there a better way to do this comparison?
+    }
+
+    assert(sResult equals Unsatisfiable)
+  }
+
 }

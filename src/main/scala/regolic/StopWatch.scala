@@ -30,21 +30,21 @@ object StopWatch {
 
 class StopWatch private (tag: String) {
 
-  private var elasped: Long = 0
+  private var elapsed: Long = 0
 
   def time[A](code: => A): A = {
     val timeBegin = System.nanoTime
     val res: A = code
     val timeElapsed = System.nanoTime - timeBegin
-    elasped += timeElapsed
+    elapsed += timeElapsed
     res
   }
 
-  def seconds: Double = elasped/1e9
-  def nano: Long = elasped
+  def seconds: Double = elapsed/1e9
+  def nano: Long = elapsed
 
-  //def reset() {
-  //  elasped = 0
-  //}
+  def reset() {
+    elapsed = 0
+  }
 
 }
