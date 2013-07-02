@@ -6,12 +6,12 @@ import regolic.asts.fol.Trees._
 
 object ConjunctiveNormalForm {
 
-  def apply(formula: Formula): (Set[Set[Literal]], Int, Map[PredicateApplication, Int]) = {
+  def apply(formula: Formula): (Set[Set[Literal]], Int, Map[Formula, Int]) = {
     import scala.collection.mutable.HashMap
     import scala.collection.mutable.ListBuffer
 
     val constraints = new ListBuffer[Set[Literal]]
-    var varToLiteral = new HashMap[PredicateApplication, Int]()
+    var varToLiteral = new HashMap[Formula, Int]()
 
     var literalCounter = -1
     def nextId(): Int = {

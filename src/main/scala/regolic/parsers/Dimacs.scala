@@ -6,7 +6,6 @@ import java.io.InputStream
 import regolic.asts.core.Trees._
 import regolic.asts.fol.Trees._
 
-import regolic.sat.Solver._
 import regolic.sat.Literal
 
 /*
@@ -32,9 +31,9 @@ import regolic.sat.Literal
 
 object Dimacs {
 
-  def cnf(input: InputStream): (List[Clause], Int) = {
+  def cnf(input: InputStream): (List[Set[Literal]], Int) = {
 
-    var clauses: List[Clause] = Nil
+    var clauses: List[Set[Literal]] = Nil
     var nbClauses: Option[Int] = None
     var currentClause: List[Int] = Nil
     var nbVariables = 0
@@ -69,7 +68,7 @@ object Dimacs {
             if(!numbers.isEmpty)
               numbers.map(i => {
                 if(i == 0 && currentClause != Nil) {
-                  clauses ::= new Clause(currentClause.map(i => if(i > 0) new Literal(i-1, 1) else new Literal(-i-1, 0)))
+                  clauses ::= (currentClause.map(i => if(i > 0) new Literal(i-1, 1) else new Literal(-i-1, 0))).toSet
                   currentClause = Nil
                 } else
                   currentClause ::= i
