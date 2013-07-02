@@ -22,7 +22,7 @@ class IncrementalSuite extends FunSuite {
 
     s.addClause(Set(na, nb))
     val result2 = s.solve(Array(a))
-    assert(result2 equals Unsatisfiable)
+    assert(result2.isInstanceOf[Unsatisfiable])
   }
 
   test("empty solve call") {
@@ -48,10 +48,10 @@ class IncrementalSuite extends FunSuite {
       val r = new Solver(nbVars)
       satInstance.take(i).foreach(r.addClause(_))
       val rResult = r.solve()
-      assert(sResult.getClass === rResult.getClass) // TODO is there a better way to do this comparison?
+      assert(sResult.getClass === rResult.getClass)
     }
 
-    assert(sResult equals Unsatisfiable)
+    assert(sResult.isInstanceOf[Unsatisfiable])
   }
 
 }

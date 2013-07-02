@@ -41,7 +41,7 @@ object API {
     s.solve(assumps) match {
       case Satisfiable(model) =>
         Some(mapping.map(p => (p._1, model(p._2))))
-      case Unsatisfiable => None
+      case Unsatisfiable(_) => None
       case Unknown =>
         sys.error("shouldn't be unknown")
     }

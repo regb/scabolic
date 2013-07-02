@@ -70,7 +70,7 @@ object Main {
     val res = s.solve()
     res match {
       case Satisfiable(_) => println("sat")
-      case Unsatisfiable => println("unsat")
+      case Unsatisfiable(_) => println("unsat")
       case Unknown => println("unknown")
     }
     res
