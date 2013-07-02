@@ -11,9 +11,6 @@ class IncrementalSuite extends FunSuite {
   private val na = new Literal(0, false)
   private val b = new Literal(1, true)
   private val nb = new Literal(1, false)
-  private val c = new Literal(2, true)
-  private val nc = new Literal(2, false)
-  private val emptyClause = Set[Literal]()
 
   test("Incremental run sat/unsat with assumption") {
     val s = new Solver(2)
