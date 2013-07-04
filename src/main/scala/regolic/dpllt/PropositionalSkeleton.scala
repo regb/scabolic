@@ -7,12 +7,14 @@ import regolic.asts.fol.Trees._
 
 object PropositionalSkeleton {
 
-  def apply(formula: Formula): (Set[Set[Literal]], Int, Map[Formula, Int]) = {
+  def apply(formula: Formula): (Set[Set[Literal]], Int, Map[Int, Formula]) = {
     import scala.collection.mutable.HashMap
     import scala.collection.mutable.ListBuffer
 
+    var eqToId = new HashMap[Formula, Int]()
+
     val constraints = new ListBuffer[Set[Literal]]
-    var eqToPropLiteral = new HashMap[Formula, Int]()
+    var idToEq = new HashMap[Int, Formula]()
 
     var literalCounter = -1
     def nextId(): Int = {
@@ -23,11 +25,12 @@ object PropositionalSkeleton {
     //for each subformula, create a new representation and add the constraints while returning the representation
     def rec(form: Formula): Int = form match {
       case e@Equals(t1@Variable(_, _), t2@Variable(_, _)) => {
-        eqToPropLiteral.get(e) match {
+        eqToId.get(e) match {
           case Some(repr) => repr
           case None => {
             val repr = nextId()
-            eqToPropLiteral(e) = repr
+            eqToId(e) = repr
+            idToEq(repr) = e
             repr
           }
         }
@@ -80,7 +83,7 @@ object PropositionalSkeleton {
     val repr = rec(formula)
     constraints += Set(new Literal(repr, true))
      
-    (constraints.toSet, literalCounter + 1, eqToPropLiteral.toMap)
+    (constraints.toSet, literalCounter + 1, idToEq.toMap)
   }
 
 }
