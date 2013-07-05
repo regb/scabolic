@@ -5,9 +5,13 @@ repository (Scabolic). It is written in English: not in legal language.
 
 ##Copyright Owners
 
-The following persons hold copyright on at least one part of Scabolic:
+The following persons hold copyright on some part of Scabolic:
 
 * Régis Blanc (regwblanc@gmail.com)
+* Matthias Schlaipfer (m.schlaipfer@gmail.com)
+
+You could gather this information from git, it is just provided here as
+a quick reference and is not authoritative.
 
 ##Tracking Copyright Information
 
