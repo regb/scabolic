@@ -5,9 +5,13 @@ import scala.collection.mutable.Set
 import scala.collection.mutable.ArrayBuffer
 
 package object congruenceclosure {
-  abstract class Term(name: String)
+  abstract class Term(name: String) {
+    override def toString = name
+  }
 
-  case class Function(name: String, args: Pair[Constant, Constant]) extends Term(name) 
+  case class Function(name: String, args: Pair[Constant, Constant]) extends Term(name) {
+    override def toString = name +"("+ args._1 +","+ args._2 +")"
+  }
 
   case class Constant(name: String) extends Term(name)
 
@@ -31,20 +35,26 @@ package congruenceclosure {
       
     val pending: Queue[Any] = Queue()
 
-    val useList: Map[Constant, Queue[Equation]] = Map().withDefaultValue(
-      Queue[Equation]())
+    val useList: Map[Constant, Queue[Equation]] = Map().withDefaultValue(Queue())
 
     val lookup: Map[(Term, Term), Option[Equation]] = Map().withDefaultValue(None)
 
     val classList: Map[Constant, Queue[Constant]] = Map() ++ elems.map(el =>
       (el, Queue(el)))
 
-    println("elems:\n"+ elems.mkString("\n"))
+    def initUseList(key: Constant) {
+      if(!useList.contains(key))
+        useList(key) = Queue()
+    }
+    def addToUseList(k: Constant, v: Equation) {
+      if(!useList.contains(k))
+        useList(k) = Queue()
+      useList(k).enqueue(v)
+    }
 
     def merge(eq: Equation) {
-      println("merging: "+ eq)
       eq match {
-        case (s: Constant, t: Constant) => {
+        case (a: Constant, b: Constant) => {
           pending.enqueue(eq)
           propagate()
         }
@@ -56,8 +66,9 @@ package congruenceclosure {
             }
             case _ => {
               lookup((repr(a1),repr(a2))) = Some(eq)
-              useList(repr(a1)).enqueue(eq)
-              useList(repr(a2)).enqueue(eq)
+
+              addToUseList(repr(a1), eq)
+              addToUseList(repr(a2), eq)
             }
           }
         }
@@ -67,13 +78,14 @@ package congruenceclosure {
     private def propagate() {
       while(pending.nonEmpty) {
         val e = pending.dequeue()
-        val (a,b) = e match {
+        
+        val p = e match {
           case (a: Constant, b: Constant) => (a,b)
           case ((_, a: Constant), (_, b: Constant)) => (a,b)
         }
-        println("(a,b): "+ (a,b) +", (a',b'): "+ (repr(a), repr(b)))
+        val (a,b) = if(classList(repr(p._1)).size > classList(repr(p._2)).size) p.swap else p
 
-        if(repr(a) != repr(b) && classList(repr(a)).size <= classList(repr(b)).size) {
+        if(repr(a) != repr(b)) {
           val oldreprA = repr(a)
           edges((a,b)) = e
 
@@ -86,14 +98,15 @@ package congruenceclosure {
           while(useList(oldreprA).nonEmpty) {
             val f1 = useList(oldreprA).dequeue
             val (Function(_, (c1, c2)),c) = f1
+
             lookup(repr(c1), repr(c2)) match {
               case Some(f2@(Function(_, (d1, d2)), d)) => {
-                println("adding: "+ (f1, f2))
                 pending.enqueue((f1, f2))
               }
               case _ => {
                 lookup((repr(c1), repr(c2))) = Some(f1)
-                useList(repr(b)).enqueue(f1)
+
+                addToUseList(repr(b), f1)
               }
             }
           }
@@ -143,7 +156,6 @@ package congruenceclosure {
       val cg = new CongruenceClosure(eqs)
       cg.eqs.foreach(cg.merge)
 
-      println("\nrepr: "+ cg.repr.mkString(", "))
       println("\nedges: "+ cg.edges.mkString(", "))
     }
 
