@@ -7,6 +7,8 @@ import scala.collection.mutable.ArrayBuffer
 package object congruenceclosure {
   abstract class Term(name: String) {
     override def toString = name
+
+    //implicit def toInt = this.id
   }
 
   case class Function(name: String, args: Pair[Constant, Constant]) extends Term(name) {
@@ -29,28 +31,25 @@ package congruenceclosure {
     val elems: Set[Constant] = Set() ++ eqs.foldRight(List.empty[Constant])((eq,l) =>
       extractConstants(eq._1) ::: extractConstants(eq._2) ::: l)
 
-    val edges: Map[(Term,Term), Any] = Map()
+    val edges: Map[Constant,Constant] = Map()
+    val labels: Map[Constant,Any] = Map()
 
     val repr: Map[Constant,Constant] = Map() ++ elems.zip(elems)
       
     val pending: Queue[Any] = Queue()
 
-    val useList: Map[Constant, Queue[Equation]] = Map().withDefaultValue(Queue())
+    val useList = new HashMap[Constant, Queue[Equation]] {
+      override def default(k: Constant) = {
+        val v = Queue[Equation]()
+        this += (k -> v)
+        v
+      }
+    }
 
     val lookup: Map[(Term, Term), Option[Equation]] = Map().withDefaultValue(None)
 
     val classList: Map[Constant, Queue[Constant]] = Map() ++ elems.map(el =>
       (el, Queue(el)))
-
-    def initUseList(key: Constant) {
-      if(!useList.contains(key))
-        useList(key) = Queue()
-    }
-    def addToUseList(k: Constant, v: Equation) {
-      if(!useList.contains(k))
-        useList(k) = Queue()
-      useList(k).enqueue(v)
-    }
 
     def merge(eq: Equation) {
       eq match {
@@ -66,13 +65,33 @@ package congruenceclosure {
             }
             case _ => {
               lookup((repr(a1),repr(a2))) = Some(eq)
-
-              addToUseList(repr(a1), eq)
-              addToUseList(repr(a2), eq)
+              useList(repr(a1)).enqueue(eq)
+              useList(repr(a2)).enqueue(eq)
             }
           }
         }
       }
+    }
+
+    def computePath(e: Constant): List[(Constant, Constant)] = {
+      def innerComputePath(e: Constant, acc: List[(Constant, Constant)]): List[(Constant, Constant)] = {
+        if(!edges.contains(e))
+          acc
+        else {
+          val edge = (e, edges(e))
+          innerComputePath(edges(e), edge :: acc)
+        }
+      }
+      val retVal = innerComputePath(e, Nil)
+      retVal
+    }
+
+    def insertEdge(e: Constant, ePrime: Constant) = {
+      computePath(e).foreach(edge => {
+          edges(edge._2) = edge._1
+          edges -= edge._1
+        })
+      edges(e) = ePrime
     }
     
     private def propagate() {
@@ -83,11 +102,14 @@ package congruenceclosure {
           case (a: Constant, b: Constant) => (a,b)
           case ((_, a: Constant), (_, b: Constant)) => (a,b)
         }
-        val (a,b) = if(classList(repr(p._1)).size > classList(repr(p._2)).size) p.swap else p
+        val (a, b) = if(classList(repr(p._1)).size > classList(repr(p._2)).size) p.swap else p
 
         if(repr(a) != repr(b)) {
           val oldreprA = repr(a)
-          edges((a,b)) = e
+          //println("insertEdge: "+ (a, b) +" sizes: "+ (classList(repr(a)).size,
+            //classList(repr(b)).size))
+          insertEdge(a, b)
+          labels(a) = e
 
           while(classList(oldreprA).nonEmpty) {
             val c = classList(oldreprA).dequeue()
@@ -96,7 +118,7 @@ package congruenceclosure {
           }
 
           while(useList(oldreprA).nonEmpty) {
-            val f1 = useList(oldreprA).dequeue
+            val f1 = useList(oldreprA).dequeue()
             val (Function(_, (c1, c2)),c) = f1
 
             lookup(repr(c1), repr(c2)) match {
@@ -106,13 +128,11 @@ package congruenceclosure {
               case _ => {
                 lookup((repr(c1), repr(c2))) = Some(f1)
 
-                addToUseList(repr(b), f1)
+                useList(repr(b)).enqueue(f1)
               }
             }
           }
-
         }
-
       }
     }
 
@@ -136,8 +156,104 @@ package congruenceclosure {
       normalize(s) == normalize(t)
     }
 
-    def explain(): Option[Array[Equation]] = {
-      None
+    val pendingProofs: Queue[(Constant, Constant)] = Queue()
+    val highestNode: Map[Constant, Constant] = Map()
+    val eqClass: Map[Constant,Constant] = Map() ++ elems.zip(elems)
+
+    def findEqClass(x: Constant): Constant = {
+      if(eqClass(x) == x)
+        x
+      else
+        findEqClass(eqClass(x))
+    }
+
+    // TODO lazy, efficient?
+    def computeHighestNode(c: Constant): Constant = {
+      println("c: "+ c)
+      def computeHighestNodeInner(x: Constant): Constant = {
+        if(highestNode.contains(x))
+          highestNode(x)
+        else {
+          if(!edges.contains(x) || eqClass(edges(x)) != eqClass(c)) 
+            x
+          else
+            computeHighestNodeInner(edges(x))
+        }
+      }
+      val highest = computeHighestNodeInner(c)
+      highestNode(c) = highest
+      println("highest: "+ highest)
+      highest
+    }
+
+    def nearestCommonAncestor(a: Constant, b: Constant): Option[Constant] = {
+      var i = a
+      var j = b
+      var m = 0
+      val visited = Map[Constant, Boolean]().withDefaultValue(false)
+      while(true) {
+        if(visited(i) == true) 
+          return Some(i)
+        if(visited(j) == true) 
+          return Some(j)
+
+        // TODO see if it makes sense to optimize counting mechanism (m+=2 if
+        // only one pointer running
+        if(m % 2 == 0 && edges.contains(i)) {
+          i = edges(i)
+          visited(i) = true
+        } else if(m % 2 == 1 && edges.contains(j)) {
+          j = edges(j)
+          visited(j) = true
+        } else if(!edges.contains(i) && !edges.contains(j)) {
+          return None
+        }
+        m += 1
+      }
+
+      throw new Exception("Unreachable code")
+    }
+
+    def explain(c1: Constant, c2: Constant) {
+      pendingProofs.enqueue((c1, c2))
+      while(pendingProofs.nonEmpty) {
+        val (a, b) = pendingProofs.dequeue()
+        //println("highestNode:\n"+highestNode.mkString("\n"))
+        val c = computeHighestNode(findEqClass(
+          nearestCommonAncestor(a, b) match {
+            case Some(x) => {println("nearestCommonAncestor("+a+","+b+"): "+ x); x}
+            case None => throw new Exception("No common ancestor "+ (a,b))
+          }
+        ))
+        explainAlongPath(a, c)
+        explainAlongPath(b, c)
+      }
+    }
+
+    def explainAlongPath(aL: Constant, c: Constant) {
+      var a = computeHighestNode(findEqClass(aL))
+
+      println("Explaining "+ (aL, c))
+      while(a != c) {
+        val b = edges(a)
+        labels(a) match {
+          case (a: Constant, b: Constant) => println((a, b))
+          case ((fa@Function(_, (a1, a2)), a: Constant), (fb@Function(_, (b1,
+            b2)), b: Constant)) => {
+            println((fa, a) +", "+ (fb, b))
+            // TODO sufficient? nca call for constant not in proof tree?
+            if(a1 != b1)
+              pendingProofs.enqueue((a1, b1))
+            if(a2 != b2)
+              pendingProofs.enqueue((a2, b2))
+          }
+        }
+        // UNION
+        eqClass(a) = findEqClass(b)
+        highestNode(a) = computeHighestNode(findEqClass(b)) //TODO just b should be enough since b is in same eqClass as findEqClass(b)
+
+        a = computeHighestNode(findEqClass(b))
+      }
     }
 
   }
@@ -157,6 +273,36 @@ package congruenceclosure {
       cg.eqs.foreach(cg.merge)
 
       println("\nedges: "+ cg.edges.mkString(", "))
+      cg.explain(a,b)
+      println("\nhighestNode: "+ cg.highestNode.mkString(", "))
+
+      val c1 = Constant("c1")
+      val c2 = Constant("c2")
+      val c3 = Constant("c3")
+      val c4 = Constant("c4")
+      val c5 = Constant("c5")
+      val c6 = Constant("c6")
+      val c7 = Constant("c7")
+      val c8 = Constant("c8")
+      val c9 = Constant("c9")
+      val c10 = Constant("c10")
+      val c11 = Constant("c11")
+      val c12 = Constant("c12")
+      val c13 = Constant("c13")
+      val c14 = Constant("c14")
+      val eqs2 = List((c1, c8), (c7, c2), (c3, c13), (c7, c1), (c6, c7), (c9,
+        c5), (c9, c3), (c14, c11), (c10, c4), (c12, c9), (c4, c11), (c10, c7))
+      val cg2 = new CongruenceClosure(eqs2)
+      cg2.eqs.foreach(cg2.merge)
+      println("\nedges: "+ cg2.edges.mkString(", "))
+      println("nca: "+ cg2.nearestCommonAncestor(c8, c8))
+
+      val t1 = Constant("t1")
+      val t2 = Constant("t2")
+      val t3 = Constant("t3")
+      val t4 = Constant("t4")
+      cg2.edges ++= Set((t1,t2), (t2, t3), (t3, t4))
+      println("path "+ cg2.computePath(t1))
     }
 
   }
