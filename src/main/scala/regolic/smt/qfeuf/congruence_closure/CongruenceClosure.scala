@@ -21,8 +21,19 @@ package object congruenceclosure {
 }
 
 package congruenceclosure {
+  class ProofStructureNode(val label: Constant) {
+    var parent: ProofStructureNode = null
+
+    def hasParent = parent != null
+
+    override def toString = {
+      val to = if(hasParent) " [-> "+ parent.label +"]" else ""
+      label + to
+    }
+  }
 
   class CongruenceClosure(val eqs: List[Equation]) {
+    // TODO change Maps to Arrays where the Term.id is the index
 
     private def extractConstants(t: Term) = t match {
       case Function(_, args) => List(args._1, args._2)
@@ -31,8 +42,8 @@ package congruenceclosure {
     val elems: Set[Constant] = Set() ++ eqs.foldRight(List.empty[Constant])((eq,l) =>
       extractConstants(eq._1) ::: extractConstants(eq._2) ::: l)
 
-    val edges: Map[Constant,Constant] = Map()
-    val labels: Map[Constant,Any] = Map()
+    val node: Map[Constant,ProofStructureNode] = Map() ++ elems.map{e => (e,
+      new ProofStructureNode(e))}
 
     val repr: Map[Constant,Constant] = Map() ++ elems.zip(elems)
       
@@ -50,6 +61,9 @@ package congruenceclosure {
 
     val classList: Map[Constant, Queue[Constant]] = Map() ++ elems.map(el =>
       (el, Queue(el)))
+
+    // TODO use a tree instead of Map, because of many contains queries
+    val labels: Map[Constant,Any] = Map()
 
     def merge(eq: Equation) {
       eq match {
@@ -73,25 +87,27 @@ package congruenceclosure {
       }
     }
 
-    def computePath(e: Constant): List[(Constant, Constant)] = {
-      def innerComputePath(e: Constant, acc: List[(Constant, Constant)]): List[(Constant, Constant)] = {
-        if(!edges.contains(e))
-          acc
-        else {
-          val edge = (e, edges(e))
-          innerComputePath(edges(e), edge :: acc)
+    def reverseEdges(from: ProofStructureNode) {
+      def innerReverseEdges(curr: ProofStructureNode, next: ProofStructureNode) {
+        if(curr.hasParent && next.hasParent) {
+          val save = next.parent
+          next.parent = curr
+          innerReverseEdges(next, save)
+        } else if(curr.hasParent && !next.hasParent) {
+          next.parent = curr
         }
       }
-      val retVal = innerComputePath(e, Nil)
-      retVal
+      if(from.hasParent) {
+        val save = from.parent
+        from.parent = null
+        innerReverseEdges(from, save)
+      }
     }
 
+    // TODO construct node
     def insertEdge(e: Constant, ePrime: Constant) = {
-      computePath(e).foreach(edge => {
-          edges(edge._2) = edge._1
-          edges -= edge._1
-        })
-      edges(e) = ePrime
+      reverseEdges(node(e))
+      node(e).parent = node(ePrime)
     }
     
     private def propagate() {
@@ -157,10 +173,10 @@ package congruenceclosure {
     }
 
     val pendingProofs: Queue[(Constant, Constant)] = Queue()
-    val highestNode: Map[Constant, Constant] = Map()
-    val eqClass: Map[Constant,Constant] = Map() ++ elems.zip(elems)
+    val highestNode: Map[ProofStructureNode, ProofStructureNode] = Map()
+    val eqClass: Map[ProofStructureNode,ProofStructureNode] = Map() ++ node.values.zip(node.values)
 
-    def findEqClass(x: Constant): Constant = {
+    def findEqClass(x: ProofStructureNode): ProofStructureNode = {
       if(eqClass(x) == x)
         x
       else
@@ -168,16 +184,16 @@ package congruenceclosure {
     }
 
     // TODO lazy, efficient?
-    def computeHighestNode(c: Constant): Constant = {
+    def computeHighestNode(c: ProofStructureNode): ProofStructureNode = {
       println("c: "+ c)
-      def computeHighestNodeInner(x: Constant): Constant = {
+      def computeHighestNodeInner(x: ProofStructureNode): ProofStructureNode = {
         if(highestNode.contains(x))
           highestNode(x)
         else {
-          if(!edges.contains(x) || eqClass(edges(x)) != eqClass(c)) 
+          if(!x.hasParent || findEqClass(x.parent) != findEqClass(c)) 
             x
           else
-            computeHighestNodeInner(edges(x))
+            computeHighestNodeInner(x.parent)
         }
       }
       val highest = computeHighestNodeInner(c)
@@ -186,11 +202,11 @@ package congruenceclosure {
       highest
     }
 
-    def nearestCommonAncestor(a: Constant, b: Constant): Option[Constant] = {
-      var i = a
-      var j = b
+    def nearestCommonAncestor(a: Constant, b: Constant): Option[ProofStructureNode] = {
+      var i = node(a)
+      var j = node(b)
       var m = 0
-      val visited = Map[Constant, Boolean]().withDefaultValue(false)
+      val visited = Map[ProofStructureNode, Boolean]().withDefaultValue(false)
       while(true) {
         if(visited(i) == true) 
           return Some(i)
@@ -199,13 +215,13 @@ package congruenceclosure {
 
         // TODO see if it makes sense to optimize counting mechanism (m+=2 if
         // only one pointer running
-        if(m % 2 == 0 && edges.contains(i)) {
-          i = edges(i)
+        if(m % 2 == 0 && i.hasParent) {
+          i = i.parent
           visited(i) = true
-        } else if(m % 2 == 1 && edges.contains(j)) {
-          j = edges(j)
+        } else if(m % 2 == 1 && j.hasParent) {
+          j = j.parent
           visited(j) = true
-        } else if(!edges.contains(i) && !edges.contains(j)) {
+        } else if(!i.hasParent && !j.hasParent) {
           return None
         }
         m += 1
@@ -225,18 +241,18 @@ package congruenceclosure {
             case None => throw new Exception("No common ancestor "+ (a,b))
           }
         ))
-        explainAlongPath(a, c)
-        explainAlongPath(b, c)
+        explainAlongPath(node(a), c)
+        explainAlongPath(node(b), c)
       }
     }
 
-    def explainAlongPath(aL: Constant, c: Constant) {
-      var a = computeHighestNode(findEqClass(aL))
+    def explainAlongPath(aL: ProofStructureNode, c: ProofStructureNode) {
+      var a = computeHighestNode(aL)
 
       println("Explaining "+ (aL, c))
-      while(a != c) {
-        val b = edges(a)
-        labels(a) match {
+      while(a.label != c.label) {
+        val b = a.parent
+        labels(a.label) match {
           case (a: Constant, b: Constant) => println((a, b))
           case ((fa@Function(_, (a1, a2)), a: Constant), (fb@Function(_, (b1,
             b2)), b: Constant)) => {
@@ -249,10 +265,10 @@ package congruenceclosure {
           }
         }
         // UNION
-        eqClass(a) = findEqClass(b)
-        highestNode(a) = computeHighestNode(findEqClass(b)) //TODO just b should be enough since b is in same eqClass as findEqClass(b)
+        eqClass(findEqClass(a)) = findEqClass(b)
+        highestNode(a) = computeHighestNode(b) //TODO just b should be enough since b is in same eqClass as findEqClass(b)
 
-        a = computeHighestNode(findEqClass(b))
+        a = computeHighestNode(b)
       }
     }
 
@@ -271,8 +287,11 @@ package congruenceclosure {
         a), (e, c), (e, b), (b, h))
       val cg = new CongruenceClosure(eqs)
       cg.eqs.foreach(cg.merge)
+      println("proof structure")
+      cg.node.values.foreach(println)
+      println("highestNode")
+      println(cg.highestNode.mkString(", "))
 
-      println("\nedges: "+ cg.edges.mkString(", "))
       cg.explain(a,b)
       println("\nhighestNode: "+ cg.highestNode.mkString(", "))
 
@@ -294,15 +313,12 @@ package congruenceclosure {
         c5), (c9, c3), (c14, c11), (c10, c4), (c12, c9), (c4, c11), (c10, c7))
       val cg2 = new CongruenceClosure(eqs2)
       cg2.eqs.foreach(cg2.merge)
-      println("\nedges: "+ cg2.edges.mkString(", "))
       println("nca: "+ cg2.nearestCommonAncestor(c8, c8))
 
       val t1 = Constant("t1")
       val t2 = Constant("t2")
       val t3 = Constant("t3")
       val t4 = Constant("t4")
-      cg2.edges ++= Set((t1,t2), (t2, t3), (t3, t4))
-      println("path "+ cg2.computePath(t1))
     }
 
   }
