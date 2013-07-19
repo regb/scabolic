@@ -11,24 +11,26 @@ package object congruenceclosure {
     //implicit def toInt = this.id
   }
 
-  case class Function(name: String, args: Pair[Constant, Constant]) extends Term(name) {
-    override def toString = name +"("+ args._1 +","+ args._2 +")"
+  // TODO make "apply" reserved
+  final case class Function(name: String, args: List[Term]) extends Term(name) {
+    override def toString = name + args.mkString("(", ", ", ")")
   }
 
-  case class Constant(name: String) extends Term(name)
+  final case class Constant(name: String) extends Term(name)
 
   type Equation = Pair[Term, Constant]
 }
 
 package congruenceclosure {
+  // TODO try to enforce constant where possible for better type safety
 
   object Currifier {
 
-    def curry(t: Term): Function = {
-      def makeF(terms: List[Term]): Function = {
+    private def curry(t: Term): Term = {
+      def makeF(terms: List[Term]): Term = {
         terms match {
-          case x :: xs => Function("f", makeF(xs) :: curry(x))
           case x :: Nil => x
+          case x :: xs => Function("apply", List(makeF(xs), curry(x)))
           case _ => throw new Exception("impossible case")
         }
       }
@@ -40,9 +42,45 @@ package congruenceclosure {
         makeF((Constant(name) :: args).reverse)
       }
     }
+
+    private var constantCounter = 0
+    private def freshConstant = {
+      constantCounter += 1
+      Constant("fresh"+ constantCounter)
+    }
+
+
+    private def flatten(t: Term, acc: List[Equation]): List[Equation] = {
+      t match {
+        case f@Function("apply", List((t1: Constant), (t2: Constant))) => {
+          (f, freshConstant) :: acc
+        }
+        case f@Function("apply", List((t1: Function), (t2: Constant))) => {
+          val l = flatten(t1, acc)
+          (Function("apply", List(l.head._2, t2)), freshConstant) :: l
+        }
+        case f@Function("apply", List((t1: Constant), (t2: Function))) => {
+          val r = flatten(t2, acc)
+          (Function("apply", List(t1, r.head._2)), freshConstant) :: r
+        }
+        case f@Function("apply", List((t1: Function), (t2: Function))) => {
+          val l = flatten(t1, acc)
+          val r = flatten(t2, l)
+          (Function("apply", List(l.head._2, r.head._2)), freshConstant) :: r
+        }
+      }
+    }
+
+    def flatten(eqs: List[(Term, Term)]): List[Equation] = {
+      eqs.flatMap{
+        eq => flatten(eq._1, Nil)
+      }
+    }
+
+    def apply(eqs: List[(Term, Term)]): List[(Term, Term)] = eqs.map{case (s, t) => (curry(s), curry(t))}
   }
 
-  class ProofStructureNode(val label: Constant) {
+  class ProofStructureNode(val label: Term) {
     var parent: ProofStructureNode = null
 
     def hasParent = parent != null
@@ -56,23 +94,24 @@ package congruenceclosure {
   // TODO make stuff private
   class CongruenceClosure(val eqs: List[Equation]) {
     // TODO change Maps to Arrays where the Term.id is the index
+    // TODO collect EqClass staff in separate object 
 
     private def extractConstants(t: Term) = t match {
-      case Function(_, args) => List(args._1, args._2)
+      case Function(_, List((c1: Constant), (c2: Constant))) => List(c1, c2)
       case c@Constant(_) => List(c)
     }
-    val elems: Set[Constant] = Set() ++ eqs.foldRight(List.empty[Constant])((eq,l) =>
+    val elems: Set[Term] = Set() ++ eqs.foldRight(List.empty[Term])((eq,l) =>
       extractConstants(eq._1) ::: extractConstants(eq._2) ::: l)
 
-    val node: Map[Constant,ProofStructureNode] = Map() ++ elems.map{e => (e,
+    val node: Map[Term,ProofStructureNode] = Map() ++ elems.map{e => (e,
       new ProofStructureNode(e))}
 
-    val repr: Map[Constant,Constant] = Map() ++ elems.zip(elems)
+    val repr: Map[Term,Term] = Map() ++ elems.zip(elems)
       
     val pending: Queue[Any] = Queue()
 
-    val useList = new HashMap[Constant, Queue[Equation]] {
-      override def default(k: Constant) = {
+    val useList = new HashMap[Term, Queue[Equation]] {
+      override def default(k: Term) = {
         val v = Queue[Equation]()
         this += (k -> v)
         v
@@ -81,11 +120,11 @@ package congruenceclosure {
 
     val lookup: Map[(Term, Term), Option[Equation]] = Map().withDefaultValue(None)
 
-    val classList: Map[Constant, Queue[Constant]] = Map() ++ elems.map(el =>
+    val classList: Map[Term, Queue[Term]] = Map() ++ elems.map(el =>
       (el, Queue(el)))
 
     // TODO maybe able to refactor this using ProofStructureNode
-    val labels: Map[Constant,Any] = Map()
+    val labels: Map[Term,Any] = Map()
 
     def merge(eq: Equation) {
       eq match {
@@ -93,7 +132,7 @@ package congruenceclosure {
           pending.enqueue(eq)
           propagate()
         }
-        case (Function(_, (a1, a2)), a)  => {
+        case (Function(_, List(a1, a2)), a)  => {
           lookup(repr(a1),repr(a2)) match {
             case Some(f: Equation) => {
               pending enqueue (eq, f)
@@ -155,10 +194,10 @@ package congruenceclosure {
 
           while(useList(oldreprA).nonEmpty) {
             val f1 = useList(oldreprA).dequeue()
-            val (Function(_, (c1, c2)),c) = f1
+            val (Function(_, List(c1, c2)),c) = f1
 
             lookup(repr(c1), repr(c2)) match {
-              case Some(f2@(Function(_, (d1, d2)), d)) => {
+              case Some(f2@(Function(_, List(d1, d2)), d)) => {
                 pending.enqueue((f1, f2))
               }
               case _ => {
@@ -175,13 +214,13 @@ package congruenceclosure {
     private def normalize(t: Term): Term = {
       t match {
         case c@Constant(_) => repr(c)
-        case Function(_, (t1, t2)) => {
+        case Function(_, List(t1, t2)) => {
           val u1 = normalize(t1)
           val u2 = normalize(t2)
           lookup(u1, u2) match {
             case Some((_, a)) if (u1.isInstanceOf[Constant] &&
               u2.isInstanceOf[Constant]) => repr(a)
-            case _ => Function("f", (u1.asInstanceOf[Constant],
+            case _ => Function("f", List(u1.asInstanceOf[Constant],
               u2.asInstanceOf[Constant]))
           }
         }
@@ -192,7 +231,7 @@ package congruenceclosure {
       normalize(s) == normalize(t)
     }
 
-    val pendingProofs: Queue[(Constant, Constant)] = Queue()
+    val pendingProofs: Queue[(Term, Term)] = Queue()
     val highestNode: Map[ProofStructureNode, ProofStructureNode] = Map()
     val eqClass: Map[ProofStructureNode,ProofStructureNode] = Map() ++ node.values.zip(node.values)
 
@@ -221,7 +260,7 @@ package congruenceclosure {
       highest
     }
 
-    def nearestCommonAncestor(a: Constant, b: Constant): Option[ProofStructureNode] = {
+    def nearestCommonAncestor(a: Term, b: Term): Option[ProofStructureNode] = {
       var i = node(a)
       var j = node(b)
       var m = 0
@@ -275,8 +314,8 @@ package congruenceclosure {
         val b = a.parent
         labels(a.label) match {
           case (a: Constant, b: Constant) => println((a, b))
-          case ((fa@Function(_, (a1, a2)), a: Constant), (fb@Function(_, (b1,
-            b2)), b: Constant)) => {
+          case ((fa@Function(_, List(a1, a2)), a: Constant), (fb@Function(_,
+            List(b1, b2)), b: Constant)) => {
             println((fa, a) +", "+ (fb, b))
             // TODO sufficient? nca call for constant not in proof tree?
             if(a1 != b1)
@@ -302,9 +341,10 @@ package congruenceclosure {
       val c = Constant("c")
       val d = Constant("d")
       val e = Constant("e")
+      val f = Constant("f")
       val g = Constant("g")
       val h = Constant("h")
-      val eqs = List((Function("f", (g,h)), d), (c, d), (Function("f", (g,d)),
+      val eqs = List((Function("f", List(g,h)), d), (c, d), (Function("f", List(g,d)),
         a), (e, c), (e, b), (b, h))
       val cg = new CongruenceClosure(eqs)
       cg.eqs.foreach(cg.merge)
@@ -338,6 +378,12 @@ package congruenceclosure {
       val t3 = Constant("t3")
       val t4 = Constant("t4")
       // TODO reverse edges test
+
+      val toCurry = Function("g", List(a, Function("h", List(b, Function("e",
+        List(f)))), c))
+      println("curried: "+ Currifier(List((toCurry, toCurry))))
+
+      println("flatten: "+ Currifier.flatten(Currifier(List((toCurry, b)))))
     }
 
   }
