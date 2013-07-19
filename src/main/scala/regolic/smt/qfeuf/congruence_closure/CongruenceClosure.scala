@@ -50,20 +50,20 @@ package congruenceclosure {
     }
 
 
-    private def flatten(t: Term, acc: List[Equation]): List[Equation] = {
-      t match {
-        case f@Function("apply", List((t1: Constant), (t2: Constant))) => {
+    private def flatten(f: Function, acc: List[Equation]): List[Equation] = {
+      f match {
+        case Function("apply", List((t1: Constant), (t2: Constant))) => {
           (f, freshConstant) :: acc
         }
-        case f@Function("apply", List((t1: Function), (t2: Constant))) => {
+        case Function("apply", List((t1: Function), (t2: Constant))) => {
           val l = flatten(t1, acc)
           (Function("apply", List(l.head._2, t2)), freshConstant) :: l
         }
-        case f@Function("apply", List((t1: Constant), (t2: Function))) => {
+        case Function("apply", List((t1: Constant), (t2: Function))) => {
           val r = flatten(t2, acc)
           (Function("apply", List(t1, r.head._2)), freshConstant) :: r
         }
-        case f@Function("apply", List((t1: Function), (t2: Function))) => {
+        case Function("apply", List((t1: Function), (t2: Function))) => {
           val l = flatten(t1, acc)
           val r = flatten(t2, l)
           (Function("apply", List(l.head._2, r.head._2)), freshConstant) :: r
@@ -73,7 +73,23 @@ package congruenceclosure {
 
     def flatten(eqs: List[(Term, Term)]): List[Equation] = {
       eqs.flatMap{
-        eq => flatten(eq._1, Nil)
+        _ match {
+          case ((t1: Constant), (t2: Constant)) =>
+            (t1, t2) :: Nil
+          case ((t1: Constant), (t2: Function)) => {
+            val r = flatten(t2, Nil)
+            (t1, r.head._2) :: r
+          }
+          case ((t1: Function), (t2: Constant)) => {
+            val l = flatten(t1, Nil)
+            (l.head._2, t2) :: l
+          }
+          case ((t1: Function), (t2: Function)) => {
+            val l = flatten(t1, Nil)
+            val r = flatten(t2, Nil)
+            (l.head._2, r.head._2) :: l ::: r
+          }
+        }
       }
     }
 
@@ -381,9 +397,13 @@ package congruenceclosure {
 
       val toCurry = Function("g", List(a, Function("h", List(b, Function("e",
         List(f)))), c))
-      println("curried: "+ Currifier(List((toCurry, toCurry))))
+      val toCurry2 = Function("i", List(d, e))
+      println("curried: "+ Currifier(List((toCurry, toCurry2))))
 
-      println("flatten: "+ Currifier.flatten(Currifier(List((toCurry, b)))))
+      println("flatten: "+ Currifier.flatten(Currifier(List((toCurry, toCurry2)))))
+
+
+      println("flatten: "+ Currifier.flatten(Currifier(List((Function("f", List(a)), b)))))
     }
 
   }
