@@ -40,7 +40,7 @@ object CongruenceSolver extends Solver {
           val args: List[Dag] = t match {
             case FunctionApplication(_, ts) => ts.map(t => t2dag(t))
             case Variable(_, _) => Nil
-            case _ => sys.error("Unsuported term")
+            case _ => sys.error("Unsupported term")
           }
           val dag = new Dag(t, args, null, Set())
           dag.find = dag //setting representative to itself
