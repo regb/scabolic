@@ -23,4 +23,9 @@ class DplltSuite extends FunSuite {
     val lazySolver = new LazyBasicSolver()
     assert(lazySolver.solve(phi) === true)
   }
+
+  test("CongruenceClosure") {
+    val cc = new CongruenceClosure()
+    cc.isSat(phi)
+  }
 }

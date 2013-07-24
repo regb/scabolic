@@ -30,19 +30,11 @@ class CongruenceClosure extends Solver {
 
   val logic = regolic.parsers.SmtLib2.Trees.QF_UF
 
-  private var eqs: List[Equation] = null
+  private var elems: Set[Term] = null
 
-  private def extractVariables(t: Term) = t match {
-    case FunctionApplication(_, List((c1: Variable), (c2: Variable))) => List(c1, c2)
-    case c@Variable(_, _) => List(c)
-  }
-  private lazy val elems: Set[Term] = Set() ++ eqs.foldRight(List.empty[Term])((eq,l) =>
-    extractVariables(eq._1) ::: extractVariables(eq._2) ::: l)
+  var node: Map[Term,ProofStructureNode] = null
 
-  private lazy val node: Map[Term,ProofStructureNode] = Map() ++ elems.map{e => (e,
-    new ProofStructureNode(e))}
-
-  private lazy val repr: Map[Term,Term] = Map() ++ elems.zip(elems)
+  private var repr: Map[Term,Term] = null
     
   private val pending: Queue[Any] = Queue()
 
@@ -56,19 +48,32 @@ class CongruenceClosure extends Solver {
 
   private val lookup: Map[(Term, Term), Option[Equation]] = Map().withDefaultValue(None)
 
-  private val classList: Map[Term, Queue[Term]] = Map() ++ elems.map(el =>
-    (el, Queue(el)))
+  private var classList: Map[Term, Queue[Term]] = null
 
   // TODO maybe able to refactor this using ProofStructureNode
   private val labels: Map[Term,Any] = Map()
 
+  def init(eqs: List[Equation]) {
+    def extractVariables(t: Term) = t match {
+      case FunctionApplication(_, List((c1: Variable), (c2: Variable))) => List(c1, c2)
+      case Variable(_, _) => List(t)
+      case _ => throw new Exception("Unexpected term "+ t)
+    }
+    elems = Set() ++ eqs.foldRight(List.empty[Term])((eq,l) =>
+      extractVariables(eq._1) ::: extractVariables(eq._2) ::: l)
+    node = Map() ++ elems.map{e => (e, new ProofStructureNode(e))}
+    repr = Map() ++ elems.zip(elems)
+    classList = Map() ++ elems.map(el => (el, Queue(el)))
+    eqClass = Map() ++ node.values.zip(node.values)
+  }
 
   def isSat(f: Formula): Option[scala.collection.immutable.Map[FunctionSymbol, Term]] = {
     val And(fs) = f
-    eqs = fs.map{x => x match {
+    val eqs = fs.map{x => x match {
       case Equals(t1, t2) => (t1, t2)
       case _ => throw new Exception("Formula "+ x +" is not an equality")
     }}
+    init(eqs)
     Flattener(Currifier(eqs)).foreach(merge)
 
     fs.foreach{
@@ -79,7 +84,7 @@ class CongruenceClosure extends Solver {
     None
   }
 
-  private def merge(eq: Equation) {
+  def merge(eq: Equation) {
     eq match {
       case (a: Variable, b: Variable) => {
         pending.enqueue(eq)
@@ -119,11 +124,6 @@ class CongruenceClosure extends Solver {
     }
   }
 
-  private def insertEdge(e: Variable, ePrime: Variable) = {
-    reverseEdges(node(e))
-    node(e).parent = node(ePrime)
-  }
-  
   private def propagate() {
     while(pending.nonEmpty) {
       val e = pending.dequeue()
@@ -185,9 +185,14 @@ class CongruenceClosure extends Solver {
   }
 
   private val pendingProofs: Queue[(Term, Term)] = Queue()
-  private val highestNode: Map[ProofStructureNode, ProofStructureNode] = Map()
-  private lazy val eqClass: Map[ProofStructureNode,ProofStructureNode] = Map() ++ node.values.zip(node.values)
+  val highestNode: Map[ProofStructureNode, ProofStructureNode] = Map()
+  private var eqClass: Map[ProofStructureNode,ProofStructureNode] = null
 
+  private def insertEdge(e: Variable, ePrime: Variable) = {
+    reverseEdges(node(e))
+    node(e).parent = node(ePrime)
+  }
+  
   private def findEqClass(x: ProofStructureNode): ProofStructureNode = {
     if(eqClass(x) == x)
       x
@@ -213,7 +218,7 @@ class CongruenceClosure extends Solver {
     highest
   }
 
-  private def nearestCommonAncestor(a: Term, b: Term): Option[ProofStructureNode] = {
+  def nearestCommonAncestor(a: Term, b: Term): Option[ProofStructureNode] = {
     var i = node(a)
     var j = node(b)
     var m = 0
@@ -244,7 +249,7 @@ class CongruenceClosure extends Solver {
   }
 
   // TODO return explanation instead of instant print
-  private def explain(c1: Variable, c2: Variable) {
+  def explain(c1: Variable, c2: Variable) {
     pendingProofs.enqueue((c1, c2))
     while(pendingProofs.nonEmpty) {
       val (a, b) = pendingProofs.dequeue()
@@ -300,6 +305,7 @@ object CongruenceClosure {
     val eqs = List((FunctionApplication(f, List(g,h)), d), (c, d),
       (FunctionApplication(f, List(g,d)), a), (e, c), (e, b), (b, h))
     val cg = new CongruenceClosure()
+    cg.init(eqs)
     eqs.foreach(cg.merge)
     println("proof structure")
     cg.node.values.foreach(println)
@@ -323,6 +329,7 @@ object CongruenceClosure {
     val eqs2 = List((c1, c8), (c7, c2), (c3, c13), (c7, c1), (c6, c7), (c9,
       c5), (c9, c3), (c14, c11), (c10, c4), (c12, c9), (c4, c11), (c10, c7))
     val cg2 = new CongruenceClosure
+    cg2.init(eqs2)
     eqs2.foreach(cg2.merge)
     println("nca: "+ cg2.nearestCommonAncestor(c8, c8))
 
