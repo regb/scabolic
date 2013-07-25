@@ -16,7 +16,7 @@ import scala.collection.mutable.ArrayBuffer
  * Nieuwenhuis and Oliveras
  */
 
-// Representing the so-called proof tree
+// Representing the so-called proof forest
 class ProofStructureNode(val name: Term, var edgeLabel: Any) {
   var parent: ProofStructureNode = null
 
@@ -29,7 +29,6 @@ class ProofStructureNode(val name: Term, var edgeLabel: Any) {
 }
 
 class CongruenceClosure extends Solver {
-//class CongruenceClosure(val eqs: List[Equation]) {
   // TODO change Maps to Arrays where a Term.id is the index?
   // TODO collect EqClass stuff in separate object 
 
@@ -71,10 +70,15 @@ class CongruenceClosure extends Solver {
 
   def isSat(f: Formula): Option[scala.collection.immutable.Map[FunctionSymbol, Term]] = {
     val And(fs) = f
-    val eqs = Flattener(Currifier(fs.map{x => x match {
-      case Equals(t1, t2) => (t1, t2)
+    // TODO does the mapping to pairs make sense or should we keep
+    // Equals/PredicateApplication?
+    val eqs = Flattener(Currifier(fs.withFilter{x => x match {
+      case Equals(t1, t2) => true
+      case Not(Equals(t1, t2)) => false
       case _ => throw new Exception("Formula "+ x +" is not an equality")
-    }}))
+    }}.map{
+      case Equals(t1, t2) => (t1, t2)
+    }))
     init(eqs)
     eqs.foreach(merge)
 
@@ -83,7 +87,7 @@ class CongruenceClosure extends Solver {
       case _ => false
     }
     unsatTerms.foreach{
-      case Not(Equals((t1: Variable), (t2: Variable))) => explain(t1,t2)
+      case Not(Equals((t1: Variable), (t2: Variable))) => explain(t1, t2)
       case _ => ()
     }
 
@@ -301,51 +305,3 @@ class CongruenceClosure extends Solver {
 
 }
 
-object CongruenceClosure {
-  def main(args: Array[String]) {
-
-/*
- *    val c1 = freshVariable("fresh", IntSort())
- *    val c2 = freshVariable("fresh", IntSort())
- *    val c3 = freshVariable("fresh", IntSort())
- *    val c4 = freshVariable("fresh", IntSort())
- *    val c5 = freshVariable("fresh", IntSort())
- *    val c6 = freshVariable("fresh", IntSort())
- *    val c7 = freshVariable("fresh", IntSort())
- *    val c8 = freshVariable("fresh", IntSort())
- *    val c9 = freshVariable("fresh", IntSort())
- *    val c10 = freshVariable("fresh", IntSort())
- *    val c11 = freshVariable("fresh", IntSort())
- *    val c12 = freshVariable("fresh", IntSort())
- *    val c13 = freshVariable("fresh", IntSort())
- *    val c14 = freshVariable("fresh", IntSort())
- *    val eqs2 = List((c1, c8), (c7, c2), (c3, c13), (c7, c1), (c6, c7), (c9,
- *      c5), (c9, c3), (c14, c11), (c10, c4), (c12, c9), (c4, c11), (c10, c7))
- *    val cg2 = new CongruenceClosure
- *    cg2.init(eqs2)
- *    eqs2.foreach(cg2.merge)
- *    println("nca: "+ cg2.nearestCommonAncestor(c8, c8))
- *
- *    val t1 = freshVariable("t", IntSort())
- *    val t2 = freshVariable("t", IntSort())
- *    val t3 = freshVariable("t", IntSort())
- *    val t4 = freshVariable("t", IntSort())
- *    // TODO reverse edges test
- *
- *    val gFun = freshFunctionSymbol("g", List(IntSort(), IntSort(), IntSort()), IntSort())
- *    val hFun = freshFunctionSymbol("h", List(IntSort(), IntSort()), IntSort())
- *    val eFun = freshFunctionSymbol("e", List(IntSort()), IntSort())
- *    val fFun = freshFunctionSymbol("f", List(IntSort()), IntSort())
- *    val toCurry = FunctionApplication(gFun, List(a, FunctionApplication(hFun,
- *      List(b, FunctionApplication(eFun, List(h)))), c))
- *    val iFun = freshFunctionSymbol("i", List(IntSort(), IntSort()), IntSort())
- *    val toCurry2 = FunctionApplication(iFun, List(d, e))
- *    println("curried: "+ Currifier(List((toCurry, toCurry2))))
- *
- *    println("flatten: "+ Flattener(Currifier(List((toCurry, toCurry2)))))
- *
- *    println("flatten: "+ Flattener(Currifier(List((FunctionApplication(fFun, List(a)), b)))))
- */
-  }
-
-}
