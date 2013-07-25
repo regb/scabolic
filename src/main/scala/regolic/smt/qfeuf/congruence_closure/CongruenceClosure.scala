@@ -42,26 +42,28 @@ class CongruenceClosure extends Solver {
     
   private val pending: Queue[Any] = Queue()
 
-  private val useList = new HashMap[Term, Queue[Equation]] {
+  private val useList = new HashMap[Term, Queue[PredicateApplication]] {
     override def default(k: Term) = {
-      val v = Queue[Equation]()
+      val v = Queue[PredicateApplication]()
       this += (k -> v)
       v
     }
   }
 
-  private val lookup: Map[(Term, Term), Option[Equation]] = Map().withDefaultValue(None)
+  private val lookup: Map[(Term, Term), Option[PredicateApplication]] = Map().withDefaultValue(None)
 
   private var classList: Map[Term, Queue[Term]] = null
 
-  private def init(eqs: List[Equation]) {
+  private def init(eqs: List[PredicateApplication]) {
     def extractVariables(t: Term) = t match {
       case FunctionApplication(_, List((c1: Variable), (c2: Variable))) => List(c1, c2)
       case Variable(_, _) => List(t)
       case _ => throw new Exception("Unexpected term "+ t)
     }
-    elems = Set() ++ eqs.foldRight(List.empty[Term])((eq,l) =>
-      extractVariables(eq._1) ::: extractVariables(eq._2) ::: l)
+    elems = Set() ++ eqs.foldRight(List.empty[Term])((eq, l) => eq match {
+      case Equals(t1, t2) => extractVariables(t1) ::: extractVariables(t2) ::: l
+      case _ => throw new Exception("Couldn't extract pair of terms from "+ eq)
+    })
     node = Map() ++ elems.map{e => (e, new ProofStructureNode(e, None))}
     repr = Map() ++ elems.zip(elems)
     classList = Map() ++ elems.map(el => (el, Queue(el)))
@@ -72,13 +74,11 @@ class CongruenceClosure extends Solver {
     val And(fs) = f
     // TODO does the mapping to pairs make sense or should we keep
     // Equals/PredicateApplication?
-    val eqs = Flattener(Currifier(fs.withFilter{x => x match {
+    val eqs = Flattener(Currifier(fs.filter{x => x match {
       case Equals(t1, t2) => true
       case Not(Equals(t1, t2)) => false
       case _ => throw new Exception("Formula "+ x +" is not an equality")
-    }}.map{
-      case Equals(t1, t2) => (t1, t2)
-    }))
+    }}.asInstanceOf[List[PredicateApplication]]))
     init(eqs)
     eqs.foreach(merge)
 
@@ -94,15 +94,15 @@ class CongruenceClosure extends Solver {
     if(unsatTerms.isEmpty) Some(scala.collection.immutable.Map()) else None
   }
 
-  private def merge(eq: Equation) {
+  private def merge(eq: PredicateApplication) {
     eq match {
-      case (a: Variable, b: Variable) => {
+      case Equals(a: Variable, b: Variable) => {
         pending.enqueue(eq)
         propagate()
       }
-      case (FunctionApplication(_, List(a1, a2)), a)  => {
+      case Equals(FunctionApplication(_, List(a1, a2)), a)  => {
         lookup(repr(a1),repr(a2)) match {
-          case Some(f: Equation) => {
+          case Some(f: PredicateApplication) => {
             pending enqueue (eq, f)
             propagate()
           }
@@ -116,31 +116,13 @@ class CongruenceClosure extends Solver {
     }
   }
 
-  private def reverseEdges(from: ProofStructureNode) {
-    @annotation.tailrec
-    def nestedReverseEdges(curr: ProofStructureNode, next: ProofStructureNode) {
-      if(curr.hasParent && next.hasParent) {
-        val save = next.parent
-        next.parent = curr
-        nestedReverseEdges(next, save)
-      } else if(curr.hasParent && !next.hasParent) {
-        next.parent = curr
-      }
-    }
-    if(from.hasParent) {
-      val save = from.parent
-      from.parent = null
-      nestedReverseEdges(from, save)
-    }
-  }
-
   private def propagate() {
     while(pending.nonEmpty) {
       val e = pending.dequeue()
       
       val p = e match {
-        case (a: Variable, b: Variable) => (a,b)
-        case ((_, a: Variable), (_, b: Variable)) => (a,b)
+        case Equals(a: Variable, b: Variable) => (a, b)
+        case (Equals(_, a: Variable), Equals(_, b: Variable)) => (a, b)
       }
       val (a, b) = if(classList(repr(p._1)).size > classList(repr(p._2)).size) p.swap else p
 
@@ -158,10 +140,10 @@ class CongruenceClosure extends Solver {
 
         while(useList(oldreprA).nonEmpty) {
           val f1 = useList(oldreprA).dequeue()
-          val (FunctionApplication(_, List(c1, c2)),c) = f1
+          val Equals(FunctionApplication(_, List(c1, c2)),c) = f1
 
           lookup(repr(c1), repr(c2)) match {
-            case Some(f2@(FunctionApplication(_, List(d1, d2)), d)) => {
+            case Some(f2@Equals(FunctionApplication(_, List(d1, d2)), d)) => {
               pending.enqueue((f1, f2))
             }
             case _ => {
@@ -182,7 +164,7 @@ class CongruenceClosure extends Solver {
         val u1 = normalize(t1)
         val u2 = normalize(t2)
         lookup(u1, u2) match {
-          case Some((_, a)) if (u1.isInstanceOf[Variable] &&
+          case Some(Equals(_, a)) if (u1.isInstanceOf[Variable] &&
             u2.isInstanceOf[Variable]) => repr(a)
           case _ => FunctionApplication(applyFun, List(u1.asInstanceOf[Variable],
             u2.asInstanceOf[Variable]))
@@ -195,9 +177,27 @@ class CongruenceClosure extends Solver {
     normalize(s) == normalize(t)
   }
 
-  private val pendingProofs: Queue[(Term, Term)] = Queue()
+  private val pendingProofs: Queue[PredicateApplication] = Queue()
   private val highestNode: Map[ProofStructureNode, ProofStructureNode] = Map()
   private var eqClass: Map[ProofStructureNode,ProofStructureNode] = null
+
+  private def reverseEdges(from: ProofStructureNode) {
+    @annotation.tailrec
+    def nestedReverseEdges(curr: ProofStructureNode, next: ProofStructureNode) {
+      if(curr.hasParent && next.hasParent) {
+        val save = next.parent
+        next.parent = curr
+        nestedReverseEdges(next, save)
+      } else if(curr.hasParent && !next.hasParent) {
+        next.parent = curr
+      }
+    }
+    if(from.hasParent) {
+      val save = from.parent
+      from.parent = null
+      nestedReverseEdges(from, save)
+    }
+  }
 
   private def insertEdge(a: Variable, b: Variable, label: Any) = {
     val from = node(a)
@@ -263,9 +263,9 @@ class CongruenceClosure extends Solver {
 
   // TODO return explanation instead of instant print
   private def explain(c1: Variable, c2: Variable) {
-    pendingProofs.enqueue((c1, c2))
+    pendingProofs.enqueue(Equals(c1, c2))
     while(pendingProofs.nonEmpty) {
-      val (a, b) = pendingProofs.dequeue()
+      val Equals(a, b) = pendingProofs.dequeue()
       val c = computeHighestNode(findEqClass(
         nearestCommonAncestor(a, b) match {
           case Some(x) => x
@@ -283,15 +283,15 @@ class CongruenceClosure extends Solver {
     while(a.name != c.name) {
       val b = a.parent
       a.edgeLabel match {
-        case (a: Variable, b: Variable) => println((a, b))
-        case ((fa@FunctionApplication(_, List(a1, a2)), a: Variable),
-          (fb@FunctionApplication(_, List(b1, b2)), b: Variable)) => {
+        case Equals(a: Variable, b: Variable) => println((a, b))
+        case (Equals(fa@FunctionApplication(_, List(a1, a2)), a: Variable),
+          Equals(fb@FunctionApplication(_, List(b1, b2)), b: Variable)) => {
           println((fa, a) +", "+ (fb, b))
           // TODO sufficient? nca call for Variable not in proof tree?
           if(a1 != b1)
-            pendingProofs.enqueue((a1, b1))
+            pendingProofs.enqueue(Equals(a1, b1))
           if(a2 != b2)
-            pendingProofs.enqueue((a2, b2))
+            pendingProofs.enqueue(Equals(a2, b2))
         }
         case _ => throw new Exception("Can't match edgeLabel "+ a.edgeLabel)
       }

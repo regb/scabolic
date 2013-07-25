@@ -1,6 +1,7 @@
 package regolic.smt.qfeuf
 
 import regolic.asts.core.Trees._
+import regolic.asts.fol.Trees._
 
 object Currifier {
 
@@ -21,6 +22,6 @@ object Currifier {
     }
   }
 
-  def apply(eqs: List[(Term, Term)]): List[(Term, Term)] = eqs.map{case (s, t) => (curry(s), curry(t))}
+  def apply(eqs: List[PredicateApplication]): List[PredicateApplication] = eqs.map{case Equals(s, t) => Equals(curry(s), curry(t))}
 }
 

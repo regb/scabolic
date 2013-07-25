@@ -53,10 +53,13 @@ class DplltSuite extends FunSuite {
   }
 
   test("Currifier") {
-    println("Currify: "+ Currifier(eqs.map{case Equals(t1, t2) => (t1, t2)}))
+    assert(Currifier(List(Equals(FunctionApplication(g, List(h)), d))) ===
+      List(Equals(FunctionApplication(applyFun, List(Variable(g.name,
+        g.returnSort), h)), d)))
   }
 
   test("Flattener") {
+
   }
   //TODO test explain, currifier, flattener
 }
