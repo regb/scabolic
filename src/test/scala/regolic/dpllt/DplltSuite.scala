@@ -21,17 +21,49 @@ class DplltSuite extends FunSuite {
   val psi = And(Equals(x, y), Or(And(Equals(y, z), Not(Equals(x,
     z))), Equals(x, z)), Not(Equals(x, y)))
 
-  test("propositional skeleton") {
+  test("PropositionalSkeleton") {
     val ps = PropositionalSkeleton(phi)
     // TODO assert
   }
 
-  test("lazy basic solver SAT") {
+  test("Currifier") {
+    assert(
+      Currifier(List(Equals(FunctionApplication(g, List(h)), d)))
+      ===
+      List(Equals(FunctionApplication(applyFun, List(Variable(g.name,
+        g.returnSort), h)), d))
+    )
+  }
+
+  test("Flattener") {
+    val count = freshVariable("variable", IntSort()).name.substring(9).toInt
+    val vp = Variable("variable_" + (count + 1), IntSort())
+    val vpp = Variable("variable_" + (count + 2), IntSort())
+    val vppp = Variable("variable_" + (count + 3), IntSort())
+    val extra = Variable("variable_" + (count + 4), IntSort())
+    assert(
+      Flattener(List(Equals(FunctionApplication(applyFun,
+        List(FunctionApplication(applyFun, List(FunctionApplication(applyFun,
+          List(Variable(g.name, g.returnSort), a)),
+        FunctionApplication(applyFun, List(h, b)))), b)), b)))
+      ===
+      List(
+        Equals(FunctionApplication(applyFun, List(Variable(g.name,
+          g.returnSort), a)), vp),
+        Equals(FunctionApplication(applyFun, List(h, b)), vpp),
+        Equals(FunctionApplication(applyFun, List(vp, vpp)), vppp),
+        Equals(FunctionApplication(applyFun, List(vppp, b)), extra),
+        Equals(extra, b)
+      ).reverse
+    )
+  }
+
+  test("small example SAT") {
     val lazySolver = new LazyBasicSolver()
     assert(lazySolver.solve(phi) === true)
   }
 
-  test("lazy basic solver UNSAT") {
+  test("small example UNSAT") {
     val lazySolver = new LazyBasicSolver()
     assert(lazySolver.solve(psi) === false)
   }
@@ -47,19 +79,10 @@ class DplltSuite extends FunSuite {
     Equals(FunctionApplication(g, List(d)), a), Equals(e, c), Equals(e, b),
     Equals(b, h))
     
-  test("CC") {
+  test("larger example SAT") {
     val lazySolver = new LazyBasicSolver()
     assert(lazySolver.solve(And(eqs)) === true)
   }
 
-  test("Currifier") {
-    assert(Currifier(List(Equals(FunctionApplication(g, List(h)), d))) ===
-      List(Equals(FunctionApplication(applyFun, List(Variable(g.name,
-        g.returnSort), h)), d)))
-  }
-
-  test("Flattener") {
-
-  }
-  //TODO test explain, currifier, flattener
+  //TODO test explain
 }
