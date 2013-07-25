@@ -3,6 +3,11 @@ package regolic.smt.qfeuf
 import regolic.asts.core.Trees._
 import regolic.asts.fol.Trees._
 
+/*
+ * All regular function calls are replaced by calls to "apply", which is a 2-ary
+ * function. Functions become arguments of "apply":
+ * e.g. g(a, b) => apply(apply(g, a), b)
+ */
 object Currifier {
 
   private def curry(t: Term): Term = {

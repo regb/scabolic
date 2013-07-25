@@ -3,6 +3,11 @@ package regolic.smt.qfeuf
 import regolic.asts.core.Trees._
 import regolic.asts.fol.Trees._
 
+/*
+ * Flatten nested function calls by introducing auxiliary variables
+ * Needs one extra equality compared to "Fast congruence closure with
+ * extensions" paper
+ */
 object Flattener {
 
   private def freshVar = freshVariable("variable", regolic.asts.theories.int.Trees.IntSort())
