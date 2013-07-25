@@ -6,6 +6,7 @@ import regolic.sat.Solver.Results._
 import regolic.asts.core.Trees._
 import regolic.asts.fol.Trees._
 import regolic.smt.qfeuf.CongruenceSolver
+import regolic.smt.qfeuf.CongruenceClosure
 
 class LazyBasicSolver() {
 
@@ -26,7 +27,9 @@ class LazyBasicSolver() {
           }}.toList
 
           //TODO use same pattern as with sat solver for return values
-          CongruenceSolver.isSat(thAlpha) match {
+          val cg = new CongruenceClosure()
+          cg.isSat(And(thAlpha)) match {
+          //CongruenceSolver.isSat(thAlpha) match {
             case Some(_) => {
               //satSolver.addClause(t)
               retVal = true

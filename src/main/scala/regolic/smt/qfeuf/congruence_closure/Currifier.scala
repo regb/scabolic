@@ -2,7 +2,6 @@ package regolic.smt.qfeuf
 
 import regolic.asts.core.Trees._
 
-// TODO try to enforce constant where possible for better type safety
 object Currifier {
 
   private def curry(t: Term): Term = {
@@ -10,7 +9,7 @@ object Currifier {
       terms match {
         case x :: Nil => x
         case x :: xs => FunctionApplication(applyFun, List(makeFuns(xs), curry(x)))
-        case _ => throw new Exception("impossible case")
+        case _ => throw new Exception("Impossible case when matching terms "+ terms)
       }
     }
 

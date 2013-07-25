@@ -11,28 +11,33 @@ import scala.collection.mutable.HashMap
 import scala.collection.mutable.Set
 import scala.collection.mutable.ArrayBuffer
 
+/*
+ * Algorithm as described in "Fast congruence closure with extensions" by
+ * Nieuwenhuis and Oliveras
+ */
 
-class ProofStructureNode(val label: Term) {
+// Representing the so-called proof tree
+class ProofStructureNode(val name: Term, var edgeLabel: Any) {
   var parent: ProofStructureNode = null
 
   def hasParent = parent != null
 
   override def toString = {
-    val to = if(hasParent) " [=> "+ parent.label +"]" else ""
-    label + to
+    val to = if(hasParent) " [=> "+ parent.name +"]" else ""
+    name + to
   }
 }
 
 class CongruenceClosure extends Solver {
 //class CongruenceClosure(val eqs: List[Equation]) {
-  // TODO change Maps to Arrays where the Term.id is the index
+  // TODO change Maps to Arrays where a Term.id is the index?
   // TODO collect EqClass stuff in separate object 
 
   val logic = regolic.parsers.SmtLib2.Trees.QF_UF
 
   private var elems: Set[Term] = null
 
-  var node: Map[Term,ProofStructureNode] = null
+  private var node: Map[Term,ProofStructureNode] = null
 
   private var repr: Map[Term,Term] = null
     
@@ -50,10 +55,7 @@ class CongruenceClosure extends Solver {
 
   private var classList: Map[Term, Queue[Term]] = null
 
-  // TODO maybe able to refactor this using ProofStructureNode
-  private val labels: Map[Term,Any] = Map()
-
-  def init(eqs: List[Equation]) {
+  private def init(eqs: List[Equation]) {
     def extractVariables(t: Term) = t match {
       case FunctionApplication(_, List((c1: Variable), (c2: Variable))) => List(c1, c2)
       case Variable(_, _) => List(t)
@@ -61,7 +63,7 @@ class CongruenceClosure extends Solver {
     }
     elems = Set() ++ eqs.foldRight(List.empty[Term])((eq,l) =>
       extractVariables(eq._1) ::: extractVariables(eq._2) ::: l)
-    node = Map() ++ elems.map{e => (e, new ProofStructureNode(e))}
+    node = Map() ++ elems.map{e => (e, new ProofStructureNode(e, None))}
     repr = Map() ++ elems.zip(elems)
     classList = Map() ++ elems.map(el => (el, Queue(el)))
     eqClass = Map() ++ node.values.zip(node.values)
@@ -69,22 +71,26 @@ class CongruenceClosure extends Solver {
 
   def isSat(f: Formula): Option[scala.collection.immutable.Map[FunctionSymbol, Term]] = {
     val And(fs) = f
-    val eqs = fs.map{x => x match {
+    val eqs = Flattener(Currifier(fs.map{x => x match {
       case Equals(t1, t2) => (t1, t2)
       case _ => throw new Exception("Formula "+ x +" is not an equality")
-    }}
+    }}))
     init(eqs)
-    Flattener(Currifier(eqs)).foreach(merge)
+    eqs.foreach(merge)
 
-    fs.foreach{
-      case Not(Equals((t1: Variable), (t2: Variable))) if areCongruent(t1, t2) => explain(t1,t2)
+    val unsatTerms = fs.filter{
+      case Not(Equals((t1: Variable), (t2: Variable))) if areCongruent(t1, t2) => true
+      case _ => false
+    }
+    unsatTerms.foreach{
+      case Not(Equals((t1: Variable), (t2: Variable))) => explain(t1,t2)
       case _ => ()
     }
 
-    None
+    if(unsatTerms.isEmpty) Some(scala.collection.immutable.Map()) else None
   }
 
-  def merge(eq: Equation) {
+  private def merge(eq: Equation) {
     eq match {
       case (a: Variable, b: Variable) => {
         pending.enqueue(eq)
@@ -136,8 +142,9 @@ class CongruenceClosure extends Solver {
 
       if(repr(a) != repr(b)) {
         val oldreprA = repr(a)
-        insertEdge(a, b)
-        labels(a) = e
+
+        // Extension for equality explanation
+        insertEdge(a, b, e)
 
         while(classList(oldreprA).nonEmpty) {
           val c = classList(oldreprA).dequeue()
@@ -185,12 +192,14 @@ class CongruenceClosure extends Solver {
   }
 
   private val pendingProofs: Queue[(Term, Term)] = Queue()
-  val highestNode: Map[ProofStructureNode, ProofStructureNode] = Map()
+  private val highestNode: Map[ProofStructureNode, ProofStructureNode] = Map()
   private var eqClass: Map[ProofStructureNode,ProofStructureNode] = null
 
-  private def insertEdge(e: Variable, ePrime: Variable) = {
-    reverseEdges(node(e))
-    node(e).parent = node(ePrime)
+  private def insertEdge(a: Variable, b: Variable, label: Any) = {
+    val from = node(a)
+    reverseEdges(from)
+    from.parent = node(b)
+    from.edgeLabel = label
   }
   
   private def findEqClass(x: ProofStructureNode): ProofStructureNode = {
@@ -200,7 +209,7 @@ class CongruenceClosure extends Solver {
       findEqClass(eqClass(x))
   }
 
-  // TODO lazy, efficient?
+  // TODO efficient?
   private def computeHighestNode(c: ProofStructureNode): ProofStructureNode = {
     @annotation.tailrec
     def nestedComputeHighestNode(x: ProofStructureNode): ProofStructureNode = {
@@ -222,8 +231,8 @@ class CongruenceClosure extends Solver {
     var i = node(a)
     var j = node(b)
     var m = 0
-    // TODO add visited field to node, and check if visited fields are equal
-    // at the pointers
+    // TODO peformance improvement by adding a visited field to node?
+    // and check if visited fields are equal at the pointers
     val visited = Map[ProofStructureNode, Boolean]().withDefaultValue(false)
     while(true) {
       if(visited(i) == true) 
@@ -249,7 +258,7 @@ class CongruenceClosure extends Solver {
   }
 
   // TODO return explanation instead of instant print
-  def explain(c1: Variable, c2: Variable) {
+  private def explain(c1: Variable, c2: Variable) {
     pendingProofs.enqueue((c1, c2))
     while(pendingProofs.nonEmpty) {
       val (a, b) = pendingProofs.dequeue()
@@ -267,10 +276,9 @@ class CongruenceClosure extends Solver {
   private def explainAlongPath(aL: ProofStructureNode, c: ProofStructureNode) {
     var a = computeHighestNode(aL)
 
-    println("Explaining "+ (aL, c))
-    while(a.label != c.label) {
+    while(a.name != c.name) {
       val b = a.parent
-      labels(a.label) match {
+      a.edgeLabel match {
         case (a: Variable, b: Variable) => println((a, b))
         case ((fa@FunctionApplication(_, List(a1, a2)), a: Variable),
           (fb@FunctionApplication(_, List(b1, b2)), b: Variable)) => {
@@ -281,6 +289,7 @@ class CongruenceClosure extends Solver {
           if(a2 != b2)
             pendingProofs.enqueue((a2, b2))
         }
+        case _ => throw new Exception("Can't match edgeLabel "+ a.edgeLabel)
       }
       // UNION
       eqClass(findEqClass(a)) = findEqClass(b)
@@ -294,64 +303,49 @@ class CongruenceClosure extends Solver {
 
 object CongruenceClosure {
   def main(args: Array[String]) {
-    val a = freshVariable("a", IntSort())
-    val b = freshVariable("b", IntSort())
-    val c = freshVariable("c", IntSort())
-    val d = freshVariable("d", IntSort())
-    val e = freshVariable("e", IntSort())
-    val f = freshFunctionSymbol("f", List(IntSort(), IntSort()), IntSort())
-    val g = freshVariable("g", IntSort())
-    val h = freshVariable("h", IntSort())
-    val eqs = List((FunctionApplication(f, List(g,h)), d), (c, d),
-      (FunctionApplication(f, List(g,d)), a), (e, c), (e, b), (b, h))
-    val cg = new CongruenceClosure()
-    cg.init(eqs)
-    eqs.foreach(cg.merge)
-    println("proof structure")
-    cg.node.values.foreach(println)
-    cg.explain(a,b)
-    println("\nhighestNode: "+ cg.highestNode.mkString(", "))
 
-    val c1 = freshVariable("fresh", IntSort())
-    val c2 = freshVariable("fresh", IntSort())
-    val c3 = freshVariable("fresh", IntSort())
-    val c4 = freshVariable("fresh", IntSort())
-    val c5 = freshVariable("fresh", IntSort())
-    val c6 = freshVariable("fresh", IntSort())
-    val c7 = freshVariable("fresh", IntSort())
-    val c8 = freshVariable("fresh", IntSort())
-    val c9 = freshVariable("fresh", IntSort())
-    val c10 = freshVariable("fresh", IntSort())
-    val c11 = freshVariable("fresh", IntSort())
-    val c12 = freshVariable("fresh", IntSort())
-    val c13 = freshVariable("fresh", IntSort())
-    val c14 = freshVariable("fresh", IntSort())
-    val eqs2 = List((c1, c8), (c7, c2), (c3, c13), (c7, c1), (c6, c7), (c9,
-      c5), (c9, c3), (c14, c11), (c10, c4), (c12, c9), (c4, c11), (c10, c7))
-    val cg2 = new CongruenceClosure
-    cg2.init(eqs2)
-    eqs2.foreach(cg2.merge)
-    println("nca: "+ cg2.nearestCommonAncestor(c8, c8))
-
-    val t1 = freshVariable("t", IntSort())
-    val t2 = freshVariable("t", IntSort())
-    val t3 = freshVariable("t", IntSort())
-    val t4 = freshVariable("t", IntSort())
-    // TODO reverse edges test
-
-    val gFun = freshFunctionSymbol("g", List(IntSort(), IntSort(), IntSort()), IntSort())
-    val hFun = freshFunctionSymbol("h", List(IntSort(), IntSort()), IntSort())
-    val eFun = freshFunctionSymbol("e", List(IntSort()), IntSort())
-    val fFun = freshFunctionSymbol("f", List(IntSort()), IntSort())
-    val toCurry = FunctionApplication(gFun, List(a, FunctionApplication(hFun,
-      List(b, FunctionApplication(eFun, List(h)))), c))
-    val iFun = freshFunctionSymbol("i", List(IntSort(), IntSort()), IntSort())
-    val toCurry2 = FunctionApplication(iFun, List(d, e))
-    println("curried: "+ Currifier(List((toCurry, toCurry2))))
-
-    println("flatten: "+ Flattener(Currifier(List((toCurry, toCurry2)))))
-
-    println("flatten: "+ Flattener(Currifier(List((FunctionApplication(fFun, List(a)), b)))))
+/*
+ *    val c1 = freshVariable("fresh", IntSort())
+ *    val c2 = freshVariable("fresh", IntSort())
+ *    val c3 = freshVariable("fresh", IntSort())
+ *    val c4 = freshVariable("fresh", IntSort())
+ *    val c5 = freshVariable("fresh", IntSort())
+ *    val c6 = freshVariable("fresh", IntSort())
+ *    val c7 = freshVariable("fresh", IntSort())
+ *    val c8 = freshVariable("fresh", IntSort())
+ *    val c9 = freshVariable("fresh", IntSort())
+ *    val c10 = freshVariable("fresh", IntSort())
+ *    val c11 = freshVariable("fresh", IntSort())
+ *    val c12 = freshVariable("fresh", IntSort())
+ *    val c13 = freshVariable("fresh", IntSort())
+ *    val c14 = freshVariable("fresh", IntSort())
+ *    val eqs2 = List((c1, c8), (c7, c2), (c3, c13), (c7, c1), (c6, c7), (c9,
+ *      c5), (c9, c3), (c14, c11), (c10, c4), (c12, c9), (c4, c11), (c10, c7))
+ *    val cg2 = new CongruenceClosure
+ *    cg2.init(eqs2)
+ *    eqs2.foreach(cg2.merge)
+ *    println("nca: "+ cg2.nearestCommonAncestor(c8, c8))
+ *
+ *    val t1 = freshVariable("t", IntSort())
+ *    val t2 = freshVariable("t", IntSort())
+ *    val t3 = freshVariable("t", IntSort())
+ *    val t4 = freshVariable("t", IntSort())
+ *    // TODO reverse edges test
+ *
+ *    val gFun = freshFunctionSymbol("g", List(IntSort(), IntSort(), IntSort()), IntSort())
+ *    val hFun = freshFunctionSymbol("h", List(IntSort(), IntSort()), IntSort())
+ *    val eFun = freshFunctionSymbol("e", List(IntSort()), IntSort())
+ *    val fFun = freshFunctionSymbol("f", List(IntSort()), IntSort())
+ *    val toCurry = FunctionApplication(gFun, List(a, FunctionApplication(hFun,
+ *      List(b, FunctionApplication(eFun, List(h)))), c))
+ *    val iFun = freshFunctionSymbol("i", List(IntSort(), IntSort()), IntSort())
+ *    val toCurry2 = FunctionApplication(iFun, List(d, e))
+ *    println("curried: "+ Currifier(List((toCurry, toCurry2))))
+ *
+ *    println("flatten: "+ Flattener(Currifier(List((toCurry, toCurry2)))))
+ *
+ *    println("flatten: "+ Flattener(Currifier(List((FunctionApplication(fFun, List(a)), b)))))
+ */
   }
 
 }

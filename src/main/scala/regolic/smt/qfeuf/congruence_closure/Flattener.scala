@@ -4,7 +4,7 @@ import regolic.asts.core.Trees._
 
 object Flattener {
 
-  private def freshVar = freshVariable("v", regolic.asts.theories.int.Trees.IntSort())
+  private def freshVar = freshVariable("variable", regolic.asts.theories.int.Trees.IntSort())
 
   private def extract(f: FunctionApplication, acc: List[Equation]): List[Equation] = {
     f match {

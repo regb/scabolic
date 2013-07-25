@@ -24,7 +24,7 @@ object PropositionalSkeleton {
     
     //for each subformula, create a new representation and add the constraints while returning the representation
     def rec(form: Formula): Int = form match {
-      case e@Equals(t1@Variable(_, _), t2@Variable(_, _)) => {
+      case e@Equals(_, _) => {
         eqToId.get(e) match {
           case Some(repr) => repr
           case None => {
@@ -77,7 +77,7 @@ object PropositionalSkeleton {
         constraints += Set(new Literal(repr, true), new Literal(f1Repr, true), new Literal(f2Repr, true))
         repr
       }
-      case _ => sys.error("Unhandled case in ConjunctiveNormalForm: " + form)
+      case _ => sys.error("Unhandled case in PropositionalSkeleton: " + form)
     }
 
     val repr = rec(formula)
