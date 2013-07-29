@@ -9,14 +9,42 @@ import scala.collection.mutable.Queue
 import scala.collection.mutable.Map
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.Set
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.ListBuffer
+
+object FastCongruenceSolver extends Solver {
+  val logic = regolic.parsers.SmtLib2.Trees.QF_UF
+
+  def isSat(f: Formula): Option[scala.collection.immutable.Map[FunctionSymbol, Term]] = {
+    val And(fs) = f
+
+    val eqs = Flattener(Currifier(fs.filter{x => x match {
+      case Equals(t1, t2) => true
+      case Not(Equals(t1, t2)) => false
+      case _ => throw new Exception("Formula "+ x +" is not an equality")
+    }}.asInstanceOf[List[PredicateApplication]]))
+
+    val congruenceClosure = new CongruenceClosure(eqs)
+    eqs.foreach(congruenceClosure.merge)
+
+    // Are two variables, which shouldn't be equal congruent?
+    val unsatTerms = fs.filter{
+      case Not(Equals((t1: Variable), (t2: Variable))) if congruenceClosure.areCongruent(t1, t2) => true
+      case _ => false
+    }
+    // For each of such equalities, get the reason
+    unsatTerms.foreach{
+      case Not(Equals((t1: Variable), (t2: Variable))) => congruenceClosure.explain(t1, t2)
+      case _ => ()
+    }
+
+    if(unsatTerms.isEmpty) Some(scala.collection.immutable.Map()) else None
+  }
+
+}
 
 /*
- * Algorithm as described in "Fast congruence closure with extensions" by
- * Nieuwenhuis and Oliveras
+ * Representing the so-called proof forest
  */
-
-// Representing the so-called proof forest
 class ProofStructureNode(val name: Term, var edgeLabel: Any) {
   var parent: ProofStructureNode = null
 
@@ -28,17 +56,27 @@ class ProofStructureNode(val name: Term, var edgeLabel: Any) {
   }
 }
 
-class CongruenceClosure extends Solver {
+/*
+ * Algorithm as described in "Fast congruence closure and extensions" by
+ * Nieuwenhuis and Oliveras
+ */
+class CongruenceClosure(eqs: List[PredicateApplication]) {
   // TODO change Maps to Arrays where a Term.id is the index?
   // TODO collect EqClass stuff in separate object 
 
-  val logic = regolic.parsers.SmtLib2.Trees.QF_UF
+  def extractVariables(t: Term) = t match {
+    case FunctionApplication(_, List((c1: Variable), (c2: Variable))) => List(c1, c2)
+    case Variable(_, _) => List(t)
+    case _ => throw new Exception("Unexpected term "+ t)
+  }
+  private var elems: Set[Term] = Set() ++ eqs.foldRight(List.empty[Term])((eq, l) => eq match {
+    case Equals(t1, t2) => extractVariables(t1) ::: extractVariables(t2) ::: l
+    case _ => throw new Exception("Couldn't extract pair of terms from "+ eq)
+  })
+    
+  private var node: Map[Term,ProofStructureNode] = Map() ++ elems.map{e => (e, new ProofStructureNode(e, None))}
 
-  private var elems: Set[Term] = null
-
-  private var node: Map[Term,ProofStructureNode] = null
-
-  private var repr: Map[Term,Term] = null
+  private var repr: Map[Term,Term] = Map() ++ elems.zip(elems)
     
   private val pending: Queue[Any] = Queue()
 
@@ -52,49 +90,9 @@ class CongruenceClosure extends Solver {
 
   private val lookup: Map[(Term, Term), Option[PredicateApplication]] = Map().withDefaultValue(None)
 
-  private var classList: Map[Term, Queue[Term]] = null
+  private var classList: Map[Term, Queue[Term]] = Map() ++ elems.map(el => (el, Queue(el)))
 
-  private def init(eqs: List[PredicateApplication]) {
-    def extractVariables(t: Term) = t match {
-      case FunctionApplication(_, List((c1: Variable), (c2: Variable))) => List(c1, c2)
-      case Variable(_, _) => List(t)
-      case _ => throw new Exception("Unexpected term "+ t)
-    }
-    elems = Set() ++ eqs.foldRight(List.empty[Term])((eq, l) => eq match {
-      case Equals(t1, t2) => extractVariables(t1) ::: extractVariables(t2) ::: l
-      case _ => throw new Exception("Couldn't extract pair of terms from "+ eq)
-    })
-    node = Map() ++ elems.map{e => (e, new ProofStructureNode(e, None))}
-    repr = Map() ++ elems.zip(elems)
-    classList = Map() ++ elems.map(el => (el, Queue(el)))
-    eqClass = Map() ++ node.values.zip(node.values)
-  }
-
-  def isSat(f: Formula): Option[scala.collection.immutable.Map[FunctionSymbol, Term]] = {
-    val And(fs) = f
-    // TODO does the mapping to pairs make sense or should we keep
-    // Equals/PredicateApplication?
-    val eqs = Flattener(Currifier(fs.filter{x => x match {
-      case Equals(t1, t2) => true
-      case Not(Equals(t1, t2)) => false
-      case _ => throw new Exception("Formula "+ x +" is not an equality")
-    }}.asInstanceOf[List[PredicateApplication]]))
-    init(eqs)
-    eqs.foreach(merge)
-
-    val unsatTerms = fs.filter{
-      case Not(Equals((t1: Variable), (t2: Variable))) if areCongruent(t1, t2) => true
-      case _ => false
-    }
-    unsatTerms.foreach{
-      case Not(Equals((t1: Variable), (t2: Variable))) => explain(t1, t2)
-      case _ => ()
-    }
-
-    if(unsatTerms.isEmpty) Some(scala.collection.immutable.Map()) else None
-  }
-
-  private def merge(eq: PredicateApplication) {
+  def merge(eq: PredicateApplication) {
     eq match {
       case Equals(a: Variable, b: Variable) => {
         pending.enqueue(eq)
@@ -124,7 +122,9 @@ class CongruenceClosure extends Solver {
         case Equals(a: Variable, b: Variable) => (a, b)
         case (Equals(_, a: Variable), Equals(_, b: Variable)) => (a, b)
       }
-      val (a, b) = if(classList(repr(p._1)).size > classList(repr(p._2)).size) p.swap else p
+      val (a, b) = if(classList(repr(p._1)).size > classList(repr(p._2)).size){
+        p.swap
+      } else p
 
       if(repr(a) != repr(b)) {
         val oldreprA = repr(a)
@@ -173,13 +173,12 @@ class CongruenceClosure extends Solver {
     }
   }
 
-  private def areCongruent(s: Term, t: Term): Boolean = {
+  def areCongruent(s: Term, t: Term): Boolean = {
     normalize(s) == normalize(t)
   }
 
   private val pendingProofs: Queue[PredicateApplication] = Queue()
-  private val highestNode: Map[ProofStructureNode, ProofStructureNode] = Map()
-  private var eqClass: Map[ProofStructureNode,ProofStructureNode] = null
+  private var eqClass: Map[ProofStructureNode,ProofStructureNode] = Map() ++ node.values.zip(node.values)
 
   private def reverseEdges(from: ProofStructureNode) {
     @annotation.tailrec
@@ -213,56 +212,39 @@ class CongruenceClosure extends Solver {
       findEqClass(eqClass(x))
   }
 
-  // TODO efficient?
   private def computeHighestNode(c: ProofStructureNode): ProofStructureNode = {
     @annotation.tailrec
     def nestedComputeHighestNode(x: ProofStructureNode): ProofStructureNode = {
-      if(highestNode.contains(x))
-        highestNode(x)
-      else {
-        if(!x.hasParent || findEqClass(x.parent) != findEqClass(c)) 
-          x
-        else
-          nestedComputeHighestNode(x.parent)
-      }
+      if(!x.hasParent || findEqClass(x.parent) != findEqClass(c)) 
+        x
+      else
+        nestedComputeHighestNode(x.parent)
     }
-    val highest = nestedComputeHighestNode(c)
-    highestNode(c) = highest
-    highest
+    nestedComputeHighestNode(c)
   }
 
   def nearestCommonAncestor(a: Term, b: Term): Option[ProofStructureNode] = {
-    var i = node(a)
-    var j = node(b)
-    var m = 0
-    // TODO peformance improvement by adding a visited field to node?
-    // and check if visited fields are equal at the pointers
-    val visited = Map[ProofStructureNode, Boolean]().withDefaultValue(false)
-    while(true) {
-      if(visited(i) == true) 
-        return Some(i)
-      if(visited(j) == true) 
-        return Some(j)
-
-      // TODO see if it makes sense to optimize counting mechanism (m+=2 if
-      // only one pointer running
-      if(m % 2 == 0 && i.hasParent) {
-        i = i.parent
-        visited(i) = true
-      } else if(m % 2 == 1 && j.hasParent) {
-        j = j.parent
-        visited(j) = true
-      } else if(!i.hasParent && !j.hasParent) {
-        return None
-      }
-      m += 1
+    @annotation.tailrec
+    def pathToRoot(n: ProofStructureNode, acc: List[ProofStructureNode] =
+      Nil): List[ProofStructureNode] = {
+      if(n.hasParent)
+        pathToRoot(n.parent, n :: acc)
+      else
+        n :: acc // Include root
     }
 
-    throw new Exception("Unreachable code")
+    // TODO some overhead due to functional implemenation
+    val commonPath = pathToRoot(node(a)).zip(pathToRoot(node(b))).filter{
+      case (first, second) => first == second
+    }
+    if(commonPath.isEmpty)
+      None
+    else
+      Some(commonPath.reverse.head._1)
   }
 
-  // TODO return explanation instead of instant print
-  private def explain(c1: Variable, c2: Variable) {
+  def explain(c1: Variable, c2: Variable) = {
+    var explanation = new ListBuffer[PredicateApplication]
     pendingProofs.enqueue(Equals(c1, c2))
     while(pendingProofs.nonEmpty) {
       val Equals(a, b) = pendingProofs.dequeue()
@@ -272,22 +254,23 @@ class CongruenceClosure extends Solver {
           case None => throw new Exception("No common ancestor "+ (a,b))
         }
       ))
-      explainAlongPath(node(a), c)
-      explainAlongPath(node(b), c)
+      explanation ++= explainAlongPath(node(a), c)
+      explanation ++= explainAlongPath(node(b), c)
     }
+    explanation.toList
   }
 
-  private def explainAlongPath(aL: ProofStructureNode, c: ProofStructureNode) {
+  private def explainAlongPath(aL: ProofStructureNode, c: ProofStructureNode) = {
+    var explanation = new ListBuffer[PredicateApplication]
     var a = computeHighestNode(aL)
-
     while(a.name != c.name) {
       val b = a.parent
       a.edgeLabel match {
-        case Equals(a: Variable, b: Variable) => println((a, b))
+        case Equals(a: Variable, b: Variable) => explanation += Equals(a, b)
         case (Equals(fa@FunctionApplication(_, List(a1, a2)), a: Variable),
           Equals(fb@FunctionApplication(_, List(b1, b2)), b: Variable)) => {
-          println((fa, a) +", "+ (fb, b))
-          // TODO sufficient? nca call for Variable not in proof tree?
+          explanation += Equals(fa, a)
+          explanation += Equals(fb, b)
           if(a1 != b1)
             pendingProofs.enqueue(Equals(a1, b1))
           if(a2 != b2)
@@ -297,10 +280,9 @@ class CongruenceClosure extends Solver {
       }
       // UNION
       eqClass(findEqClass(a)) = findEqClass(b)
-      highestNode(a) = computeHighestNode(b)
-
       a = computeHighestNode(b)
     }
+    explanation
   }
 
 }

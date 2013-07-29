@@ -12,27 +12,28 @@ object Flattener {
 
   private def freshVar = freshVariable("variable", regolic.asts.theories.int.Trees.IntSort())
 
-  private def extract(f: FunctionApplication, acc: List[PredicateApplication]): List[PredicateApplication] = {
+  private def extract(f: FunctionApplication, acc: List[PredicateApplication] =
+    Nil): Pair[List[PredicateApplication], Variable] = {
     f match {
       case FunctionApplication(applyFun, List((t1: Variable), (t2: Variable))) => {
-        Equals(f, freshVar) :: acc
+        val fv = freshVar
+        (Equals(f, fv) :: acc, fv)
       }
       case FunctionApplication(applyFun, List((t1: FunctionApplication), (t2: Variable))) => {
-        val l = extract(t1, acc)
-        val List(_, lVar) = l.head.terms
-        Equals(FunctionApplication(applyFun, List(lVar, t2)), freshVar) :: l
+        val (l, lVar) = extract(t1, acc)
+        val fv = freshVar
+        (Equals(FunctionApplication(applyFun, List(lVar, t2)), fv) :: l, fv)
       }
       case FunctionApplication(applyFun, List((t1: Variable), (t2: FunctionApplication))) => {
-        val r = extract(t2, acc)
-        val List(_, rVar) = r.head.terms
-        Equals(FunctionApplication(applyFun, List(t1, rVar)), freshVar) :: r
+        val (r, rVar) = extract(t2, acc)
+        val fv = freshVar
+        (Equals(FunctionApplication(applyFun, List(t1, rVar)), fv) :: r, fv)
       }
       case FunctionApplication(applyFun, List((t1: FunctionApplication), (t2: FunctionApplication))) => {
-        val l = extract(t1, acc)
-        val r = extract(t2, l)
-        val List(_, lVar) = l.head.terms
-        val List(_, rVar) = r.head.terms
-        Equals(FunctionApplication(applyFun, List(lVar, rVar)), freshVar) :: r
+        val (l, lVar) = extract(t1, acc)
+        val (r, rVar) = extract(t2, l)
+        val fv = freshVar
+        (Equals(FunctionApplication(applyFun, List(lVar, rVar)), fv) :: r, fv)
       }
       case _ => throw new Exception("Unsupported function "+ f)
     }
@@ -43,20 +44,16 @@ object Flattener {
         case Equals((t1: Variable), (t2: Variable)) =>
           Equals(t1, t2) :: Nil
         case Equals((t1: Variable), (t2: FunctionApplication)) => {
-          val r = extract(t2, Nil)
-          val List(_, rVar) = r.head.terms
+          val (r, rVar) = extract(t2)
           Equals(t1, rVar) :: r
         }
         case Equals((t1: FunctionApplication), (t2: Variable)) => {
-          val l = extract(t1, Nil)
-          val List(_, lVar) = l.head.terms
+          val (l, lVar) = extract(t1)
           Equals(lVar, t2) :: l
         }
         case Equals((t1: FunctionApplication), (t2: FunctionApplication)) => {
-          val l = extract(t1, Nil)
-          val r = extract(t2, Nil)
-          val List(_, lVar) = l.head.terms
-          val List(_, rVar) = r.head.terms
+          val (l, lVar) = extract(t1)
+          val (r, rVar) = extract(t2)
           Equals(lVar, rVar) :: l ::: r
         }
         case _ => throw new Exception("Unsupported terms "+ eq)

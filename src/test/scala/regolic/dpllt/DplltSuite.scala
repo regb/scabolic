@@ -26,6 +26,7 @@ class DplltSuite extends FunSuite {
   val d = freshVariable("d", IntSort())
   val e = freshVariable("e", IntSort())
   val g = freshFunctionSymbol("g", List(IntSort()), IntSort())
+  val gVar = Variable(g.name, g.returnSort)
   val h = freshVariable("h", IntSort())
   val eqs = List(Equals(FunctionApplication(g, List(h)), d), Equals(c, d),
     Equals(FunctionApplication(g, List(d)), a), Equals(e, c), Equals(e, b),
@@ -62,14 +63,13 @@ class DplltSuite extends FunSuite {
           FunctionApplication(applyFun,
             List(FunctionApplication(applyFun,
               List(FunctionApplication(applyFun,
-                List(Variable(g.name, g.returnSort), a)),
+                List(gVar, a)),
               FunctionApplication(applyFun, List(h, b)))), b)), b)
         )
       )
       ===
       List(
-        Equals(FunctionApplication(applyFun, List(Variable(g.name,
-          g.returnSort), a)), vp),
+        Equals(FunctionApplication(applyFun, List(gVar, a)), vp),
         Equals(FunctionApplication(applyFun, List(h, b)), vpp),
         Equals(FunctionApplication(applyFun, List(vp, vpp)), vppp),
         Equals(FunctionApplication(applyFun, List(vppp, b)), extra),
@@ -93,5 +93,39 @@ class DplltSuite extends FunSuite {
     assert(lazySolver.solve(And(eqs)) === true)
   }
 
-  //TODO test explain
+  test("explain") {
+    val inputEqs = List(
+      Equals(FunctionApplication(applyFun, List(gVar, h)), d),
+      Equals(c, d),
+      Equals(FunctionApplication(applyFun, List(gVar, d)), a),
+      Equals(e, c),
+      Equals(e, b),
+      Equals(b, h)
+    
+      /*
+       *Equals(FunctionApplication(applyFun, List(gVar, h)), d),
+       *Equals(FunctionApplication(applyFun, List(gVar, d)), a),
+       *Equals(e, b),
+       *Equals(e, c),
+       *Equals(c, d),
+       *Equals(b, h)
+       */
+    )
+    val cc = new CongruenceClosure(inputEqs)
+    inputEqs.foreach(cc.merge)
+    
+    assert(
+      cc.explain(a, b)
+      ===
+      List(
+        Equals(FunctionApplication(applyFun, List(gVar, h)), d),
+        Equals(FunctionApplication(applyFun, List(gVar, d)), a),
+        Equals(e, b),
+        Equals(e, c),
+        Equals(c, d),
+        Equals(b, h)
+      )
+    )
+  }
+
 }
