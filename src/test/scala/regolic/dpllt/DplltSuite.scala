@@ -9,7 +9,11 @@ import regolic.smt.qfeuf.CongruenceClosure
 import regolic.smt.qfeuf.Flattener
 import regolic.smt.qfeuf.Currifier
 
+import regolic.sat.NaiveSolver
+import regolic.sat.Literal
+
 import org.scalatest.FunSuite
+import scala.util.Random
 
 class DplltSuite extends FunSuite {
 
@@ -32,44 +36,108 @@ class DplltSuite extends FunSuite {
     Equals(FunctionApplication(g, List(d)), a), Equals(e, c), Equals(e, b),
     Equals(b, h))
 
+  //val rand = new Random(scala.compat.Platform.currentTime)
+  val rand = new Random(0)
+
   test("PropositionalSkeleton") {
-    val ps = PropositionalSkeleton(phi)
-    // TODO assert
+    val termToValue = scala.collection.mutable.Map[Term, Int]()
+    def evaluate(f: Formula): Boolean = {
+      f match {
+        case Equals(t1, t2) => {
+          if(!termToValue.contains(t1))
+            termToValue(t1) = rand.nextInt(10)
+          if(!termToValue.contains(t2))
+            termToValue(t2) = rand.nextInt(10)
+          (termToValue(t1) == termToValue(t2))
+        }
+        case Not(f) => {
+          !evaluate(f)
+        }
+        case And(fs) => {
+          // Scala is too smart for foldLeft being useful here
+          // fs.foldLeft(true)((l, f) => l && evaluate(f))
+          fs.map(evaluate).reduceLeft((l,bool) => l && bool)
+        }
+        case Or(fs) => {
+          // Scala is too smart for foldLeft being useful here
+          // fs.foldLeft(false)((l, f) => l || evaluate(f))
+          fs.map(evaluate).reduceLeft((l,bool) => l || bool)
+        }
+        //case Implies(t1, t2) => {
+          //(!evaluate(t1) || evaluate(t2))
+        //}
+        //case Iff(t1, t2) => {
+          //(evaluate(t1) == evaluate(t2))
+        //}
+        case _ => sys.error("Unhandled case in PropositionalSkeleton: " + f)
+      }
+    }
+    val truthValTheory = evaluate(phi)
+
+    val (constraints, litCount, idToEq) = PropositionalSkeleton(phi)
+
+    val idToTruthVal = idToEq.map{
+      case (litId, eq) => eq match {
+        case Equals(t1, t2) => (litId, termToValue(t1) == termToValue(t2))
+      }
+    }
+    val constraintsGivenModel = constraints.withFilter{ s =>
+      !s.exists{lit => {
+          if(idToTruthVal.contains(lit.id))
+            idToTruthVal(lit.id) == lit.polarity
+          else
+            false
+        }
+      }
+    }.map{ s =>
+      s.filter{lit => {
+        if(idToTruthVal.contains(lit.id))
+          idToTruthVal(lit.id) == lit.polarity
+        else
+          true
+      }
+    }
+    }
+
+    val truthValProp = NaiveSolver.isSat(constraintsGivenModel)
+
+    assert(truthValTheory === truthValProp.nonEmpty)
   }
 
   test("Currifier") {
+    def noFunctionOtherThanApply(f: Term): Boolean = {
+      f match {
+        case Apply(t1, t2) => noFunctionOtherThanApply(t1) && noFunctionOtherThanApply(t2)
+        case Variable(_, _) => true
+        case _ => false
+      }
+    }
     val fun = freshFunctionSymbol("fun", List(IntSort(), IntSort()), IntSort())
 
     assert(
-      Currifier(List(Equals(FunctionApplication(fun, List(a, b)), d)))
-      ===
-      List(Equals(
-        Apply(Apply(Variable(fun.name, fun.returnSort), a), b), d)
-      )
+      Currifier(
+        List(Equals(FunctionApplication(fun, List(a, b)), d))
+      ).forall{
+        case Equals(t1, t2) => noFunctionOtherThanApply(t1) && noFunctionOtherThanApply(t2)
+      }
     )
   }
 
   test("Flattener") {
-    val count = freshVariable("variable", IntSort()).name.substring(9).toInt
-    val vp = Variable("variable_" + (count + 1), IntSort())
-    val vpp = Variable("variable_" + (count + 2), IntSort())
-    val vppp = Variable("variable_" + (count + 3), IntSort())
-    val extra = Variable("variable_" + (count + 4), IntSort())
-
+    def noNestedFunctions(eq: PredicateApplication): Boolean = {
+      eq match {
+        case Equals(Variable(_, _), Variable(_, _)) => true
+        case Equals(Apply(Variable(_, _), Variable(_, _)), Variable(_, _)) => true
+        case _ => false
+      }
+    }
     assert(
       Flattener(
         List(Equals(
-            Apply(Apply(Apply(gVar, a), Apply(h, b)), b), b)
+            Apply(Apply(Apply(gVar, a), Apply(h, b)), b), b
+          )
         )
-      )
-      ===
-      List(
-        Equals(Apply(gVar, a), vp),
-        Equals(Apply(h, b), vpp),
-        Equals(Apply(vp, vpp), vppp),
-        Equals(Apply(vppp, b), extra),
-        Equals(extra, b)
-      ).reverse
+      ).forall(noNestedFunctions)
     )
   }
 
@@ -96,23 +164,16 @@ class DplltSuite extends FunSuite {
       Equals(e, c),
       Equals(e, b),
       Equals(b, h)
-    
-      /*
-       *Equals(FunctionApplication(applyFun, List(gVar, h)), d),
-       *Equals(FunctionApplication(applyFun, List(gVar, d)), a),
-       *Equals(e, b),
-       *Equals(e, c),
-       *Equals(c, d),
-       *Equals(b, h)
-       */
     )
     val cc = new CongruenceClosure(inputEqs)
     inputEqs.foreach(cc.merge)
     
+    // Check that the right equalities are in the explanation, w/o caring about
+    // order
     assert(
-      cc.explain(a, b)
+      cc.explain(a, b).toSet
       ===
-      List(
+      Set(
         Equals(Apply(gVar, h), d),
         Equals(Apply(gVar, d), a),
         Equals(e, b),
