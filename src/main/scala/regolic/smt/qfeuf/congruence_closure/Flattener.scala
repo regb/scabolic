@@ -15,25 +15,25 @@ object Flattener {
   private def extract(f: FunctionApplication, acc: List[PredicateApplication] =
     Nil): Pair[List[PredicateApplication], Variable] = {
     f match {
-      case FunctionApplication(applyFun, List((t1: Variable), (t2: Variable))) => {
+      case Apply((t1: Variable), (t2: Variable)) => {
         val fv = freshVar
         (Equals(f, fv) :: acc, fv)
       }
-      case FunctionApplication(applyFun, List((t1: FunctionApplication), (t2: Variable))) => {
+      case Apply((t1: FunctionApplication), (t2: Variable)) => {
         val (l, lVar) = extract(t1, acc)
         val fv = freshVar
-        (Equals(FunctionApplication(applyFun, List(lVar, t2)), fv) :: l, fv)
+        (Equals(Apply(lVar, t2), fv) :: l, fv)
       }
-      case FunctionApplication(applyFun, List((t1: Variable), (t2: FunctionApplication))) => {
+      case Apply((t1: Variable), (t2: FunctionApplication)) => {
         val (r, rVar) = extract(t2, acc)
         val fv = freshVar
-        (Equals(FunctionApplication(applyFun, List(t1, rVar)), fv) :: r, fv)
+        (Equals(Apply(t1, rVar), fv) :: r, fv)
       }
-      case FunctionApplication(applyFun, List((t1: FunctionApplication), (t2: FunctionApplication))) => {
+      case Apply((t1: FunctionApplication), (t2: FunctionApplication)) => {
         val (l, lVar) = extract(t1, acc)
         val (r, rVar) = extract(t2, l)
         val fv = freshVar
-        (Equals(FunctionApplication(applyFun, List(lVar, rVar)), fv) :: r, fv)
+        (Equals(Apply(lVar, rVar), fv) :: r, fv)
       }
       case _ => throw new Exception("Unsupported function "+ f)
     }

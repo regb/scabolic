@@ -4,7 +4,7 @@ import regolic.asts.theories.int.Trees.IntSort
 import regolic.asts.core.Trees._
 import regolic.asts.fol.Trees._
 
-import regolic.smt.qfeuf.applyFun
+import regolic.smt.qfeuf.Apply
 import regolic.smt.qfeuf.CongruenceClosure
 import regolic.smt.qfeuf.Flattener
 import regolic.smt.qfeuf.Currifier
@@ -44,8 +44,7 @@ class DplltSuite extends FunSuite {
       Currifier(List(Equals(FunctionApplication(fun, List(a, b)), d)))
       ===
       List(Equals(
-        FunctionApplication(applyFun, List(FunctionApplication(applyFun,
-          List(Variable(fun.name, fun.returnSort), a)), b)), d)
+        Apply(Apply(Variable(fun.name, fun.returnSort), a), b), d)
       )
     )
   }
@@ -60,19 +59,15 @@ class DplltSuite extends FunSuite {
     assert(
       Flattener(
         List(Equals(
-          FunctionApplication(applyFun,
-            List(FunctionApplication(applyFun,
-              List(FunctionApplication(applyFun,
-                List(gVar, a)),
-              FunctionApplication(applyFun, List(h, b)))), b)), b)
+            Apply(Apply(Apply(gVar, a), Apply(h, b)), b), b)
         )
       )
       ===
       List(
-        Equals(FunctionApplication(applyFun, List(gVar, a)), vp),
-        Equals(FunctionApplication(applyFun, List(h, b)), vpp),
-        Equals(FunctionApplication(applyFun, List(vp, vpp)), vppp),
-        Equals(FunctionApplication(applyFun, List(vppp, b)), extra),
+        Equals(Apply(gVar, a), vp),
+        Equals(Apply(h, b), vpp),
+        Equals(Apply(vp, vpp), vppp),
+        Equals(Apply(vppp, b), extra),
         Equals(extra, b)
       ).reverse
     )
@@ -95,9 +90,9 @@ class DplltSuite extends FunSuite {
 
   test("explain") {
     val inputEqs = List(
-      Equals(FunctionApplication(applyFun, List(gVar, h)), d),
+      Equals(Apply(gVar, h), d),
       Equals(c, d),
-      Equals(FunctionApplication(applyFun, List(gVar, d)), a),
+      Equals(Apply(gVar, d), a),
       Equals(e, c),
       Equals(e, b),
       Equals(b, h)
@@ -118,8 +113,8 @@ class DplltSuite extends FunSuite {
       cc.explain(a, b)
       ===
       List(
-        Equals(FunctionApplication(applyFun, List(gVar, h)), d),
-        Equals(FunctionApplication(applyFun, List(gVar, d)), a),
+        Equals(Apply(gVar, h), d),
+        Equals(Apply(gVar, d), a),
         Equals(e, b),
         Equals(e, c),
         Equals(c, d),

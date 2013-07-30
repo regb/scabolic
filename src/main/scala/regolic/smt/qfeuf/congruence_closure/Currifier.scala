@@ -14,7 +14,7 @@ object Currifier {
     def makeFuns(terms: List[Term]): Term = {
       terms match {
         case x :: Nil => x
-        case x :: xs => FunctionApplication(applyFun, List(makeFuns(xs), curry(x)))
+        case x :: xs => Apply(makeFuns(xs), curry(x))
         case _ => throw new Exception("Impossible case when matching terms "+ terms)
       }
     }

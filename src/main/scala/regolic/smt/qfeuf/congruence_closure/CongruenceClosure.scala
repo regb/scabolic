@@ -166,8 +166,7 @@ class CongruenceClosure(eqs: List[PredicateApplication]) {
         lookup(u1, u2) match {
           case Some(Equals(_, a)) if (u1.isInstanceOf[Variable] &&
             u2.isInstanceOf[Variable]) => repr(a)
-          case _ => FunctionApplication(applyFun, List(u1.asInstanceOf[Variable],
-            u2.asInstanceOf[Variable]))
+          case _ => Apply(u1.asInstanceOf[Variable], u2.asInstanceOf[Variable])
         }
       }
     }
