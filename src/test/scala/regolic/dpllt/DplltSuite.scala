@@ -36,72 +36,66 @@ class DplltSuite extends FunSuite {
     Equals(FunctionApplication(g, List(d)), a), Equals(e, c), Equals(e, b),
     Equals(b, h))
 
-  //val rand = new Random(scala.compat.Platform.currentTime)
-  val rand = new Random(0)
+  val rand = new Random(compat.Platform.currentTime)
 
-  test("PropositionalSkeleton") {
-    val termToValue = scala.collection.mutable.Map[Term, Int]()
+  private def propositionalSkeletonTest(f: Formula): Boolean = {
+    val assignment = collection.mutable.Map[Term, Int]()
     def evaluate(f: Formula): Boolean = {
       f match {
         case Equals(t1, t2) => {
-          if(!termToValue.contains(t1))
-            termToValue(t1) = rand.nextInt(10)
-          if(!termToValue.contains(t2))
-            termToValue(t2) = rand.nextInt(10)
-          (termToValue(t1) == termToValue(t2))
+          if(!assignment.contains(t1))
+            assignment(t1) = rand.nextInt(10)
+          if(!assignment.contains(t2))
+            assignment(t2) = rand.nextInt(10)
+          (assignment(t1) == assignment(t2))
         }
         case Not(f) => {
           !evaluate(f)
         }
         case And(fs) => {
-          // Scala is too smart for foldLeft being useful here
-          // fs.foldLeft(true)((l, f) => l && evaluate(f))
           fs.map(evaluate).reduceLeft((l,bool) => l && bool)
         }
         case Or(fs) => {
-          // Scala is too smart for foldLeft being useful here
-          // fs.foldLeft(false)((l, f) => l || evaluate(f))
           fs.map(evaluate).reduceLeft((l,bool) => l || bool)
         }
-        //case Implies(t1, t2) => {
-          //(!evaluate(t1) || evaluate(t2))
-        //}
-        //case Iff(t1, t2) => {
-          //(evaluate(t1) == evaluate(t2))
-        //}
         case _ => sys.error("Unhandled case in PropositionalSkeleton: " + f)
       }
     }
-    val truthValTheory = evaluate(phi)
-
-    val (constraints, litCount, idToEq) = PropositionalSkeleton(phi)
-
-    val idToTruthVal = idToEq.map{
-      case (litId, eq) => eq match {
-        case Equals(t1, t2) => (litId, termToValue(t1) == termToValue(t2))
-      }
-    }
-    val constraintsGivenModel = constraints.withFilter{ s =>
-      !s.exists{lit => {
-          if(idToTruthVal.contains(lit.id))
-            idToTruthVal(lit.id) == lit.polarity
-          else
-            false
+    def applyAssignment(cnf: Set[Set[Literal]], assignment: Map[Int, Boolean]): Set[Set[Literal]] = {
+      cnf.withFilter{s =>
+        !s.exists{lit => {
+            if(assignment.contains(lit.id))
+              assignment(lit.id) == lit.polarity
+            else
+              false
+          }
+        }
+      }.map{s =>
+        s.filter{lit => {
+            if(assignment.contains(lit.id))
+              assignment(lit.id) == lit.polarity
+            else
+              true
+          }
         }
       }
-    }.map{ s =>
-      s.filter{lit => {
-        if(idToTruthVal.contains(lit.id))
-          idToTruthVal(lit.id) == lit.polarity
-        else
-          true
+    }
+
+    val truthValTheory = evaluate(f)
+
+    val (constraints, _, idToEq) = PropositionalSkeleton(f)
+    val idToTruthVal = idToEq.map{
+      case (litId, eq) => eq match {
+        case Equals(t1, t2) => (litId, assignment(t1) == assignment(t2))
       }
     }
-    }
+    val truthValProp = NaiveSolver.isSat(applyAssignment(constraints, idToTruthVal))
 
-    val truthValProp = NaiveSolver.isSat(constraintsGivenModel)
-
-    assert(truthValTheory === truthValProp.nonEmpty)
+    truthValTheory == truthValProp.nonEmpty
+  }
+  test("PropositionalSkeleton") {
+    assert(propositionalSkeletonTest(phi))
+    assert(propositionalSkeletonTest(psi))
   }
 
   test("Currifier") {
