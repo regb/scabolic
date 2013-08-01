@@ -178,4 +178,27 @@ class DplltSuite extends FunSuite {
     )
   }
 
+  test("explain own example") {
+    println("THIS TEST")
+    val a = freshVariable("a", IntSort())
+    val b = freshVariable("b", IntSort())
+    val c = freshVariable("c", IntSort())
+    val d = freshVariable("d", IntSort())
+    //val h = freshVariable("h", IntSort())
+    val g = freshFunctionSymbol("g", List(IntSort()), IntSort())
+    val h = freshFunctionSymbol("h", List(IntSort()), IntSort())
+    val eqs = List(Equals(FunctionApplication(g, List(FunctionApplication(h,
+      List(a)))), b), Equals(FunctionApplication(g, List(FunctionApplication(h,
+      List(d)))), c), Equals(a, d))
+    //val eqs = List(Equals(FunctionApplication(g, List(h)), d), Equals(c, d),
+      //Equals(FunctionApplication(g, List(d)), a), Equals(e, c), Equals(e, b),
+      //Equals(b, h))
+
+    val inputEqs = Flattener(Currifier(eqs))
+    println("inputEqs: "+ inputEqs.mkString("\n", "\n", "\n"))
+    val cc = new CongruenceClosure(inputEqs)
+    inputEqs.foreach(cc.merge)
+    println("explanation: "+ cc.explain(b, c).mkString("\n", "\n", "\n"))
+  }
+
 }

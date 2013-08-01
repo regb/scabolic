@@ -14,7 +14,7 @@ import scala.collection.mutable.ListBuffer
 object FastCongruenceSolver extends Solver {
   val logic = regolic.parsers.SmtLib2.Trees.QF_UF
 
-  def isSat(f: Formula): Option[scala.collection.immutable.Map[FunctionSymbol, Term]] = {
+  def isSat(f: Formula): Option[collection.immutable.Map[FunctionSymbol, Term]] = {
     val And(fs) = f
 
     val eqs = Flattener(Currifier(fs.filter{x => x match {
@@ -32,12 +32,11 @@ object FastCongruenceSolver extends Solver {
       case _ => false
     }
     // For each of such equalities, get the reason
-    unsatTerms.foreach{
-      case Not(Equals((t1: Variable), (t2: Variable))) => congruenceClosure.explain(t1, t2)
-      case _ => ()
+    val explanations = unsatTerms.map{
+      case neq@Not(Equals((t1: Variable), (t2: Variable))) => (neq, congruenceClosure.explain(t1, t2))
     }
 
-    if(unsatTerms.isEmpty) Some(scala.collection.immutable.Map()) else None
+    if(unsatTerms.isEmpty) Some(collection.immutable.Map()) else None
   }
 
 }
@@ -180,21 +179,25 @@ class CongruenceClosure(eqs: List[PredicateApplication]) {
   private var eqClass: Map[ProofStructureNode,ProofStructureNode] = Map() ++ node.values.zip(node.values)
 
   private def reverseEdges(from: ProofStructureNode) {
-    @annotation.tailrec
-    def nestedReverseEdges(curr: ProofStructureNode, next: ProofStructureNode) {
-      if(curr.hasParent && next.hasParent) {
-        val save = next.parent
-        next.parent = curr
-        nestedReverseEdges(next, save)
-      } else if(curr.hasParent && !next.hasParent) {
-        next.parent = curr
-      }
+    var p = from
+    var q: ProofStructureNode = null
+    var r: ProofStructureNode = null
+
+    if(p != null) {
+      r = q
+      q = p
+      p = q.parent
+      q.parent = r
     }
-    if(from.hasParent) {
-      val save = from.parent
-      from.parent = null
-      nestedReverseEdges(from, save)
+    while(p != null) {
+      r = q
+      q = p
+      p = q.parent
+      q.parent = r
+      q.edgeLabel = r.edgeLabel
     }
+    from.parent = null
+    from.edgeLabel = None
   }
 
   private def insertEdge(a: Variable, b: Variable, label: Any) = {
@@ -270,15 +273,15 @@ class CongruenceClosure(eqs: List[PredicateApplication]) {
           Equals(fb@FunctionApplication(_, List(b1, b2)), b: Variable)) => {
           explanation += Equals(fa, a)
           explanation += Equals(fb, b)
-          if(a1 != b1)
-            pendingProofs.enqueue(Equals(a1, b1))
-          if(a2 != b2)
-            pendingProofs.enqueue(Equals(a2, b2))
+
+          pendingProofs.enqueue(Equals(a1, b1))
+          pendingProofs.enqueue(Equals(a2, b2))
         }
         case _ => throw new Exception("Can't match edgeLabel "+ a.edgeLabel)
       }
       // UNION
       eqClass(findEqClass(a)) = findEqClass(b)
+
       a = computeHighestNode(b)
     }
     explanation
