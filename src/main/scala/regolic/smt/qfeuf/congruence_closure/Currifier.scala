@@ -27,6 +27,6 @@ object Currifier {
     }
   }
 
-  def apply(eqs: List[PredicateApplication]): List[PredicateApplication] = eqs.map{case Equals(s, t) => Equals(curry(s), curry(t))}
+  def apply(eq: PredicateApplication): PredicateApplication = eq match {case Equals(s, t) => Equals(curry(s), curry(t))}
 }
 

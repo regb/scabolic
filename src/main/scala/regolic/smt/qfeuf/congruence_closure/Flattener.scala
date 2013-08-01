@@ -39,28 +39,27 @@ object Flattener {
     }
   }
 
-  private def flatten(eqs: List[PredicateApplication]): List[PredicateApplication] = {
-    eqs.flatMap{eq => eq match {
-        case Equals((t1: Variable), (t2: Variable)) =>
-          Equals(t1, t2) :: Nil
-        case Equals((t1: Variable), (t2: FunctionApplication)) => {
-          val (r, rVar) = extract(t2)
-          Equals(t1, rVar) :: r
-        }
-        case Equals((t1: FunctionApplication), (t2: Variable)) => {
-          val (l, lVar) = extract(t1)
-          Equals(lVar, t2) :: l
-        }
-        case Equals((t1: FunctionApplication), (t2: FunctionApplication)) => {
-          val (l, lVar) = extract(t1)
-          val (r, rVar) = extract(t2)
-          Equals(lVar, rVar) :: l ::: r
-        }
-        case _ => throw new Exception("Unsupported terms "+ eq)
+  private def flatten(eq: PredicateApplication): List[PredicateApplication] = {
+    eq match {
+      case Equals((t1: Variable), (t2: Variable)) =>
+        Equals(t1, t2) :: Nil
+      case Equals((t1: Variable), (t2: FunctionApplication)) => {
+        val (r, rVar) = extract(t2)
+        Equals(t1, rVar) :: r
       }
+      case Equals((t1: FunctionApplication), (t2: Variable)) => {
+        val (l, lVar) = extract(t1)
+        Equals(lVar, t2) :: l
+      }
+      case Equals((t1: FunctionApplication), (t2: FunctionApplication)) => {
+        val (l, lVar) = extract(t1)
+        val (r, rVar) = extract(t2)
+        Equals(lVar, rVar) :: l ::: r
+      }
+      case _ => throw new Exception("Unsupported terms "+ eq)
     }
   }
 
-  def apply(eqs: List[PredicateApplication]): List[PredicateApplication] = flatten(eqs)
+  def apply(eq: PredicateApplication): List[PredicateApplication] = flatten(eq)
 
 }

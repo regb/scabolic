@@ -17,14 +17,19 @@ object FastCongruenceSolver extends Solver {
   def isSat(f: Formula): Option[collection.immutable.Map[FunctionSymbol, Term]] = {
     val And(fs) = f
 
-    val eqs = Flattener(Currifier(fs.filter{x => x match {
+    val inputEqs = fs.filter{x => x match {
       case Equals(t1, t2) => true
       case Not(Equals(t1, t2)) => false
-      case _ => throw new Exception("Formula "+ x +" is not an equality")
-    }}.asInstanceOf[List[PredicateApplication]]))
+      case _ => throw new Exception("Formula "+ x +" is not an (in)equality")
+    }}.asInstanceOf[List[PredicateApplication]]
+    
+    val transformedToEq = collection.immutable.Map() ++ inputEqs.flatMap{eq =>
+      Flattener(Currifier(eq)).map(l => (l, eq))
+    }
 
-    val congruenceClosure = new CongruenceClosure(eqs)
-    eqs.foreach(congruenceClosure.merge)
+    val transformedEqs = transformedToEq.keySet.toList
+    val congruenceClosure = new CongruenceClosure(transformedEqs)
+    transformedEqs.foreach(congruenceClosure.merge)
 
     // Are two variables, which shouldn't be equal congruent?
     val unsatTerms = fs.filter{
@@ -33,7 +38,9 @@ object FastCongruenceSolver extends Solver {
     }
     // For each of such equalities, get the reason
     val explanations = unsatTerms.map{
-      case neq@Not(Equals((t1: Variable), (t2: Variable))) => (neq, congruenceClosure.explain(t1, t2))
+      case neq@Not(Equals((t1: Variable), (t2: Variable))) =>
+      (neq, congruenceClosure.explain(t1, t2).map(tEq =>
+        transformedToEq(tEq)))
     }
 
     if(unsatTerms.isEmpty) Some(collection.immutable.Map()) else None
@@ -50,7 +57,7 @@ class ProofStructureNode(val name: Term, var edgeLabel: Any) {
   def hasParent = parent != null
 
   override def toString = {
-    val to = if(hasParent) " [=> "+ parent.name +"]" else ""
+    val to = if(hasParent) " [=> "+ parent.name +", l: "+ edgeLabel +"]" else ""
     name + to
   }
 }
@@ -271,8 +278,14 @@ class CongruenceClosure(eqs: List[PredicateApplication]) {
         case Equals(a: Variable, b: Variable) => explanation += Equals(a, b)
         case (Equals(fa@FunctionApplication(_, List(a1, a2)), a: Variable),
           Equals(fb@FunctionApplication(_, List(b1, b2)), b: Variable)) => {
-          explanation += Equals(fa, a)
-          explanation += Equals(fb, b)
+          /*
+           * Not needed, because we want untransformed explanation.
+           * Reversing of transformation done in isSat
+           * Cf. Section 5.6 of the paper
+           *
+           * explanation += Equals(fa, a)
+           * explanation += Equals(fb, b)
+           */
 
           pendingProofs.enqueue(Equals(a1, b1))
           pendingProofs.enqueue(Equals(a2, b2))
