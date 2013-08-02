@@ -155,57 +155,21 @@ class DplltSuite extends FunSuite {
   }
 
   test("explain") {
-    // TODO test with untransformed input
-    // maybe through isSat
-
-    //val inputEqs = List(
-      //Equals(Apply(gVar, h), d),
-      //Equals(c, d),
-      //Equals(Apply(gVar, d), a),
-      //Equals(e, c),
-      //Equals(e, b),
-      //Equals(b, h)
-    //)
-    //val cc = new CongruenceClosure(inputEqs)
-    //inputEqs.foreach(cc.merge)
+    val inputEqs = List(
+      Equals(Apply(gVar, h), d),
+      Equals(c, d),
+      Equals(Apply(gVar, d), a),
+      Equals(e, c),
+      Equals(e, b),
+      Equals(b, h)
+    )
+    val cc = new CongruenceClosure(inputEqs)
+    inputEqs.foreach(cc.merge)
     
-    //// Check that the right equalities are in the explanation, w/o caring about
-    //// order
-    //assert(
-      //cc.explain(a, b).toSet
-      //===
-      //Set(
-        //Equals(Apply(gVar, h), d),
-        //Equals(Apply(gVar, d), a),
-        //Equals(e, b),
-        //Equals(e, c),
-        //Equals(c, d),
-        //Equals(b, h)
-      //)
-    //)
+    val explanation = cc.explain(a, b)
+    val ccSanity = new CongruenceClosure(explanation)
+    explanation.foreach(ccSanity.merge)
+    assert(ccSanity.areCongruent(a, b))
   }
-
-  //test("explain own example") {
-    //println("THIS TEST")
-    //val a = freshVariable("a", IntSort())
-    //val b = freshVariable("b", IntSort())
-    //val c = freshVariable("c", IntSort())
-    //val d = freshVariable("d", IntSort())
-    ////val h = freshVariable("h", IntSort())
-    //val g = freshFunctionSymbol("g", List(IntSort()), IntSort())
-    //val h = freshFunctionSymbol("h", List(IntSort()), IntSort())
-    //val eqs = List(Equals(FunctionApplication(g, List(FunctionApplication(h,
-      //List(a)))), b), Equals(FunctionApplication(g, List(FunctionApplication(h,
-      //List(d)))), c), Equals(a, d))
-    ////val eqs = List(Equals(FunctionApplication(g, List(h)), d), Equals(c, d),
-      ////Equals(FunctionApplication(g, List(d)), a), Equals(e, c), Equals(e, b),
-      ////Equals(b, h))
-
-    //val inputEqs = eqs.flatMap(eq => Flattener(Currifier(eq)))
-    //println("inputEqs: "+ inputEqs.mkString("\n", "\n", "\n"))
-    //val cc = new CongruenceClosure(inputEqs)
-    //inputEqs.foreach(cc.merge)
-    //println("explanation: "+ cc.explain(b, c).mkString("\n", "\n", "\n"))
-  //}
 
 }

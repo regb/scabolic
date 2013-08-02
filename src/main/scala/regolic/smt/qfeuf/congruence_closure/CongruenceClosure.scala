@@ -1,5 +1,4 @@
-package regolic.smt.qfeuf
-
+package regolic.smt.qfeuf 
 import regolic.smt.Solver
 import regolic.asts.core.Trees._
 import regolic.asts.fol.Trees._
@@ -36,11 +35,17 @@ object FastCongruenceSolver extends Solver {
       case Not(Equals((t1: Variable), (t2: Variable))) if congruenceClosure.areCongruent(t1, t2) => true
       case _ => false
     }
-    // For each of such equalities, get the reason
+
+    // For each such inequality, get the explanation
     val explanations = unsatTerms.map{
       case neq@Not(Equals((t1: Variable), (t2: Variable))) =>
-      (neq, congruenceClosure.explain(t1, t2).map(tEq =>
-        transformedToEq(tEq)))
+        (neq, congruenceClosure.explain(t1, t2).map(tEq => tEq match {
+            /*
+             * Only use equalities between variables
+             */
+            case Equals(_, _) => transformedToEq(tEq)
+          }
+        ))
     }
 
     if(unsatTerms.isEmpty) Some(collection.immutable.Map()) else None
@@ -278,14 +283,9 @@ class CongruenceClosure(eqs: List[PredicateApplication]) {
         case Equals(a: Variable, b: Variable) => explanation += Equals(a, b)
         case (Equals(fa@FunctionApplication(_, List(a1, a2)), a: Variable),
           Equals(fb@FunctionApplication(_, List(b1, b2)), b: Variable)) => {
-          /*
-           * Not needed, because we want untransformed explanation.
-           * Reversing of transformation done in isSat
-           * Cf. Section 5.6 of the paper
-           *
-           * explanation += Equals(fa, a)
-           * explanation += Equals(fb, b)
-           */
+          
+          explanation += Equals(fa, a)
+          explanation += Equals(fb, b)
 
           pendingProofs.enqueue(Equals(a1, b1))
           pendingProofs.enqueue(Equals(a2, b2))
