@@ -15,7 +15,7 @@ object Solver extends regolic.smt.Solver {
 
   val logic = QF_A
 
-  def isSat(f: Formula): Option[Map[FunctionSymbol, Term]] = {
+  def isSat(f: Formula): Pair[Boolean, Option[Map[Formula, List[Formula]]]] = {
     val Or(ands) = disjunctiveNormalForm(f)
 
     var modelFound = false
@@ -27,7 +27,10 @@ object Solver extends regolic.smt.Solver {
       }
     }
 
-    if(modelFound) Some(Map()) else None
+    if(modelFound)
+      (true, None)
+    else
+      (false, None) // TODO Explanations
   }
 
   def isSat(and: List[Formula]): Option[Map[FunctionSymbol, Term]] = {
@@ -61,6 +64,7 @@ object Solver extends regolic.smt.Solver {
     }
   }
 
+  // TODO signature and FastCongruenceSolver
   //the clause only contains select or top level store that can be safely eliminated
   private def isSatNoStore(and: List[Formula]): Option[Map[FunctionSymbol, Term]] = {
     var arrayVarToFun: Map[FunctionSymbol, FunctionSymbol] = Map()

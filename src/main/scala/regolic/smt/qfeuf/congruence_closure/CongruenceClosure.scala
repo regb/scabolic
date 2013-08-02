@@ -13,7 +13,7 @@ import scala.collection.mutable.ListBuffer
 object FastCongruenceSolver extends Solver {
   val logic = regolic.parsers.SmtLib2.Trees.QF_UF
 
-  def isSat(f: Formula): Option[collection.immutable.Map[FunctionSymbol, Term]] = {
+  def isSat(f: Formula): Pair[Boolean, Option[collection.immutable.Map[Formula, List[Formula]]]] = {
     val And(fs) = f
 
     val inputEqs = fs.filter{x => x match {
@@ -37,7 +37,8 @@ object FastCongruenceSolver extends Solver {
     }
 
     // For each such inequality, get the explanation
-    val explanations = unsatTerms.map{
+    val explanations = collection.immutable.Map[Formula, List[Formula]]() ++
+    unsatTerms.map{
       case neq@Not(Equals((t1: Variable), (t2: Variable))) =>
         (neq, congruenceClosure.explain(t1, t2).map(tEq => tEq match {
             /*
@@ -48,7 +49,10 @@ object FastCongruenceSolver extends Solver {
         ))
     }
 
-    if(unsatTerms.isEmpty) Some(collection.immutable.Map()) else None
+    if(unsatTerms.isEmpty)
+      (true, None)
+    else
+      (false, Some(explanations))
   }
 
 }

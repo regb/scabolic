@@ -13,7 +13,7 @@ object CongruenceSolver extends Solver {
 
   val logic = QF_UF
 
-  def isSat(f: Formula): Option[Map[FunctionSymbol, Term]] = {
+  def isSat(f: Formula): Pair[Boolean, Option[Map[Formula, List[Formula]]]] = {
 
     val Or(ands) = disjunctiveNormalForm(f)
 
@@ -26,7 +26,10 @@ object CongruenceSolver extends Solver {
       }
     }
 
-    if(modelFound) Some(Map()) else None
+    if(modelFound)
+      (true, None)
+    else
+      (false, None) // TODO Explanations
   }
 
   def isSat(lits: List[Formula]): Option[Map[FunctionSymbol, Term]] = {

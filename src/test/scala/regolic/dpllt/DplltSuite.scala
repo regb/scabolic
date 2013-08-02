@@ -83,7 +83,7 @@ class DplltSuite extends FunSuite {
 
     val truthValTheory = evaluate(f)
 
-    val (constraints, _, idToEq) = PropositionalSkeleton(f)
+    val (constraints, _, idToEq, eqToId) = PropositionalSkeleton(f)
     val idToTruthVal = idToEq.map{
       case (litId, eq) => eq match {
         case Equals(t1, t2) => (litId, assignment(t1) == assignment(t2))

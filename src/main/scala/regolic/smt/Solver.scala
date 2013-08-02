@@ -7,6 +7,7 @@ import regolic.asts.fol.Manip._
 import regolic.parsers.SmtLib2.Trees._
 
 import regolic.smt.qfeuf.CongruenceSolver
+import regolic.smt.qfeuf.FastCongruenceSolver
 import regolic.smt.qflra.SimplexSolver
 
 import scala.collection.mutable.HashMap
@@ -15,17 +16,22 @@ import scala.collection.mutable.ListBuffer
 trait Solver {
 
   val logic: Logic
-  def isSat(f: Formula): Option[Map[FunctionSymbol, Term]]
-
-  def isValid(f: Formula): Boolean = isSat(Not(f)) == None
   
-  def findCounterample(f: Formula): Option[Map[FunctionSymbol, Term]] = isSat(Not(f))
+  /*
+   * Return a pair containing the answer (true / false) and if unsat a Map from
+   * each inequality causing it, to the explanation
+   */
+  def isSat(f: Formula): Pair[Boolean, Option[Map[Formula, List[Formula]]]]
+
+  def isValid(f: Formula): Boolean = isSat(Not(f))._1 == false
+  
+  //def findCounterample(f: Formula): Option[Map[FunctionSymbol, Term]] = isSat(Not(f))
 
 }
 
 object Solver {
 
-  val allSolvers: List[Solver] = List(CongruenceSolver, SimplexSolver, regolic.smt.qfa.Solver)
+  val allSolvers: List[Solver] = List(FastCongruenceSolver, SimplexSolver, regolic.smt.qfa.Solver)
 
   def execute(cmds: List[Command]) {
     println("Executing following script: " + cmds)

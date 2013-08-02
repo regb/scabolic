@@ -10,39 +10,44 @@ import regolic.smt.qfeuf.FastCongruenceSolver
 
 class LazyBasicSolver() {
 
-  def solve(phi: Formula): Boolean = {
+  private def makeClauses(explanations: Map[Formula, List[Formula]], theoryLitToId: Map[Formula, Int]): List[Set[Literal]] = {
+    explanations.map{
+      case (Not(eq), explanation) => {
+        Set(new Literal(theoryLitToId(eq), true)) ++ explanation.map(exp => new Literal(theoryLitToId(exp), false))
+      }
+    }.toList
+  }
 
-    val (clauses, nbVars, idToEq) = PropositionalSkeleton(phi)
+  def solve(phi: Formula): Boolean = {
+    val (clauses, nbVars, idToTheoryLit, theoryLitToId) = PropositionalSkeleton(phi)
     val satSolver = new Solver(nbVars)
     clauses.foreach(satSolver.addClause)
     var done = false
     var retVal = false
     while(!done) {
       satSolver.solve() match {
-        case Unsatisfiable(_) => {retVal = false; done = true}
+        case Unsatisfiable(_) => {
+          return false
+        }
         case Satisfiable(alpha) => {
-          val thAlpha = idToEq.map{case (id, eq) =>
-            if(alpha(id)) eq else Not(eq)
+          val thAlpha = idToTheoryLit.map{case (id, theoryLit) =>
+            if(alpha(id)) theoryLit else Not(theoryLit)
           }.toList
 
-          //TODO use same pattern as with sat solver for return values
-          FastCongruenceSolver.isSat(And(thAlpha)) match {
-          //CongruenceSolver.isSat(thAlpha) match {
-            case Some(_) => {
-              //satSolver.addClause(t)
-              retVal = true
-              done = true
-            }
-            case None => {
-              retVal = false
-              done = true
-            }
+          val (res, t) = FastCongruenceSolver.isSat(And(thAlpha))
+          if(res) {
+            return true
+          } else {
+            println("explanations: "+ t.mkString("\n", "\n", "\n"))
+            makeClauses(t.get, theoryLitToId).foreach(satSolver.addClause)
+            //retVal = false
+            //done = true
           }
         }
         case Unknown => sys.error("SAT solver returned unknown")
       }
     }
-    retVal
+    throw new Exception("Unreachable code.")
   }
 }
 
