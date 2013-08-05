@@ -88,10 +88,13 @@ object Rational {
     case Array(num, denom) => new Rational(BigInt(num), BigInt(denom))
     case _ => throw new java.lang.NumberFormatException
   }
+  //TODO
+  def apply(n: Double) = new Rational(BigInt(n.toInt), 1)
   def unapply(r: Rational): Option[(BigInt, BigInt)] = Some(r.numerator, r.denominator)
 
   implicit def int2rat(i: Int) = new Rational(BigInt(i), BigInt(1))
   implicit def bigint2rat(b: BigInt) = new Rational(b, BigInt(1))
+  implicit def double2rat(d: Double) = Rational(d)
   implicit val zero = new Rational(0,1)
   val one = new Rational(1,1)
 }

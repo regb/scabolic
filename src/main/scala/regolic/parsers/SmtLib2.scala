@@ -8,6 +8,9 @@ import regolic.asts.theories.int.{Trees => IntTrees}
 import regolic.asts.theories.real.{Trees => RealTrees}
 import regolic.asts.theories.array.{Trees => ArrayTrees}
 
+import regolic.sexpr
+import regolic.sexpr.SExprs._
+
 object SmtLib2 {
 
   object Trees {
@@ -17,211 +20,155 @@ object SmtLib2 {
     case class Push(n: Int) extends Command
     case class Pop(n: Int) extends Command
     case object CheckSat extends Command
+    case object Exit extends Command
 
     sealed abstract trait Logic
     case object QF_UF extends Logic
     case object QF_LRA extends Logic
     case object QF_AX extends Logic
     case object QF_A extends Logic
+
+    object Logic {
+      def fromString(logic: String): Logic = logic match {
+        case "QF_UF"  => QF_UF
+        case "QF_LRA" => QF_LRA
+        case "QF_AX"  => QF_AX
+        case "QF_A"   => QF_A
+      }
+    }
   }
 
   import Trees._
 
   private var funSymbols: Map[String, FunctionSymbol] = Map()
 
-  def apply(input: java.io.InputStream): List[Command] = {
-    null
+  def apply(input: java.io.Reader): List[Command] = {
+
+    funSymbols = Map()
+
+    val l = new sexpr.Lexer(input)
+    val p = new sexpr.Parser(l)
+
+    var cmds: ListBuffer[Command] = ListBuffer()
+
+    var expr = p.parse
+    while(expr != null) {
+
+      expr match {
+        case SList(List(SSymbol("set-logic"), SSymbol(logic))) => 
+          cmds.append(SetLogic(Logic.fromString(logic)))
+        case SList(List(SSymbol("declare-sort"), SSymbol(sort), SInt(arity))) => 
+          ()
+        case SList(List(SSymbol("declare-fun"), SSymbol(fun), SList(sorts), sort)) => {
+          val paramSorts = sorts map parseSort
+          val returnSort = parseSort(sort)
+          funSymbols += (fun -> FunctionSymbol(fun, paramSorts, returnSort))
+        }
+        case SList(List(SSymbol("assert"), term)) =>
+          cmds.append(Assert(parseFormula(term)))
+        case SList(List(SSymbol("check-sat"))) =>
+          cmds.append(CheckSat)
+        case SList(List(SSymbol("exit"))) =>
+          cmds.append(Exit)
+
+      //case push: PushCommand => {
+      //  val n = push.numeral_.toInt
+      //  cmds.append(Push(n))
+      //}
+      //case pop: PopCommand => {
+      //  val n = pop.numeral_.toInt
+      //  cmds.append(Pop(n))
+      //}
+        case _ => ()
+      }
+
+      expr = p.parse
+    }
+
+    cmds.toList
   }
-  //def apply(input: InputStream): List[Command] = {
 
-  //  funSymbols = Map()
+  private def parseSort(sExpr: SExpr): Sort = sExpr match {
+    case SSymbol(s) => Sort(s, List())
+    case SList(SSymbol(s) :: ss) => Sort(s, ss map parseSort)
+    case _ => sys.error("Error in parseSort: unexpected sexpr: " + sExpr)
+  }
 
-  //  val l = new Yylex(input)//new java.io.FileReader(filename))
-  //  val p = new parser(l)
-  //  val parseTree = p.pScriptC
-  //  val script = parseTree match {
-  //    case (parseTree : Script) => parseTree
-  //    case _ => throw new FileFormatException("Input is not in valid SMT-LIB 2 format")
-  //  }
+  def parseFormula(sExpr: SExpr): Formula = sExpr match {
+    case SSymbol("true") => True()
+    case SSymbol("false") => False()
+    case SList(List(SSymbol("not"), t)) => Not(parseFormula(t))
+    case SList(SSymbol("and") :: ts) => And(ts map parseFormula)
+    case SList(SSymbol("or") :: ts) => Or(ts map parseFormula)
+    case SList(List(SSymbol("=>"), t1, t2)) => Implies(parseFormula(t1), parseFormula(t2))
+    case SList(List(SSymbol("ite"), t1, t2, t3)) => IfThenElse(parseFormula(t1), parseFormula(t2), parseFormula(t3))
+    case SList(SSymbol(pred) :: ts) => applyPredicateSymbol(pred, ts map parseTerm)
+  }
 
-  //  var cmds: ListBuffer[Command] = ListBuffer()
+  def parseTerm(sExpr: SExpr): Term = sExpr match {
+    case SList(SSymbol(fun) :: ts) => applyFunctionSymbol(fun, ts map parseTerm)
+    case SInt(n) => IntTrees.Num(n)
+    case SDouble(d) => RealTrees.Num(d)
+    case SSymbol(sym) => Variable(sym, funSymbols(sym).returnSort)
+  }
 
-  //  for (cmd <- script.listcommand_) cmd match {
-  //    case cmd : PAssertCommand => {
-  //      cmds.append(Assert(translateFormula(cmd.term_)))
-  //    }
-  //    case push: PushCommand => {
-  //      val n = push.numeral_.toInt
-  //      cmds.append(Push(n))
-  //    }
-  //    case pop: PopCommand => {
-  //      val n = pop.numeral_.toInt
-  //      cmds.append(Pop(n))
-  //    }
-  //    case check: CheckSatCommand => {
-  //      cmds.append(CheckSat)
-  //    }
-  //    case fundecl: FunctionDeclCommand	=> {
-  //      val name = asString(fundecl.symbol_)
-  //      val returnSort = translateSort(fundecl.sort_)
-  //      val paramSorts = asSortsList(fundecl.mesorts_).map(translateSort).toList
-  //      funSymbols += (name -> FunctionSymbol(name, paramSorts, returnSort))
-  //    }
-  //    case log: SetLogicCommand => {
-  //      val logicString = asString(log.symbol_)
-  //      val logic = logicString match {
-  //        case "QF_UF" => QF_UF
-  //        case "QF_LRA" => QF_LRA
-  //        case "QF_AX" => QF_AX
-  //        case "QF_A" => QF_A
-  //        case _ => sys.error("Unsupported logic: " + logicString)
-  //      }
-  //      cmds.append(SetLogic(logic))
-  //    }
-  //    case _ => //do nothing
-  //  }
+  def applyFunctionSymbol(sym: String, args: Seq[Term]): FunctionApplication = {
 
-  //  cmds.toList
-  //}
+    val funSym = sym match {
+      case "+" => args(0).sort match {
+        case IntTrees.IntSort() => IntTrees.AddSymbol(args.size)
+        case RealTrees.RealSort() => RealTrees.AddSymbol(args.size)
+      }
+      case "*" => args(0).sort match {
+        case IntTrees.IntSort() => IntTrees.MulSymbol(args.size)
+        case RealTrees.RealSort() => RealTrees.MulSymbol(args.size)
+      }
+      case "-" => args(0).sort match {
+        case IntTrees.IntSort() => if(args.size == 1) IntTrees.NegSymbol() else IntTrees.SubSymbol()
+        case RealTrees.RealSort() => if(args.size == 1) RealTrees.NegSymbol() else RealTrees.SubSymbol()
+      }
+      case "div" => args(0).sort match {
+        case IntTrees.IntSort() => IntTrees.DivSymbol()
+        case RealTrees.RealSort() => RealTrees.DivSymbol()
+      }
+      case "mod" => IntTrees.ModSymbol()
+      case "abs" => IntTrees.AbsSymbol()
+      case "select" => {
+        val ArrayTrees.ArraySort(from, to) = args(0).sort
+        ArrayTrees.SelectSymbol(from, to)
+      }
+      case "store" => ArrayTrees.StoreSymbol(args(1).sort, args(2).sort)
+      case _ => funSymbols(sym)
+    }
 
-  //def translateFormula(t: PTerm): Formula = t match {
-  //    case (t: ConstantTerm) => sys.error("not supported")
-  //    case (t: NullaryTerm) => translateFormulaApp(t.symbolref_, List())
-  //    case (t: FunctionTerm) => translateFormulaApp(t.symbolref_, t.listterm_)
-  //    case (t: QuantifierTerm) => {
-  //      val variables = t.listsortedvariablec_.map{
-  //        case binder : SortedVariable => {                                                                               
-  //          val sort = translateSort(binder.sort_)
-  //          Variable(asString(binder.symbol_), sort)
-  //        }
-  //        case _ => sys.error("not supported")
-  //      }
-  //      val body = translateFormula(t.term_)
-  //      t.quantifier_ match {
-  //        case _: AllQuantifier =>
-  //          variables.foldLeft(body)((fAcc, v) => Forall(v, fAcc))
-  //        case _: ExQuantifier =>
-  //          variables.foldLeft(body)((fAcc, v) => Exists(v, fAcc))
-  //      }
-  //    }
-  //}
+    FunctionApplication(funSym, args.toList)
+  }
 
-  //def translateTerm(t: PTerm): Term = t match {
-  //    case (t: ConstantTerm) => translateSpecConstant(t.specconstant_)
-  //    case (t: NullaryTerm) => translateTermApp(t.symbolref_, List())
-  //    case (t: FunctionTerm) => translateTermApp(t.symbolref_, t.listterm_)
-  //}
+  def applyPredicateSymbol(sym: String, args: Seq[Term]): PredicateApplication = {
 
-  //def translateSpecConstant(c: SpecConstant) = c match {
-  //  case (c: NumConstant) => IntTrees.Num(BigInt(c.numeral_))
-  //}
+    //TODO: make sure second args type match first one
+    val predSym = sym match {
+      case "<" => args(0).sort match {
+        case IntTrees.IntSort() => IntTrees.LessThanSymbol()
+        case RealTrees.RealSort() => RealTrees.LessThanSymbol()
+      }
+      case "<=" => args(0).sort match {
+        case IntTrees.IntSort() => IntTrees.LessEqualSymbol()
+        case RealTrees.RealSort() => RealTrees.LessEqualSymbol()
+      }
+      case ">" => args(0).sort match {
+        case IntTrees.IntSort() => IntTrees.GreaterThanSymbol()
+        case RealTrees.RealSort() => RealTrees.GreaterThanSymbol()
+      }
+      case ">=" => args(0).sort match {
+        case IntTrees.IntSort() => IntTrees.GreaterEqualSymbol()
+        case RealTrees.RealSort() => RealTrees.GreaterEqualSymbol()
+      }
+      case "=" => EqualsSymbol(args(0).sort)
+    }
 
-  //def translateTermApp(symbol: SymbolRef, args: Seq[PTerm]): Term = symbol match {
-  //  case PlainSymbol(sym) => applyFunctionSymbol(sym, args.map(translateTerm))
-  //}
-
-  //def applyFunctionSymbol(sym: String, args: Seq[Term]): FunctionApplication = {
-
-  //  val funSym = sym match {
-  //    case "+" => args(0).sort match {
-  //      case IntTrees.IntSort() => IntTrees.AddSymbol(args.size)
-  //      case RealTrees.RealSort() => RealTrees.AddSymbol(args.size)
-  //    }
-  //    case "*" => args(0).sort match {
-  //      case IntTrees.IntSort() => IntTrees.MulSymbol(args.size)
-  //      case RealTrees.RealSort() => RealTrees.MulSymbol(args.size)
-  //    }
-  //    case "-" => args(0).sort match {
-  //      case IntTrees.IntSort() => if(args.size == 1) IntTrees.NegSymbol() else IntTrees.SubSymbol()
-  //      case RealTrees.RealSort() => if(args.size == 1) RealTrees.NegSymbol() else RealTrees.SubSymbol()
-  //    }
-  //    case "div" => args(0).sort match {
-  //      case IntTrees.IntSort() => IntTrees.DivSymbol()
-  //      case RealTrees.RealSort() => RealTrees.DivSymbol()
-  //    }
-  //    case "mod" => IntTrees.ModSymbol()
-  //    case "abs" => IntTrees.AbsSymbol()
-  //    case "select" => {
-  //      val ArrayTrees.ArraySort(from, to) = args(0).sort
-  //      ArrayTrees.SelectSymbol(from, to)
-  //    }
-  //    case "store" => ArrayTrees.StoreSymbol(args(1).sort, args(2).sort)
-  //    case _ => funSymbols(sym)
-  //  }
-
-  //  FunctionApplication(funSym, args.toList)
-  //}
-
-  //def applyPredicateSymbol(sym: String, args: Seq[Term]): PredicateApplication = {
-
-  //  val predSym = sym match {
-  //    case "<" => args(0).sort match {
-  //      case IntTrees.IntSort() => IntTrees.LessThanSymbol()
-  //      case RealTrees.RealSort() => RealTrees.LessThanSymbol()
-  //    }
-  //    case "<=" => args(0).sort match {
-  //      case IntTrees.IntSort() => IntTrees.LessEqualSymbol()
-  //      case RealTrees.RealSort() => RealTrees.LessEqualSymbol()
-  //    }
-  //    case ">" => args(0).sort match {
-  //      case IntTrees.IntSort() => IntTrees.GreaterThanSymbol()
-  //      case RealTrees.RealSort() => RealTrees.GreaterThanSymbol()
-  //    }
-  //    case ">=" => args(0).sort match {
-  //      case IntTrees.IntSort() => IntTrees.GreaterEqualSymbol()
-  //      case RealTrees.RealSort() => RealTrees.GreaterEqualSymbol()
-  //    }
-  //    case "=" => EqualsSymbol(args(0).sort)
-  //  }
-
-  //  PredicateApplication(predSym, args.toList)
-  //}
+    PredicateApplication(predSym, args.toList)
+  }
 
 
-  //def translateFormulaApp(symbol: SymbolRef, args: Seq[PTerm]): Formula = symbol match {
-  //  case PlainSymbol("true") => True()
-  //  case PlainSymbol("false") => False()
-  //  case PlainSymbol("not") => Not(translateFormula(args.head))
-  //  case PlainSymbol("and") => And(args.map(arg => translateFormula(arg)).toList)
-  //  case PlainSymbol("or") => Or(args.map(arg => translateFormula(arg)).toList)
-  //  case PlainSymbol("=>") => Implies(translateFormula(args(0)), translateFormula(args(1)))
-  //  case PlainSymbol("ite") => IfThenElse(translateFormula(args(0)), translateFormula(args(1)), translateFormula(args(2)))
-  //  case PlainSymbol(sym) => applyPredicateSymbol(sym, args.map(translateTerm))
-  //}
-
-  //def translateSort(sort: PSort): Sort = sort match {
-  //  case (s: IdentSort) => Sort(asString(s.identifier_), List())
-  //  case (s: CompositeSort) => Sort(asString(s.identifier_), s.listsort_.toList.map(translateSort))
-  //}
-  //def asSortsList(sorts: MESorts): Seq[PSort] = sorts match {
-  //  case (noSorts: NoSorts) => Seq()
-  //  case (someSorts: SomeSorts) => someSorts.listsort_
-  //}
-
-  //private object PlainSymbol {
-  //  def unapply(s : SymbolRef) : scala.Option[String] = s match {
-  //    case s : IdentifierRef => s.identifier_ match {
-  //      case id : SymbolIdent => id.symbol_ match {
-  //        case s : NormalSymbol => Some(s.normalsymbolt_)
-  //        case _ => None
-  //      }
-  //      case _ => None
-  //    }
-  //    case _ => None
-  //  }
-  //}
-
-  //private def asString(s: SymbolRef): String = s match {
-  //  case (id: IdentifierRef) => asString(id.identifier_)
-  //  case (castId: CastIdentifierRef) => asString(castId.identifier_)
-  //}
-  //private def asString(id: Identifier): String = id match {
-  //  case (id: SymbolIdent) => asString(id.symbol_)
-  //  case (id: IndexIdent) => asString(id.symbol_) + ((id.listindexc_ map (_.asInstanceOf[Index].numeral_)) mkString "_")
-  //}
-  //private def asString(s: Symbol): String = s match {
-  //  case (s: NormalSymbol) => s.normalsymbolt_
-  //  case (s: QuotedSymbol) => s.quotedsymbolt_
-  //}
-  
 }
