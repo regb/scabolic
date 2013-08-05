@@ -8,13 +8,24 @@ class Parser(lexer: Lexer) {
   private var _currentToken: Token = null
   private var _futureToken: Token = lexer.next
   private def next: Token = {
+    if(_futureToken == null)
+      throw new java.io.EOFException
+
     _currentToken = _futureToken 
     _futureToken = lexer.next
     _currentToken
   }
   private def peek: Token = _futureToken
+  private def eat(t: Token): Unit = {
+    val n = next
+    assert(n == t)
+  }
 
-  def parse: SExpr = {
+  /* 
+     Return the next SExpr if there is one, or null if EOF.
+     Throw an EOFException if EOF is reached at an unexpected moment (incomplete SExpr).
+  */
+  def parse: SExpr = if(peek == null) null else {
     next match {
       case OParen => {
         val buffer = new scala.collection.mutable.ListBuffer[SExpr]
@@ -22,6 +33,7 @@ class Parser(lexer: Lexer) {
           val child: SExpr = parse
           buffer.append(child)
         }
+        eat(CParen)
         SList(buffer.toList)
       }
       case IntLit(d) => SInt(d)
@@ -31,5 +43,6 @@ class Parser(lexer: Lexer) {
       case CParen => sys.error("Unexpected token: " + CParen)
     }
   }
+
 
 }
