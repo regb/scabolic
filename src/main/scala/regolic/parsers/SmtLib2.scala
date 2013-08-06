@@ -65,7 +65,7 @@ object SmtLib2 {
           funSymbols += (fun -> FunctionSymbol(fun, paramSorts, returnSort))
         }
         case SList(List(SSymbol("assert"), term)) =>
-          cmds.append(Assert(parseFormula(term)))
+          cmds.append(Assert(parseFormula(term, Map())))
         case SList(List(SSymbol("check-sat"))) =>
           cmds.append(CheckSat)
         case SList(List(SSymbol("exit"))) =>
@@ -94,22 +94,59 @@ object SmtLib2 {
     case _ => sys.error("Error in parseSort: unexpected sexpr: " + sExpr)
   }
 
-  def parseFormula(sExpr: SExpr): Formula = sExpr match {
-    case SSymbol("true") => True()
-    case SSymbol("false") => False()
-    case SList(List(SSymbol("not"), t)) => Not(parseFormula(t))
-    case SList(SSymbol("and") :: ts) => And(ts map parseFormula)
-    case SList(SSymbol("or") :: ts) => Or(ts map parseFormula)
-    case SList(List(SSymbol("=>"), t1, t2)) => Implies(parseFormula(t1), parseFormula(t2))
-    case SList(List(SSymbol("ite"), t1, t2, t3)) => IfThenElse(parseFormula(t1), parseFormula(t2), parseFormula(t3))
-    case SList(SSymbol(pred) :: ts) => applyPredicateSymbol(pred, ts map parseTerm)
+  def parseVarBindings(bindings: List[SExpr], scope: Map[String, Either[Formula, Term]]): Map[String, Either[Formula, Term]] =
+    bindings.map{ case SList(List(SSymbol(v), t)) => (v, parseFormulaTerm(t, scope)) }.toMap
+
+  def parseFormulaTerm(sExpr: SExpr, scope: Map[String, Either[Formula, Term]]): Either[Formula, Term] = {
+    try {
+      Left(parseFormula(sExpr, scope))
+    } catch {
+      case (_: Throwable) => Right(parseTerm(sExpr, scope))
+    }
   }
 
-  def parseTerm(sExpr: SExpr): Term = sExpr match {
-    case SList(SSymbol(fun) :: ts) => applyFunctionSymbol(fun, ts map parseTerm)
+  def parseFormula(sExpr: SExpr, scope: Map[String, Either[Formula, Term]]): Formula = sExpr match {
+    case SList(List(SSymbol("let"), SList(varBindings), t)) => {
+      val newMap = parseVarBindings(varBindings, scope)
+      parseFormula(t, scope ++ newMap)
+    }
+    case SSymbol("true") => True()
+    case SSymbol("false") => False()
+    case SSymbol(sym) => scope.get(sym) match {
+      case None => sys.error("no def for variable: " + sym)
+      case Some(Left(f)) => f
+      case Some(Right(t)) => sys.error("unexpected term in formula variable: " + t)
+    }
+    case SList(List(SSymbol("not"), t)) => Not(parseFormula(t, scope))
+    case SList(SSymbol("and") :: ts) => And(ts.map(parseFormula(_, scope)))
+    case SList(SSymbol("or") :: ts) => Or(ts.map(parseFormula(_, scope)))
+    case SList(List(SSymbol("=>"), t1, t2)) => Implies(parseFormula(t1, scope), parseFormula(t2, scope))
+    case SList(List(SSymbol("ite"), t1, t2, t3)) => 
+      IfThenElse(parseFormula(t1, scope), parseFormula(t2, scope), parseFormula(t3, scope))
+    //TODO: xor
+    case SList(SSymbol("distinct") :: ss) => {
+      val ts = ss.map(s => parseTerm(s, scope))
+      And(ts.tails.flatMap(subSeqs => 
+        if(subSeqs.isEmpty) Nil 
+        else subSeqs.tail.map(t => Not(Equals(subSeqs.head, t)))
+      ).toList)
+    }
+    case SList(SSymbol(pred) :: ts) => applyPredicateSymbol(pred, ts.map(parseTerm(_, scope)))
+  }
+
+  def parseTerm(sExpr: SExpr, scope: Map[String, Either[Formula, Term]]): Term = sExpr match {
+    case SList(List(SSymbol("let"), SList(varBindings), t)) => {
+      val newMap = parseVarBindings(varBindings, scope)
+      parseTerm(t, scope ++ newMap)
+    }
+    case SList(SSymbol(fun) :: ts) => applyFunctionSymbol(fun, ts.map(parseTerm(_, scope)))
     case SInt(n) => IntTrees.Num(n)
     case SDouble(d) => RealTrees.Num(d)
-    case SSymbol(sym) => Variable(sym, funSymbols(sym).returnSort)
+    case SSymbol(sym) => scope.get(sym) match {
+      case None => Variable(sym, funSymbols(sym).returnSort)
+      case Some(Right(t)) => t
+      case Some(Left(f)) => sys.error("unexpected formula in term variable: " + f)
+    }
   }
 
   def applyFunctionSymbol(sym: String, args: Seq[Term]): FunctionApplication = {
