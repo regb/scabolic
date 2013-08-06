@@ -55,6 +55,9 @@ object Solver {
           println("Formula to check is: " + formula)
           println("isSat: " + solver.get.isSat(formula))
         }
+        case Exit => {
+          // TODO
+        }
       }
     }
 

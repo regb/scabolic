@@ -113,10 +113,10 @@ class CongruenceClosure(eqs: List[PredicateApplication]) {
         pending.enqueue(eq)
         propagate()
       }
-      case Equals(FunctionApplication(_, List(a1, a2)), a)  => {
+      case Equals(FunctionApplication(_, List(a1, a2)), a: Variable)  => {
         lookup(repr(a1),repr(a2)) match {
           case Some(f: PredicateApplication) => {
-            pending enqueue (eq, f)
+            pending.enqueue((eq, f))
             propagate()
           }
           case _ => {
