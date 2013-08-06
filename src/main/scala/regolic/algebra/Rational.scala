@@ -67,8 +67,8 @@ class Rational private (num: BigInt, denom: BigInt) extends Field[Rational] with
 
   def toInt = numerator.intValue / denominator.intValue
   def toBigInt = numerator / denominator
-  def toFloat = (numerator.asInstanceOf[Float])/(denominator.asInstanceOf[Float])
-  def toDouble = (numerator.asInstanceOf[Double])/(denominator.asInstanceOf[Double])
+  def toFloat = (numerator.toFloat)/(denominator.toFloat)
+  def toDouble = (numerator.toDouble)/(denominator.toDouble)
 
   def isInteger = denominator == 1
 
@@ -88,8 +88,31 @@ object Rational {
     case Array(num, denom) => new Rational(BigInt(num), BigInt(denom))
     case _ => throw new java.lang.NumberFormatException
   }
-  //TODO
-  def apply(n: Double) = new Rational(BigInt(n.toInt), 1)
+  def apply(n: Double) = if(n == 0d) new Rational(0, 1) else {
+    val bits: Long = java.lang.Double.doubleToLongBits(n)
+
+    val sign = bits >>> 63
+    val exponent = ((bits >>> 52) ^ (sign << 11)) - 1023
+    val fraction = bits << 12
+
+    var a = BigInt(1)
+    var b = BigInt(1)
+
+    for(i <- 63 to 12 by -1) {
+      a = a * 2 + ((fraction >>> i) & 1)
+      b *= 2
+    }
+
+    if(exponent > 0)
+      a *= 1 << exponent;
+    else
+      b *= 1 << -exponent;
+
+    if (sign == 1)
+      a *= -1;
+
+    new Rational(a, b)
+  }
   def unapply(r: Rational): Option[(BigInt, BigInt)] = Some(r.numerator, r.denominator)
 
   implicit def int2rat(i: Int) = new Rational(BigInt(i), BigInt(1))

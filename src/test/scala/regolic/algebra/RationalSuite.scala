@@ -104,4 +104,16 @@ class RationalSuite extends FunSuite {
     assert(r(4) / r(2) === r(2))
     assert(r(4,3) / r(2) === r(2,3))
   }
+
+  test("double constructor") {
+    assert(r(1) === Rational(1d))
+    assert(r(0) === Rational(0d))
+    assert(r(1, 2) === Rational(0.5d))
+    assert(r(1, 4) === Rational(0.25d))
+
+    assert(Rational(1.23d).toDouble === 1.23d)
+    assert(Rational(2.74d).toDouble === 2.74d)
+    assert(Rational(0d).toDouble != 2.74d)
+    assert(Rational(0d).toDouble === 0d)
+  }
 }
