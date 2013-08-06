@@ -36,11 +36,11 @@ object FastCongruenceSolver extends Solver {
       case _ => false
     }
 
-    // For each such inequality, get the explanation
+    // For each such inequality, get the explanation why it must be an equality
     val explanations = collection.immutable.Map[Formula, List[Formula]]() ++
     unsatTerms.map{
-      case neq@Not(Equals((t1: Variable), (t2: Variable))) =>
-        (neq, congruenceClosure.explain(t1, t2).map(tEq => tEq match {
+      case Not(eq@Equals((t1: Variable), (t2: Variable))) =>
+        (eq, congruenceClosure.explain(t1, t2).map(tEq => tEq match {
             /*
              * Only use equalities between variables
              */

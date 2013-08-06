@@ -11,20 +11,29 @@ import regolic.smt.qfeuf.FastCongruenceSolver
 class LazyBasicSolver() {
 
   private def makeClauses(explanations: Map[Formula, List[Formula]], theoryLitToId: Map[Formula, Int]): List[Set[Literal]] = {
+
+    /*
+     * e.g. a = b because of a = c, c = b
+     *      a = c and c = b implies a = b
+     *      !e(a = c) or !e(c = b) or e(a = b)
+     * where e is the theory literal to id / prop. literal map
+     */
     explanations.map{
-      case (Not(eq), explanation) => {
+      case (eq, explanation) => {
         Set(new Literal(theoryLitToId(eq), true)) ++ explanation.map(exp => new Literal(theoryLitToId(exp), false))
       }
     }.toList
   }
 
+  /*
+   * Algorithm 11.2.1 from Decision Procedures by Kroening and Strichman
+   */
   def solve(phi: Formula): Boolean = {
     val (clauses, nbVars, idToTheoryLit, theoryLitToId) = PropositionalSkeleton(phi)
     val satSolver = new Solver(nbVars)
     clauses.foreach(satSolver.addClause)
-    var done = false
-    var retVal = false
-    while(!done) {
+
+    while(true) {
       satSolver.solve() match {
         case Unsatisfiable(_) => {
           return false
@@ -38,10 +47,7 @@ class LazyBasicSolver() {
           if(res) {
             return true
           } else {
-            println("explanations: "+ t.mkString("\n", "\n", "\n"))
             makeClauses(t.get, theoryLitToId).foreach(satSolver.addClause)
-            //retVal = false
-            //done = true
           }
         }
         case Unknown => sys.error("SAT solver returned unknown")
