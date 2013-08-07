@@ -4,6 +4,14 @@ package sexpr
 import Tokens._
 import Utils.isDigit
 
+/*
+ * Note that in theory this should be a complete s-expression parser/lexer, following
+ * standard of common lisp. In practice, it is not complete but should supports
+ * s-expression as used in SMT-lib (which is a subset of legal s-expression).
+ * Hopefully, at some point in the future (in fact, when needed) 
+ * it will be fully compliant with s-expression.
+ */
+
 class Lexer(reader: java.io.Reader) {
 
   private def isNewLine(c: Char) = c == '\n' || c == '\r'
@@ -47,6 +55,8 @@ class Lexer(reader: java.io.Reader) {
         val buffer = new scala.collection.mutable.ArrayBuffer[Char]
         var c = nextChar
         while(c != '"') {
+          if(c == '\\' && (peek == '"' || peek == '\\'))
+            c = nextChar
           buffer.append(c)
           c = nextChar
         }
@@ -69,7 +79,7 @@ class Lexer(reader: java.io.Reader) {
         }
         IntLit(readInt(nextChar, base))
       }
-      case d if d.isDigit => {
+      case d if d.isDigit => { //TODO: a symbol can start with a digit !
         val intPart = readInt(d, 10)
         if(peek != '.')
           IntLit(intPart)
@@ -85,11 +95,26 @@ class Lexer(reader: java.io.Reader) {
           DoubleLit(intPart.toDouble + fracPart/base)
         }
       }
-      case s => {
+      case '|' => {
         val buffer = new scala.collection.mutable.ArrayBuffer[Char]
-        buffer.append(s)
-        while(!isSeparator(peek.toChar)) {
-          buffer.append(nextChar)
+        var c = nextChar
+        while(c != '|') {
+          if(c == '\\')
+            c = nextChar
+          buffer.append(c)
+          c = nextChar
+        }
+        SymbolLit(new String(buffer.toArray))
+      }
+      case s if isSymbolChar(s) => {
+        val buffer = new scala.collection.mutable.ArrayBuffer[Char]
+        buffer.append(s.toUpper)
+        while(isSymbolChar(peek.toChar) || peek == '\\') {
+          if(peek == '\\') {
+            nextChar
+            buffer.append(nextChar) //escaped char is not stored in upper case
+          } else
+            buffer.append(nextChar.toUpper)
         }
         SymbolLit(new String(buffer.toArray))
       }
@@ -105,5 +130,11 @@ class Lexer(reader: java.io.Reader) {
     }
     acc
   }
+
+  private var extraSymbolChars = Set('+', '-', '*', '/', '@', '$', '%', '^', '&', '_', 
+                                     '!', '?', '[', ']', '{', '}', '=', '<', '>', '~', '.')
+  private def isSymbolChar(c: Char): Boolean =
+    c.isDigit || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || extraSymbolChars.contains(c)
+
 
 }
