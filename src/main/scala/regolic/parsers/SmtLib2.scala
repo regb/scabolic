@@ -55,20 +55,20 @@ object SmtLib2 {
     while(expr != null) {
 
       expr match {
-        case SList(List(SSymbol("set-logic"), SSymbol(logic))) => 
+        case SList(List(SSymbol("SET-LOGIC"), SSymbol(logic))) => 
           cmds.append(SetLogic(Logic.fromString(logic)))
-        case SList(List(SSymbol("declare-sort"), SSymbol(sort), SInt(arity))) => 
+        case SList(List(SSymbol("DECLARE-SORT"), SSymbol(sort), SInt(arity))) => 
           ()
-        case SList(List(SSymbol("declare-fun"), SSymbol(fun), SList(sorts), sort)) => {
+        case SList(List(SSymbol("DECLARE-FUN"), SSymbol(fun), SList(sorts), sort)) => {
           val paramSorts = sorts map parseSort
           val returnSort = parseSort(sort)
           funSymbols += (fun -> FunctionSymbol(fun, paramSorts, returnSort))
         }
-        case SList(List(SSymbol("assert"), term)) =>
+        case SList(List(SSymbol("ASSERT"), term)) =>
           cmds.append(Assert(parseFormula(term, Map())))
-        case SList(List(SSymbol("check-sat"))) =>
+        case SList(List(SSymbol("CHECK-SAT"))) =>
           cmds.append(CheckSat)
-        case SList(List(SSymbol("exit"))) =>
+        case SList(List(SSymbol("EXIT"))) =>
           cmds.append(Exit)
 
       //case push: PushCommand => {
@@ -106,25 +106,25 @@ object SmtLib2 {
   }
 
   def parseFormula(sExpr: SExpr, scope: Map[String, Either[Formula, Term]]): Formula = sExpr match {
-    case SList(List(SSymbol("let"), SList(varBindings), t)) => {
+    case SList(List(SSymbol("LET"), SList(varBindings), t)) => {
       val newMap = parseVarBindings(varBindings, scope)
       parseFormula(t, scope ++ newMap)
     }
-    case SSymbol("true") => True()
-    case SSymbol("false") => False()
+    case SSymbol("TRUE") => True()
+    case SSymbol("FALSE") => False()
     case SSymbol(sym) => scope.get(sym) match {
       case None => sys.error("no def for variable: " + sym)
       case Some(Left(f)) => f
       case Some(Right(t)) => sys.error("unexpected term in formula variable: " + t)
     }
-    case SList(List(SSymbol("not"), t)) => Not(parseFormula(t, scope))
-    case SList(SSymbol("and") :: ts) => And(ts.map(parseFormula(_, scope)))
-    case SList(SSymbol("or") :: ts) => Or(ts.map(parseFormula(_, scope)))
+    case SList(List(SSymbol("NOT"), t)) => Not(parseFormula(t, scope))
+    case SList(SSymbol("AND") :: ts) => And(ts.map(parseFormula(_, scope)))
+    case SList(SSymbol("OR") :: ts) => Or(ts.map(parseFormula(_, scope)))
     case SList(List(SSymbol("=>"), t1, t2)) => Implies(parseFormula(t1, scope), parseFormula(t2, scope))
-    case SList(List(SSymbol("ite"), t1, t2, t3)) => 
+    case SList(List(SSymbol("ITE"), t1, t2, t3)) => 
       IfThenElse(parseFormula(t1, scope), parseFormula(t2, scope), parseFormula(t3, scope))
     //TODO: xor
-    case SList(SSymbol("distinct") :: ss) => {
+    case SList(SSymbol("DISTINCT") :: ss) => {
       val ts = ss.map(s => parseTerm(s, scope))
       And(ts.tails.flatMap(subSeqs => 
         if(subSeqs.isEmpty) Nil 
@@ -135,7 +135,7 @@ object SmtLib2 {
   }
 
   def parseTerm(sExpr: SExpr, scope: Map[String, Either[Formula, Term]]): Term = sExpr match {
-    case SList(List(SSymbol("let"), SList(varBindings), t)) => {
+    case SList(List(SSymbol("LET"), SList(varBindings), t)) => {
       val newMap = parseVarBindings(varBindings, scope)
       parseTerm(t, scope ++ newMap)
     }
