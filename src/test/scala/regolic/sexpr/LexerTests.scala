@@ -7,7 +7,7 @@ import org.scalatest.FunSuite
 
 class LexerTests extends FunSuite {
 
-  test("lexer") {
+  test("lexer base") {
     val reader1 = new StringReader("""
       (test "test")
     """)
@@ -34,5 +34,33 @@ class LexerTests extends FunSuite {
     assert(lexer3.next === CParen)
     assert(lexer3.next === IntLit(12))
     assert(lexer3.next === StringLit("salut"))
+  }
+
+  test("integer literals") {
+    val reader1 = new StringReader("12")
+    val lexer1 = new Lexer(reader1)
+    assert(lexer1.next === IntLit(12))
+
+    val reader2 = new StringReader("#xF")
+    val lexer2 = new Lexer(reader2)
+    assert(lexer2.next === IntLit(15))
+
+    val reader3 = new StringReader("#o55")
+    val lexer3 = new Lexer(reader3)
+    assert(lexer3.next === IntLit(45))
+
+    val reader4 = new StringReader("#x1F")
+    val lexer4 = new Lexer(reader4)
+    assert(lexer4.next === IntLit(31))
+
+    val reader5 = new StringReader("123 #x11 #o12")
+    val lexer5 = new Lexer(reader5)
+    assert(lexer5.next === IntLit(123))
+    assert(lexer5.next === IntLit(17))
+    assert(lexer5.next === IntLit(10))
+
+    val reader6 = new StringReader("#16r21")
+    val lexer6 = new Lexer(reader6)
+    assert(lexer6.next === IntLit(33))
   }
 }

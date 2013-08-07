@@ -1,6 +1,8 @@
-package regolic.sexpr
+package regolic
+package sexpr
 
 import Tokens._
+import Utils.isDigit
 
 class Lexer(reader: java.io.Reader) {
 
@@ -50,12 +52,25 @@ class Lexer(reader: java.io.Reader) {
         }
         StringLit(new String(buffer.toArray))
       }
-      case d if d.isDigit => {
-        var intPart: Int = d.asDigit
-        while(peek.toChar.isDigit) {
-          intPart *= 10
-          intPart += nextChar.asDigit
+      case '#' => {
+        val radix = nextChar
+        val base: Int = radix match {
+          case 'b' => 2
+          case 'o' => 8
+          case 'x' => 16
+          case d if d.isDigit => {
+            val r = readInt(d, 10).toInt
+            val ending = nextChar
+            if(ending != 'r' && ending != 'R')
+              sys.error("expected 'r' termination mark for radix")
+            r
+          }
+          case _ => sys.error("unexpected char: " + radix)
         }
+        IntLit(readInt(nextChar, base))
+      }
+      case d if d.isDigit => {
+        val intPart = readInt(d, 10)
         if(peek != '.')
           IntLit(intPart)
         else {
@@ -67,7 +82,7 @@ class Lexer(reader: java.io.Reader) {
             fracPart *= 10
             base *= 10
           }
-          DoubleLit(intPart + fracPart/base)
+          DoubleLit(intPart.toDouble + fracPart/base)
         }
       }
       case s => {
@@ -79,6 +94,16 @@ class Lexer(reader: java.io.Reader) {
         SymbolLit(new String(buffer.toArray))
       }
     }
+  }
+
+  private def readInt(currentChar: Char, r: Int): BigInt = {
+    require(r > 1 && r <= 36)
+    var acc: BigInt = currentChar.asDigit //asDigit works for 'A', 'F', ...
+    while(isDigit(peek.toChar, r)) {
+      acc *= r
+      acc += nextChar.asDigit
+    }
+    acc
   }
 
 }
