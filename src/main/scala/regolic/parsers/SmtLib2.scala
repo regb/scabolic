@@ -57,7 +57,6 @@ object SmtLib2 {
     var expr = p.parse
     while(expr != null) {
 
-      println(expr)
       expr match {
         case SList(List(SSymbol("SET-LOGIC"), SSymbol(logic))) => 
           cmds.append(SetLogic(Logic.fromString(logic)))
@@ -77,15 +76,11 @@ object SmtLib2 {
         case SList(List(SSymbol("EXIT"))) =>
           cmds.append(Exit)
 
+        case SList(List(SSymbol("PUSH"), SInt(n))) => 
+          cmds.append(Push(n.toInt))
+        case SList(List(SSymbol("POP"), SInt(n))) => 
+          cmds.append(Pop(n.toInt))
 
-      //case push: PushCommand => {
-      //  val n = push.numeral_.toInt
-      //  cmds.append(Push(n))
-      //}
-      //case pop: PopCommand => {
-      //  val n = pop.numeral_.toInt
-      //  cmds.append(Pop(n))
-      //}
         case _ => ()
       }
 
