@@ -51,6 +51,7 @@ class Lexer(reader: java.io.Reader) {
       }
       case '(' => OParen
       case ')' => CParen
+      case ':' => Colon
       case '"' => {
         val buffer = new scala.collection.mutable.ArrayBuffer[Char]
         var c = nextChar

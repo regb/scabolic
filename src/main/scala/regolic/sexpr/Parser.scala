@@ -38,8 +38,23 @@ class Parser(lexer: Lexer) {
       }
       case IntLit(d) => SInt(d)
       case StringLit(s) => SString(s)
-      case SymbolLit(s) => SSymbol(s)
+      case SymbolLit(s) => {
+        val sym = SSymbol(s)
+        if(peek == Colon) {
+          eat(Colon)
+          next match {
+            case SymbolLit(s) => SQualifiedSymbol(Some(sym), SSymbol(s))
+            case x => sys.error("Expected a symbol after ':', got: " + x)
+          }
+        } else sym
+      }
       case DoubleLit(d) => SDouble(d)
+      case Colon => {
+        next match {
+          case SymbolLit(s) => SQualifiedSymbol(None, SSymbol(s))
+          case x => sys.error("Expected a symbol after ':', got: " + x)
+        }
+      }
       case CParen => sys.error("Unexpected token: " + CParen)
     }
   }
