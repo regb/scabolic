@@ -51,7 +51,7 @@ class Lexer(reader: java.io.Reader) {
       }
       case '(' => OParen
       case ')' => CParen
-      case ':' => Colon
+      case ':' => QualifiedSymbol(None, readSymbol(nextChar))
       case '"' => {
         val buffer = new scala.collection.mutable.ArrayBuffer[Char]
         var c = nextChar
@@ -96,30 +96,37 @@ class Lexer(reader: java.io.Reader) {
           DoubleLit(intPart.toDouble + fracPart/base)
         }
       }
-      case '|' => {
-        val buffer = new scala.collection.mutable.ArrayBuffer[Char]
-        var c = nextChar
-        while(c != '|') {
-          if(c == '\\')
-            c = nextChar
-          buffer.append(c)
-          c = nextChar
-        }
-        SymbolLit(new String(buffer.toArray))
-      }
-      case s if isSymbolChar(s) => {
-        val buffer = new scala.collection.mutable.ArrayBuffer[Char]
-        buffer.append(s.toUpper)
-        while(isSymbolChar(peek.toChar) || peek == '\\') {
-          if(peek == '\\') {
-            nextChar
-            buffer.append(nextChar) //escaped char is not stored in upper case
-          } else
-            buffer.append(nextChar.toUpper)
-        }
-        SymbolLit(new String(buffer.toArray))
+      case s if isSymbolChar(s) || s == '|' => {
+        val sym = readSymbol(s)
+        if(peek == ':') {
+          nextChar
+          QualifiedSymbol(Some(sym), readSymbol(nextChar))
+        } else SymbolLit(sym)
       }
     }
+  }
+
+  private def readSymbol(currentChar: Char): String = {
+    val buffer = new scala.collection.mutable.ArrayBuffer[Char]
+    if(currentChar == '|') {
+      var c = nextChar
+      while(c != '|') {
+        if(c == '\\')
+          c = nextChar
+        buffer.append(c)
+        c = nextChar
+      }
+    } else {
+      buffer.append(currentChar.toUpper)
+      while(isSymbolChar(peek.toChar) || peek == '\\') {
+        if(peek == '\\') {
+          nextChar
+          buffer.append(nextChar) //escaped char is not stored in upper case
+        } else
+          buffer.append(nextChar.toUpper)
+      }
+    }
+    new String(buffer.toArray)
   }
 
   private def readInt(currentChar: Char, r: Int): BigInt = {
