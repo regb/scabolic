@@ -1,4 +1,5 @@
 package regolic.smt.qfeuf 
+
 import regolic.smt.Solver
 import regolic.asts.core.Trees._
 import regolic.asts.fol.Trees._
@@ -35,6 +36,7 @@ object FastCongruenceSolver extends Solver {
       case Not(Equals((t1: Variable), (t2: Variable))) if congruenceClosure.areCongruent(t1, t2) => true
       case _ => false
     }
+    //println("unsat terms: "+ unsatTerms.mkString("\n", "\n", "\n"))
 
     // For each such inequality, get the explanation why it must be an equality
     val explanations = collection.immutable.Map[Formula, List[Formula]]() ++
@@ -66,8 +68,8 @@ class ProofStructureNode(val name: Term, var edgeLabel: Any) {
   def hasParent = parent != null
 
   override def toString = {
-    val to = if(hasParent) " [=> "+ parent.name +", l: "+ edgeLabel +"]" else ""
-    name + to
+    val to = if(hasParent) " -> "+ parent.name +" [label=\""+ edgeLabel +"\"]" else ""
+    name + to +";"
   }
 }
 
@@ -80,16 +82,20 @@ class CongruenceClosure(eqs: List[PredicateApplication]) {
   // TODO collect EqClass stuff in separate object 
 
   def extractVariables(t: Term) = t match {
-    case FunctionApplication(_, List((c1: Variable), (c2: Variable))) => List(c1, c2)
+    case Apply((c1: Variable), (c2: Variable)) => List(c1, c2)
     case Variable(_, _) => List(t)
     case _ => throw new Exception("Unexpected term "+ t)
   }
-  private var elems: Set[Term] = Set() ++ eqs.foldRight(List.empty[Term])((eq, l) => eq match {
-    case Equals(t1, t2) => extractVariables(t1) ::: extractVariables(t2) ::: l
-    case _ => throw new Exception("Couldn't extract pair of terms from "+ eq)
-  })
+  private var elems: collection.immutable.Set[Term] = {
+    val lb = new ListBuffer[Term]()
+    for(Equals(t1, t2) <- eqs) {
+      lb ++= extractVariables(t1)
+      lb ++= extractVariables(t2)
+    }
+    lb.toSet
+  }
     
-  private var node: Map[Term,ProofStructureNode] = Map() ++ elems.map{e => (e, new ProofStructureNode(e, None))}
+  private var node: Map[Term,ProofStructureNode] = Map() ++ elems.map{e => (e, new ProofStructureNode(e, null))}
 
   private var repr: Map[Term,Term] = Map() ++ elems.zip(elems)
     
@@ -174,13 +180,13 @@ class CongruenceClosure(eqs: List[PredicateApplication]) {
 
   private def normalize(t: Term): Term = {
     t match {
-      case c@Variable(_, _) => repr(c)
+      case c@Variable(_, _) => repr.getOrElse(c, c)
       case FunctionApplication(_, List(t1, t2)) => {
         val u1 = normalize(t1)
         val u2 = normalize(t2)
         lookup(u1, u2) match {
-          case Some(Equals(_, a)) if (u1.isInstanceOf[Variable] &&
-            u2.isInstanceOf[Variable]) => repr(a)
+          case Some(Equals(FunctionApplication(_, _), a)) if (u1.isInstanceOf[Variable] &&
+            u2.isInstanceOf[Variable]) => repr.getOrElse(a, a)
           case _ => Apply(u1.asInstanceOf[Variable], u2.asInstanceOf[Variable])
         }
       }
@@ -198,22 +204,21 @@ class CongruenceClosure(eqs: List[PredicateApplication]) {
     var p = from
     var q: ProofStructureNode = null
     var r: ProofStructureNode = null
+    var qEdge: Any = null
+    var rEdge: Any = null
 
-    if(p != null) {
-      r = q
-      q = p
-      p = q.parent
-      q.parent = r
-    }
     while(p != null) {
       r = q
       q = p
       p = q.parent
+
+      rEdge = qEdge
+      qEdge = q.edgeLabel
+
       q.parent = r
-      q.edgeLabel = r.edgeLabel
+      q.edgeLabel = rEdge
     }
     from.parent = null
-    from.edgeLabel = None
   }
 
   private def insertEdge(a: Variable, b: Variable, label: Any) = {
@@ -262,6 +267,11 @@ class CongruenceClosure(eqs: List[PredicateApplication]) {
   }
 
   def explain(c1: Variable, c2: Variable) = {
+    // reset makes explanations complete, but is it necessary?
+    //println("Explaining why "+ c1 +" = "+ c2)
+    //println(node.values.mkString("digraph g {\nnode [shape=plaintext];\n", "\n", "\n}"))
+    eqClass = Map() ++ node.values.zip(node.values)
+
     var explanation = new ListBuffer[PredicateApplication]
     pendingProofs.enqueue(Equals(c1, c2))
     while(pendingProofs.nonEmpty) {
@@ -275,6 +285,7 @@ class CongruenceClosure(eqs: List[PredicateApplication]) {
       explanation ++= explainAlongPath(node(a), c)
       explanation ++= explainAlongPath(node(b), c)
     }
+    //println("explanation: "+ explanation.mkString("\n", "\n", "\n"))
     explanation.toList
   }
 

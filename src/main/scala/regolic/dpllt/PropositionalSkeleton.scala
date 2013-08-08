@@ -2,7 +2,6 @@ package regolic.dpllt
 
 import regolic.sat.Literal
 import regolic.asts.core.Trees._
-import regolic.asts.core.Manip._
 import regolic.asts.fol.Trees._
 
 object PropositionalSkeleton {

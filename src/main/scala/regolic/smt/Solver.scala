@@ -13,6 +13,8 @@ import regolic.smt.qflra.SimplexSolver
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.ListBuffer
 
+import regolic.dpllt.LazyBasicSolver
+
 trait Solver {
 
   val logic: Logic
@@ -51,9 +53,10 @@ object Solver {
           asserts = And(f, asserts.head) :: asserts.tail
         }
         case CheckSat => {
-          val formula = asserts.foldLeft(True(): Formula)((acc, f) => And(acc, f))
-          println("Formula to check is: " + formula)
-          println("isSat: " + solver.get.isSat(formula))
+          val formula = simplify(asserts.foldLeft(True(): Formula)((acc, f) => And(acc, f)))
+          println("Simplified formula is: " + formula)
+          //println("isSat: " + solver.get.isSat(formula))
+          println("isSat: " + LazyBasicSolver.solve(solver.get, formula))
         }
         case Exit => {
           // TODO

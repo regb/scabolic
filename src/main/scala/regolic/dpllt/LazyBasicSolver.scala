@@ -1,16 +1,17 @@
 package regolic.dpllt
 
 import regolic.sat.Literal
-import regolic.sat.Solver
 import regolic.sat.Solver.Results._
 import regolic.asts.core.Trees._
 import regolic.asts.fol.Trees._
 import regolic.smt.qfeuf.CongruenceSolver
 import regolic.smt.qfeuf.FastCongruenceSolver
 
-class LazyBasicSolver() {
+import regolic.StopWatch
 
-  private def makeClauses(explanations: Map[Formula, List[Formula]], theoryLitToId: Map[Formula, Int]): List[Set[Literal]] = {
+object LazyBasicSolver {
+
+  private def makeBlockingClauses(explanations: Map[Formula, List[Formula]], theoryLitToId: Map[Formula, Int]): List[Set[Literal]] = {
 
     /*
      * e.g. a = b because of a = c, c = b
@@ -28,9 +29,9 @@ class LazyBasicSolver() {
   /*
    * Algorithm 11.2.1 from Decision Procedures by Kroening and Strichman
    */
-  def solve(phi: Formula): Boolean = {
+  def solve(solver: regolic.smt.Solver, phi: Formula): Boolean = {
     val (clauses, nbVars, idToTheoryLit, theoryLitToId) = PropositionalSkeleton(phi)
-    val satSolver = new Solver(nbVars)
+    val satSolver = new regolic.sat.Solver(nbVars)
     clauses.foreach(satSolver.addClause)
 
     while(true) {
@@ -43,11 +44,25 @@ class LazyBasicSolver() {
             if(alpha(id)) theoryLit else Not(theoryLit)
           }.toList
 
-          val (res, t) = FastCongruenceSolver.isSat(And(thAlpha))
+          val (res, t) = solver.isSat(And(thAlpha))
           if(res) {
             return true
           } else {
-            makeClauses(t.get, theoryLitToId).foreach(satSolver.addClause)
+            t match {
+              case Some(explanation) => {
+                val blockingClauses = makeBlockingClauses(explanation, theoryLitToId)
+                //println("newClauses: "+ blockingClauses.mkString("\n", "\n", "\n"))
+                //println("newClausesTheory: "+ blockingClauses.map(cl =>
+                  //cl.map(lit => if(lit.polarity) idToTheoryLit(lit.id) else
+                    //Not(idToTheoryLit(lit.id)))).mkString("\n", "\n", "\n"))
+                blockingClauses.foreach(satSolver.addClause)
+              }
+              case None => { //no explanation returned from solver, block alpha
+                satSolver.addClause(alpha.zipWithIndex.map{
+                  case (b, i) => new Literal(i, !b)
+                }.toSet)
+              }
+            }
           }
         }
         case Unknown => sys.error("SAT solver returned unknown")
@@ -55,5 +70,6 @@ class LazyBasicSolver() {
     }
     throw new Exception("Unreachable code.")
   }
+
 }
 

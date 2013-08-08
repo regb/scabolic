@@ -8,6 +8,7 @@ import regolic.smt.qfeuf.Apply
 import regolic.smt.qfeuf.CongruenceClosure
 import regolic.smt.qfeuf.Flattener
 import regolic.smt.qfeuf.Currifier
+import regolic.smt.qfeuf.FastCongruenceSolver
 
 import regolic.sat.NaiveSolver
 import regolic.sat.Literal
@@ -135,23 +136,19 @@ class DplltSuite extends FunSuite {
   }
 
   test("small example SAT") {
-    val lazySolver = new LazyBasicSolver()
-    assert(lazySolver.solve(phi) === true)
+    assert(LazyBasicSolver.solve(FastCongruenceSolver, phi) === true)
   }
 
   test("small example UNSAT") {
-    val lazySolver = new LazyBasicSolver()
-    assert(lazySolver.solve(psi) === false)
+    assert(LazyBasicSolver.solve(FastCongruenceSolver, psi) === false)
   }
 
   test("larger example SAT") {
-    val lazySolver = new LazyBasicSolver()
-    assert(lazySolver.solve(And(eqs)) === true)
+    assert(LazyBasicSolver.solve(FastCongruenceSolver, And(eqs)) === true)
   }
 
   test("larger example UNSAT") {
-    val lazySolver = new LazyBasicSolver()
-    assert(lazySolver.solve(And(Not(Equals(a, b)) :: eqs)) === false)
+    assert(LazyBasicSolver.solve(FastCongruenceSolver, And(Not(Equals(a, b)) :: eqs)) === false)
   }
 
   test("explain") {
