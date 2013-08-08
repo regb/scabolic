@@ -16,11 +16,14 @@ object SmtLib2 {
   object Trees {
     sealed abstract class Command
     case class SetLogic(logic: Logic) extends Command
+    case class SetInfo(attribute: Attribute) extends Command
     case class Assert(formula: Formula) extends Command
     case class Push(n: Int) extends Command
     case class Pop(n: Int) extends Command
     case object CheckSat extends Command
     case object Exit extends Command
+
+    case class Attribute(name: String, v: Option[SExpr])
 
     sealed abstract trait Logic
     case object QF_UF extends Logic
@@ -54,9 +57,12 @@ object SmtLib2 {
     var expr = p.parse
     while(expr != null) {
 
+      println(expr)
       expr match {
         case SList(List(SSymbol("SET-LOGIC"), SSymbol(logic))) => 
           cmds.append(SetLogic(Logic.fromString(logic)))
+        case SList(SSymbol("SET-INFO") :: attr) =>
+          cmds.append(SetInfo(parseAttribute(attr)))
         case SList(List(SSymbol("DECLARE-SORT"), SSymbol(sort), SInt(arity))) => 
           ()
         case SList(List(SSymbol("DECLARE-FUN"), SSymbol(fun), SList(sorts), sort)) => {
@@ -70,6 +76,7 @@ object SmtLib2 {
           cmds.append(CheckSat)
         case SList(List(SSymbol("EXIT"))) =>
           cmds.append(Exit)
+
 
       //case push: PushCommand => {
       //  val n = push.numeral_.toInt
@@ -86,6 +93,13 @@ object SmtLib2 {
     }
 
     cmds.toList
+  }
+
+  //todo: make sure no nested keyword in value
+  private def parseAttribute(ss: List[SExpr]): Attribute = ss match {
+    case List(SQualifiedSymbol(None, SSymbol(key))) => Attribute(key, None)
+    case List(SQualifiedSymbol(None, SSymbol(key)), v) => Attribute(key, Some(v))
+    case _ => sys.error("unexpected: " + ss + " when expecting attribute")
   }
 
   private def parseSort(sExpr: SExpr): Sort = sExpr match {
