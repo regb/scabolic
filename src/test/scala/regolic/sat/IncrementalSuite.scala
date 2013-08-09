@@ -22,7 +22,7 @@ class IncrementalSuite extends FunSuite {
 
     s.addClause(Set(na, nb))
     val result2 = s.solve(Array(a))
-    assert(result2.isInstanceOf[Unsatisfiable])
+    assert(result2 === Unsatisfiable)
   }
 
   test("empty solve call") {
@@ -51,7 +51,7 @@ class IncrementalSuite extends FunSuite {
       assert(sResult.getClass === rResult.getClass)
     }
 
-    assert(sResult.isInstanceOf[Unsatisfiable])
+    assert(sResult === Unsatisfiable)
   }
 
 }

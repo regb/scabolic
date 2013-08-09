@@ -8,7 +8,7 @@ object Solver {
   object Results {
     sealed trait Result
     case class Satisfiable(model: Array[Boolean]) extends Result
-    case class Unsatisfiable(partialAssignment: Array[Boolean]) extends Result
+    case object Unsatisfiable extends Result
     case object Unknown extends Result
   }
 
@@ -216,7 +216,7 @@ class Solver(nbVars: Int) {
     status match {
       case Unknown | Conflict => sys.error("unexpected")
       case Timeout => Results.Unknown
-      case Unsatisfiable => Results.Unsatisfiable(model.map(pol => pol == 1))
+      case Unsatisfiable => Results.Unsatisfiable
       case Satisfiable => Results.Satisfiable(model.map(pol => pol == 1))
     }
   
