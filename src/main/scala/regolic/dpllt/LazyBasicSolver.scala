@@ -6,6 +6,7 @@ import regolic.asts.core.Trees._
 import regolic.asts.fol.Trees._
 import regolic.smt.qfeuf.CongruenceSolver
 import regolic.smt.qfeuf.FastCongruenceSolver
+import regolic.printers.SmtLib2
 
 import regolic.StopWatch
 
@@ -36,7 +37,7 @@ object LazyBasicSolver {
 
     while(true) {
       satSolver.solve() match {
-        case Unsatisfiable(_) => {
+        case Unsatisfiable => {
           return false
         }
         case Satisfiable(alpha) => {
@@ -51,10 +52,6 @@ object LazyBasicSolver {
             t match {
               case Some(explanation) => {
                 val blockingClauses = makeBlockingClauses(explanation, theoryLitToId)
-                //println("newClauses: "+ blockingClauses.mkString("\n", "\n", "\n"))
-                //println("newClausesTheory: "+ blockingClauses.map(cl =>
-                  //cl.map(lit => if(lit.polarity) idToTheoryLit(lit.id) else
-                    //Not(idToTheoryLit(lit.id)))).mkString("\n", "\n", "\n"))
                 blockingClauses.foreach(satSolver.addClause)
               }
               case None => { //no explanation returned from solver, block alpha

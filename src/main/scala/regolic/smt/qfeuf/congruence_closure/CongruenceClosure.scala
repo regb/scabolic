@@ -17,38 +17,33 @@ object FastCongruenceSolver extends Solver {
   def isSat(f: Formula): Pair[Boolean, Option[collection.immutable.Map[Formula, List[Formula]]]] = {
     val And(fs) = f
 
-    val inputEqs = fs.filter{x => x match {
-      case Equals(t1, t2) => true
-      case Not(Equals(t1, t2)) => false
-      case _ => throw new Exception("Formula "+ x +" is not an (in)equality")
-    }}.asInstanceOf[List[PredicateApplication]]
-    
-    val transformedToEq = collection.immutable.Map() ++ inputEqs.flatMap{eq =>
-      Flattener(Currifier(eq)).map(l => (l, eq))
+    val transformedToEq = collection.immutable.Map() ++ fs.flatMap{
+      case eq@Equals(t1, t2) => Flattener(Currifier(eq)).map(l => (l, eq))
+      case _ => None
     }
-
     val transformedEqs = transformedToEq.keySet.toList
     val congruenceClosure = new CongruenceClosure(transformedEqs)
     transformedEqs.foreach(congruenceClosure.merge)
 
-    // Are two variables, which shouldn't be equal congruent?
-    val unsatTerms = fs.filter{
-      case Not(Equals((t1: Variable), (t2: Variable))) if congruenceClosure.areCongruent(t1, t2) => true
+    val unsatTerms = fs.flatMap{
+      case Not(eq@Equals(_, _)) => Flattener(Currifier(eq))
+      case _ => None
+    }.filter{
+      // Are two variables, which shouldn't be equal congruent?
+      case Equals(t1, t2) if congruenceClosure.areCongruent(t1, t2) => true
       case _ => false
     }
-    //println("unsat terms: "+ unsatTerms.mkString("\n", "\n", "\n"))
 
     // For each such inequality, get the explanation why it must be an equality
-    val explanations = collection.immutable.Map[Formula, List[Formula]]() ++
-    unsatTerms.map{
-      case Not(eq@Equals((t1: Variable), (t2: Variable))) =>
-        (eq, congruenceClosure.explain(t1, t2).map(tEq => tEq match {
+    val explanations = collection.immutable.Map[Formula, List[Formula]]() ++ unsatTerms.map{
+      case eq@Equals((t1: Variable), (t2: Variable)) => (eq,
+        congruenceClosure.explain(t1, t2).withFilter{
             /*
              * Only use equalities between variables
              */
-            case Equals(_, _) => transformedToEq(tEq)
-          }
-        ))
+            case Equals((v1: Variable), (v2: Variable)) => true
+            case _ => false
+          }.map(transformedToEq(_)))
     }
 
     if(unsatTerms.isEmpty)
@@ -79,14 +74,14 @@ class ProofStructureNode(val name: Term, var edgeLabel: Any) {
  */
 class CongruenceClosure(eqs: List[PredicateApplication]) {
   // TODO change Maps to Arrays where a Term.id is the index?
-  // TODO collect EqClass stuff in separate object 
+  // TODO collect EqClass stuff in separate object
 
   def extractVariables(t: Term) = t match {
     case Apply((c1: Variable), (c2: Variable)) => List(c1, c2)
     case Variable(_, _) => List(t)
     case _ => throw new Exception("Unexpected term "+ t)
   }
-  private var elems: collection.immutable.Set[Term] = {
+  private val elems: collection.immutable.Set[Term] = {
     val lb = new ListBuffer[Term]()
     for(Equals(t1, t2) <- eqs) {
       lb ++= extractVariables(t1)
@@ -95,9 +90,9 @@ class CongruenceClosure(eqs: List[PredicateApplication]) {
     lb.toSet
   }
     
-  private var node: Map[Term,ProofStructureNode] = Map() ++ elems.map{e => (e, new ProofStructureNode(e, null))}
+  val node: Map[Term,ProofStructureNode] = Map() ++ elems.map{e => (e, new ProofStructureNode(e, null))}
 
-  private var repr: Map[Term,Term] = Map() ++ elems.zip(elems)
+  private val repr: Map[Term,Term] = Map() ++ elems.zip(elems)
     
   private val pending: Queue[Any] = Queue()
 
@@ -109,9 +104,9 @@ class CongruenceClosure(eqs: List[PredicateApplication]) {
     }
   }
 
-  private val lookup: Map[(Term, Term), Option[PredicateApplication]] = Map().withDefaultValue(None)
+  val lookup: Map[(Term, Term), Option[PredicateApplication]] = Map().withDefaultValue(None)
 
-  private var classList: Map[Term, Queue[Term]] = Map() ++ elems.map(el => (el, Queue(el)))
+  private val classList: Map[Term, Queue[Term]] = Map() ++ elems.map(el => (el, Queue(el)))
 
   def merge(eq: PredicateApplication) {
     eq match {
@@ -119,14 +114,14 @@ class CongruenceClosure(eqs: List[PredicateApplication]) {
         pending.enqueue(eq)
         propagate()
       }
-      case Equals(FunctionApplication(_, List(a1, a2)), a: Variable)  => {
+      case Equals(Apply(a1, a2), a: Variable) => {
         lookup(repr(a1),repr(a2)) match {
-          case Some(f: PredicateApplication) => {
-            pending.enqueue((eq, f))
+          case Some(eq2@Equals(Apply(_, _), _)) => {
+            pending.enqueue((eq, eq2))
             propagate()
           }
           case _ => {
-            lookup((repr(a1),repr(a2))) = Some(eq)
+            lookup((repr(a1), repr(a2))) = Some(eq)
             useList(repr(a1)).enqueue(eq)
             useList(repr(a2)).enqueue(eq)
           }
@@ -161,10 +156,10 @@ class CongruenceClosure(eqs: List[PredicateApplication]) {
 
         while(useList(oldreprA).nonEmpty) {
           val f1 = useList(oldreprA).dequeue()
-          val Equals(FunctionApplication(_, List(c1, c2)),c) = f1
+          val Equals(Apply(c1, c2),c) = f1
 
           lookup(repr(c1), repr(c2)) match {
-            case Some(f2@Equals(FunctionApplication(_, List(d1, d2)), d)) => {
+            case Some(f2@Equals(Apply(d1, d2), d)) => {
               pending.enqueue((f1, f2))
             }
             case _ => {
@@ -181,11 +176,11 @@ class CongruenceClosure(eqs: List[PredicateApplication]) {
   private def normalize(t: Term): Term = {
     t match {
       case c@Variable(_, _) => repr.getOrElse(c, c)
-      case FunctionApplication(_, List(t1, t2)) => {
+      case Apply(t1, t2) => {
         val u1 = normalize(t1)
         val u2 = normalize(t2)
         lookup(u1, u2) match {
-          case Some(Equals(FunctionApplication(_, _), a)) if (u1.isInstanceOf[Variable] &&
+          case Some(Equals(Apply(_, _), a)) if (u1.isInstanceOf[Variable] &&
             u2.isInstanceOf[Variable]) => repr.getOrElse(a, a)
           case _ => Apply(u1.asInstanceOf[Variable], u2.asInstanceOf[Variable])
         }
@@ -194,11 +189,14 @@ class CongruenceClosure(eqs: List[PredicateApplication]) {
   }
 
   def areCongruent(s: Term, t: Term): Boolean = {
+    //println(s +" => "+ normalize(s))
+    //println(t +" => "+ normalize(t))
+    //println()
     normalize(s) == normalize(t)
   }
 
   private val pendingProofs: Queue[PredicateApplication] = Queue()
-  private var eqClass: Map[ProofStructureNode,ProofStructureNode] = Map() ++ node.values.zip(node.values)
+  private val eqClass: Map[ProofStructureNode,ProofStructureNode] = Map()
 
   private def reverseEdges(from: ProofStructureNode) {
     var p = from
@@ -270,7 +268,8 @@ class CongruenceClosure(eqs: List[PredicateApplication]) {
     // reset makes explanations complete, but is it necessary?
     //println("Explaining why "+ c1 +" = "+ c2)
     //println(node.values.mkString("digraph g {\nnode [shape=plaintext];\n", "\n", "\n}"))
-    eqClass = Map() ++ node.values.zip(node.values)
+    eqClass.clear()
+    eqClass ++= node.values.zip(node.values)
 
     var explanation = new ListBuffer[PredicateApplication]
     pendingProofs.enqueue(Equals(c1, c2))
