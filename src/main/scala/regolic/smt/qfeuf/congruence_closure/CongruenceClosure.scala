@@ -6,6 +6,7 @@ import regolic.asts.fol.Trees._
 import regolic.asts.theories.int.Trees.IntSort
 
 import scala.collection.mutable.Queue
+import scala.collection.mutable.Stack
 import scala.collection.mutable.Map
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.Set
@@ -17,26 +18,31 @@ object FastCongruenceSolver extends Solver {
   def isSat(f: Formula): Pair[Boolean, Option[collection.immutable.Map[Formula, List[Formula]]]] = {
     val And(fs) = f
 
-    val transformedToEq = collection.immutable.Map() ++ fs.flatMap{
-      case eq@Equals(t1, t2) => Flattener(Currifier(eq)).map(l => (l, eq))
+    val neqs = Map[PredicateApplication, PredicateApplication]
+    val transformedToEq: collection.immutable.Map = fs.flatMap{
+      case eq@Equals(_, _) => Flattener(Currifier(eq)).map(l => (l, eq))
+      case Not(eq@Equals(_, _)) => {
+        val eqs = Flattener(Currifier(eq))
+        neqs(eqs.head) = eq
+        eqs.tail.map(l => (l, eq))
+      }
       case _ => None
-    }
-    val transformedEqs = transformedToEq.keySet.toList
-    val congruenceClosure = new CongruenceClosure(transformedEqs)
+    }.toMap
+      
+    val transformedEqs = transformedToEq.keySet
+    val congruenceClosure = new CongruenceClosure
+    congruenceClosure.initialize(transformedEqs)
     transformedEqs.foreach(congruenceClosure.merge)
 
-    val unsatTerms = fs.flatMap{
-      case Not(eq@Equals(_, _)) => Flattener(Currifier(eq))
-      case _ => None
-    }.filter{
+    val unsatTerms = neqs.keys.filter{
       // Are two variables, which shouldn't be equal congruent?
       case Equals(t1, t2) if congruenceClosure.areCongruent(t1, t2) => true
       case _ => false
-    }
+    }.toList
 
     // For each such inequality, get the explanation why it must be an equality
-    val explanations = collection.immutable.Map[Formula, List[Formula]]() ++ unsatTerms.map{
-      case eq@Equals((t1: Variable), (t2: Variable)) => (eq,
+    val explanations: collection.immutable.Map[Formula, List[Formula]] = unsatTerms.map{
+      case eq@Equals((t1: Variable), (t2: Variable)) => (neqs(eq),
         congruenceClosure.explain(t1, t2).withFilter{
             /*
              * Only use equalities between variables
@@ -44,10 +50,10 @@ object FastCongruenceSolver extends Solver {
             case Equals((v1: Variable), (v2: Variable)) => true
             case _ => false
           }.map(transformedToEq(_)))
-    }
+    }.toMap
 
     if(unsatTerms.isEmpty)
-      (true, None)
+      (true, None) // TODO what consequences to return for T-propagation?
     else
       (false, Some(explanations))
   }
@@ -72,31 +78,114 @@ class ProofStructureNode(val name: Term, var edgeLabel: Any) {
  * Algorithm as described in "Fast congruence closure and extensions" by
  * Nieuwenhuis and Oliveras
  */
-class CongruenceClosure(eqs: List[PredicateApplication]) {
+class CongruenceClosure extends TheorySolver {
   // TODO change Maps to Arrays where a Term.id is the index?
   // TODO collect EqClass stuff in separate object
+  val logic = regolic.parsers.SmtLib2.Trees.QF_UF
+
+  private val posLitList = new HashMap[Term, Set[Formula]] {
+    override def default(k: Term) = {
+      val v = Set[Formula]
+      this += (k -> v)
+      v
+    }
+  }
+  private val negLitList = new HashMap[Term, Set[Formula]] {
+    override def default(k: Term) = {
+      val v = Set[Formula]
+      this += (k -> v)
+      v
+    }
+  }
+  private val diseq = new HashMap[Term, Set[Formula]] {
+    override def default(k: Term) = {
+      val v = Set[Formula]
+      this += (k -> v)
+      v
+    }
+  }
 
   def extractVariables(t: Term) = t match {
     case Apply((c1: Variable), (c2: Variable)) => List(c1, c2)
     case Variable(_, _) => List(t)
     case _ => throw new Exception("Unexpected term "+ t)
   }
-  private val elems: collection.immutable.Set[Term] = {
-    val lb = new ListBuffer[Term]()
-    for(Equals(t1, t2) <- eqs) {
-      lb ++= extractVariables(t1)
-      lb ++= extractVariables(t2)
-    }
-    lb.toSet
-  }
     
-  val node: Map[Term,ProofStructureNode] = Map() ++ elems.map{e => (e, new ProofStructureNode(e, null))}
+  def initialize(ls: Set[Formula]) {//I.e. constructor
+    for(l <- ls) {
+      l match {
+        case Equals((c1: Variable), (c2: Variable)) => {
+          posLitList(c1) += l
+          posLitList(c2) += l
+          elems ++= extractVariables(c1)
+          elems ++= extractVariables(c2)
+        }
+        case Not(Equals((c1: Variable), (c2: Variable))) => {
+          negLitList(c1) += l
+          negLitList(c2) += l
+        }
+      }
+    }
+    s
+  }
 
-  private val repr: Map[Term,Term] = Map() ++ elems.zip(elems)
+  private val elems = Set[Term]
+
+  def undoMerge(l: Formula) {
+    while(!undoStack(l).isEmpty) {
+      val (from, reversedTo) = undoStack(l).pop
+      from.parent = null
+      reverseEdges(reversedTo)
+    }
+  }
+
+  def isTrue(l: Formula) = { //I.e. areCongruent
+    l match {
+      case Equals(t1, t2) => {
+        areCongruent(t1, t2)
+      }
+      case Not(Equals(t1, t2)) => {
+        !areCongruent(t1, t2)
+      }
+    }
+  }
+  def backtrack(n: Int) = {
+    if(n <= iStack.size) {
+      1 to n foreach { _ => {
+        val l = iStack.pop.l
+        undoMerge(l)
+      }}
+
+      val s = iStack.top
+      repr = s.repr
+      classList = s.classList
+      useList = s.useList
+      lookup = s.lookup
+      diseq = s.diseq
+    } else {
+      throw new Exception("Can't pop "+ n +" literals from I-stack.")
+    }
+  }
+
+  def explain(l: Formula) = {
+    l match{
+      case Equals(e1, d1) => {
+        explain(e1, d1)
+      }
+      case Not(Equals(d1, e1)) => {
+        val Not(Equals(d2, e2)) = negTable(l)
+        explain(d1, d2) ::: explain(e1, e2)
+      }
+    }
+  }
+
+  val node: Map[Term,ProofStructureNode] = elems.map{e => (e, new ProofStructureNode(e, null))}.toMap
+
+  private var repr: Map[Term,Term] = elems.map(e => (e, e)).toMap
     
   private val pending: Queue[Any] = Queue()
 
-  private val useList = new HashMap[Term, Queue[PredicateApplication]] {
+  private var useList = new HashMap[Term, Queue[PredicateApplication]] {
     override def default(k: Term) = {
       val v = Queue[PredicateApplication]()
       this += (k -> v)
@@ -104,11 +193,65 @@ class CongruenceClosure(eqs: List[PredicateApplication]) {
     }
   }
 
-  val lookup: Map[(Term, Term), Option[PredicateApplication]] = Map().withDefaultValue(None)
+  var lookup: Map[(Term, Term), Option[PredicateApplication]] = Map().withDefaultValue(None)
 
-  private val classList: Map[Term, Queue[Term]] = Map() ++ elems.map(el => (el, Queue(el)))
+  private var classList: Map[Term, Queue[Term]] = elems.map(el => (el,
+    Queue(el))).toMap
 
-  def merge(eq: PredicateApplication) {
+  val iStack = new Stack[State]
+
+  class State(val l: Formula, val repr: Map[Term, Term], val classList:
+    Map[Term, Queue[Term]], val useList: HashMap[Term,
+    Queue[PredicateApplication]], val lookup: Map[(Term, Term),
+    Option[PredicateApplication]], val diseq: HashMap[Term, Set[Formula]])
+
+  var trigger: Formula = null
+
+  var negTable = new Map[Formula, Formula]
+  def setTrue(l: Formula) = {
+    trigger = l
+    l match {
+      case Equals(t1, t2) => {
+        if(diseq.contains(Not(l))) { // inconsistent 
+          throw new Exception("Inconsistent: "+ (t1, t2) +" are unequal.")
+        } else {
+          val tConsequence = merge(t1, t2)
+
+          // TODO how slow is cloning?
+          iStack.push(State(l, repr.clone, classList.clone, useList.clone, lookup.clone, diseq.clone))
+          tConsequence
+        }
+      }
+      case Not(Equals(t1, t2)) => {
+        if(areCongruent(t1, t2)) { // inconsistent
+          throw new Exception("Inconsistent: "+ (t1, t2) +" are congruent.")
+        } else {
+          diseq(t1) += l
+          diseq(t2) += l
+          val (a, b) = (repr(t1), repr(t2))
+          val (cla, clb) = (classList(a), classList(b))
+          val cl = if(cla.size < clb.size) cla else clb
+          val tConsequence = ListBuffer[Formula]
+          for(c <- cl) {
+            tConsequence ++= negLitList(c).filter{
+              case Not(Equals(t1, t2)) => {
+                (repr(t1) == a && repr(t2) == b) ||
+                (repr(t1) == b && repr(t2) == a) 
+              }
+            }
+          }
+
+          // TODO how slow is cloning?
+          iStack.push(State(l, repr.clone, classList.clone, useList.clone, lookup.clone, diseq.clone))
+          negTable += tConsequence.map(ineq => (ineq, l)).toMap
+          tConsequence.toList
+        }
+      }
+      case _ => throw new Exception("Unsupported formula")
+    }
+  }
+
+  def merge(eq: PredicateApplication) = {
     eq match {
       case Equals(a: Variable, b: Variable) => {
         pending.enqueue(eq)
@@ -124,13 +267,15 @@ class CongruenceClosure(eqs: List[PredicateApplication]) {
             lookup((repr(a1), repr(a2))) = Some(eq)
             useList(repr(a1)).enqueue(eq)
             useList(repr(a2)).enqueue(eq)
+            Nil // no new unions, no T-consequences
           }
         }
       }
     }
   }
-
-  private def propagate() {
+  
+  private def propagate() = {
+    val tConsequence = ListBuffer[Formula]
     while(pending.nonEmpty) {
       val e = pending.dequeue()
       
@@ -152,6 +297,34 @@ class CongruenceClosure(eqs: List[PredicateApplication]) {
           val c = classList(oldreprA).dequeue()
           repr(c) = repr(b)
           classList(repr(b)).enqueue(c)
+
+          /*
+           *If a positive SetTrue, and its subsequent congruence closure, produces a
+           *union such that a class with former representative a is now represented by a
+           *different b, then, for each a in the class list of a, the positive literal list of a is
+           *traversed and all a=b in this list are returned as T-consequences. Also the nega-
+           *tive literal list of all such a is traversed, returning those a = c such that a = c is
+           *stored in Diseq, a hash table containing all currently true disequalities between
+           *representatives; analogously also the negative literal list of all b is traversed.
+           *After a SetTrue operation of a negative equation with representative form
+           */
+          tConsequence ++= posLitList(c).filter{
+            case Equals(t1, t2) => (repr(t1) == oldreprA && repr(t2) == repr(b))
+            || (repr(t1) == repr(b) && repr(t2) == oldreprA)
+          }
+          tConsequence ++= negLitList(c).filter{ineq => ineq match {
+            case Not(Equals(t1, t2)) => {
+              if(diseq(repr(t1)).contains(Not(Equals(repr(t1), repr(t2))))) {
+                negTable(ineq) = Not(Equals(repr(t1), repr(t2)))
+                true
+              } else if(diseq(repr(t1)).contains(Not(Equals(repr(t2), repr(t1))))) {
+                negTable(ineq) = Not(Equals(repr(t2), repr(t1)))
+                true
+              } else {
+                false
+              }
+            }
+          }}
         }
 
         while(useList(oldreprA).nonEmpty) {
@@ -171,6 +344,7 @@ class CongruenceClosure(eqs: List[PredicateApplication]) {
         }
       }
     }
+    tConsequence.toList
   }
 
   private def normalize(t: Term): Term = {
@@ -198,7 +372,7 @@ class CongruenceClosure(eqs: List[PredicateApplication]) {
   private val pendingProofs: Queue[PredicateApplication] = Queue()
   private val eqClass: Map[ProofStructureNode,ProofStructureNode] = Map()
 
-  private def reverseEdges(from: ProofStructureNode) {
+  private def reverseEdges(from: ProofStructureNode) = {
     var p = from
     var q: ProofStructureNode = null
     var r: ProofStructureNode = null
@@ -217,13 +391,24 @@ class CongruenceClosure(eqs: List[PredicateApplication]) {
       q.edgeLabel = rEdge
     }
     from.parent = null
+    q
   }
 
-  private def insertEdge(a: Variable, b: Variable, label: Any) = {
+  private val undoStack = new Map[Formula, Stack[Pair[ProofStructureNode,
+  ProofStructureNode]]] {
+    override def default(k: Term) = {
+      val v = Stack[Pair[ProofStructureNode, ProofStructureNode]]
+      this += (k -> v)
+      v
+    }
+  }
+  
+  private def insertEdge(l: Formula, a: Variable, b: Variable, label: Any) = {
     val from = node(a)
-    reverseEdges(from)
+    val reversedTo = reverseEdges(from)
     from.parent = node(b)
     from.edgeLabel = label
+    undoStack(trigger).push((from, reversedTo))
   }
   
   private def findEqClass(x: ProofStructureNode): ProofStructureNode = {

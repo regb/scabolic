@@ -30,6 +30,7 @@ object SmtLib2 {
     case object QF_LRA extends Logic
     case object QF_AX extends Logic
     case object QF_A extends Logic
+    case object Undef extends Logic
 
     object Logic {
       def fromString(logic: String): Logic = logic match {

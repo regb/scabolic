@@ -19,11 +19,13 @@ object Currifier {
       }
     }
 
-    if(t.isInstanceOf[Variable])
-      t
-    else {
-      val FunctionApplication(fun, args) = t
-      makeFuns((Variable(fun.name, fun.returnSort) :: args).reverse)
+    t match {
+      case Apply(_, _) => t
+      case (_: Variable) => t
+      case _ => {
+        val FunctionApplication(fun, args) = t
+        makeFuns((Variable(fun.name, fun.returnSort) :: args).reverse)
+      }
     }
   }
 

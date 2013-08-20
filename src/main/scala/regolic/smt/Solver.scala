@@ -54,7 +54,7 @@ object Solver {
         }
         case CheckSat => {
           val formula = simplify(asserts.foldLeft(True(): Formula)((acc, f) => And(acc, f)))
-          //println("isSat: " + solver.get.isSat(formula))
+          //println("isSat: "+ FastCongruenceSolver.isSat(formula))
           println("isSat: " + LazyBasicSolver.solve(solver.get, formula))
         }
         case Exit => {

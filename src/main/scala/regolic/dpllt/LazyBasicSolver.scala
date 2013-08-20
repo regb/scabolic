@@ -4,8 +4,6 @@ import regolic.sat.Literal
 import regolic.sat.Solver.Results._
 import regolic.asts.core.Trees._
 import regolic.asts.fol.Trees._
-import regolic.smt.qfeuf.CongruenceSolver
-import regolic.smt.qfeuf.FastCongruenceSolver
 import regolic.printers.SmtLib2
 
 import regolic.StopWatch
