@@ -62,24 +62,25 @@ object FastCongruenceSolver extends Solver {
 }
 
 /*
- * Representing the so-called proof forest
- */
-class ProofStructureNode(val name: Term, var edgeLabel: Any) {
-  var parent: ProofStructureNode = null
-
-  def hasParent = parent != null
-
-  override def toString = {
-    val to = if(hasParent) " -> "+ parent.name +" [label=\""+ edgeLabel +"\"]" else ""
-    name + to +";"
-  }
-}
-
-/*
  * Algorithm as described in "Fast congruence closure and extensions" by
  * Nieuwenhuis and Oliveras
  */
 class CongruenceClosure extends TheorySolver {
+  
+  /*
+   * Representing the so-called proof forest
+   */
+  class ProofStructureNode(val name: Term, var edgeLabel: Any) {
+    var parent: ProofStructureNode = null
+
+    def hasParent = parent != null
+
+    override def toString = {
+      val to = if(hasParent) " -> "+ parent.name +" [label=\""+ edgeLabel +"\"]" else ""
+      name + to +";"
+    }
+  }
+
   // TODO change Maps to Arrays where a Term.id is the index?
   // TODO collect EqClass stuff in separate object
   val logic = regolic.parsers.SmtLib2.Trees.QF_UF
@@ -394,8 +395,7 @@ class CongruenceClosure extends TheorySolver {
     q
   }
 
-  private val undoStack = new Map[Formula, Stack[Pair[ProofStructureNode,
-  ProofStructureNode]]] {
+  private val undoStack = new HashMap[Formula, Stack[Pair[ProofStructureNode, ProofStructureNode]]] {
     override def default(k: Formula) = {
       val v = Stack[Pair[ProofStructureNode, ProofStructureNode]]()
       this += (k -> v)

@@ -10,7 +10,8 @@ import regolic.StopWatch
 
 object LazyBasicSolver {
 
-  private def makeBlockingClauses(explanations: Map[Formula, List[Formula]], theoryLitToId: Map[Formula, Int]): List[Set[Literal]] = {
+  private def makeBlockingClauses(explanations: Map[Formula, List[Formula]],
+    encoding: collection.mutable.Map[Formula, Int]): List[Set[Literal]] = {
 
     /*
      * e.g. a = b because of a = c, c = b
@@ -20,7 +21,8 @@ object LazyBasicSolver {
      */
     explanations.map{
       case (eq, explanation) => {
-        Set(new Literal(theoryLitToId(eq), true)) ++ explanation.map(exp => new Literal(theoryLitToId(exp), false))
+        Set(new Literal(encoding(eq), true)) ++ explanation.map(exp => new
+          Literal(encoding(exp), false))
       }
     }.toList
   }
@@ -29,7 +31,7 @@ object LazyBasicSolver {
    * Algorithm 11.2.1 from Decision Procedures by Kroening and Strichman
    */
   def solve(solver: regolic.smt.Solver, phi: Formula): Boolean = {
-    val (clauses, nbVars, idToTheoryLit, theoryLitToId) = PropositionalSkeleton(phi)
+    val (clauses, nbVars, tpEquivalence) = PropositionalSkeleton(phi)
     val satSolver = new regolic.sat.Solver(nbVars)
     clauses.foreach(satSolver.addClause)
 
@@ -39,7 +41,7 @@ object LazyBasicSolver {
           return false
         }
         case Satisfiable(alpha) => {
-          val thAlpha = idToTheoryLit.map{case (id, theoryLit) =>
+          val thAlpha = tpEquivalence.theory.map{case (id, theoryLit) =>
             if(alpha(id)) theoryLit else Not(theoryLit)
           }.toList
 
@@ -49,10 +51,10 @@ object LazyBasicSolver {
           } else {
             t match {
               case Some(explanation) => {
-                val blockingClauses = makeBlockingClauses(explanation, theoryLitToId)
+                val blockingClauses = makeBlockingClauses(explanation, tpEquivalence.encoding)
                 blockingClauses.foreach(satSolver.addClause)
               }
-              case None => { //no explanation returned from solver, block alpha
+              case None => { //no explanation returned from T-solver, block alpha
                 satSolver.addClause(alpha.zipWithIndex.map{
                   case (b, i) => new Literal(i, !b)
                 }.toSet)

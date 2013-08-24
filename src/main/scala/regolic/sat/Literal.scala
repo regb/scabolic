@@ -1,11 +1,42 @@
 package regolic.sat
 
-class Literal(val id: Int, val polInt: Int) {
+abstract class Literal(val id: Int, val polInt: Int) {
   require(id >= 0)
 
-  def this(id: Int, polarity: Boolean) = this(id, if(polarity) 1 else 0)
   def polarity = polInt == 1
 
   override def toString: String = (if(!polarity) "-" else "") + "v" + id
+
+  def getID: Int
 }
 
+trait LiteralID {
+  var counter = -1
+  def next = {
+    counter += 1
+    counter
+  }
+
+  def count = counter + 1
+}
+
+// Maybe more classes like TLiteral are necessary in the future. This should be
+// easily extendable. getId has to be properly implemented, and possibly changed
+// for the existing classes, if the order should be changed.
+object TLiteralID extends LiteralID
+
+class TLiteral(id: Int, polInt: Int) extends Literal(id, polInt) {
+
+  def this(id: Int, polarity: Boolean) = this(id, if(polarity) 1 else 0)
+
+  def getID = id
+}
+
+object PropLiteralID extends LiteralID
+
+class PropLiteral(id: Int, polInt: Int) extends Literal(id, polInt) {
+
+  def this(id: Int, polarity: Boolean) = this(id, if(polarity) 1 else 0)
+
+  def getID = id + TLiteralID.count
+}

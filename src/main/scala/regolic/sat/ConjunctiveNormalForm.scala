@@ -11,63 +11,57 @@ object ConjunctiveNormalForm {
     import scala.collection.mutable.ListBuffer
 
     val constraints = new ListBuffer[Set[Literal]]
-    var varToLiteral = new HashMap[Formula, Int]()
-
-    var literalCounter = -1
-    def nextId(): Int = {
-      literalCounter += 1
-      literalCounter
-    }
+    var varToPropLiteral = new HashMap[Formula, Int]()
 
     //for each subformula, create a new representation and add the constraints while returning the representation
     def rec(form: Formula): Int = form match {
       case Not(f) => {
         val fRepr = rec(f)
-        val repr = nextId()
-        constraints += Set(new Literal(repr, false), new Literal(fRepr, false))
-        constraints += Set(new Literal(repr, true), new Literal(fRepr, true))
+        val repr = PropLiteralID.next
+        constraints += Set(new PropLiteral(repr, false), new PropLiteral(fRepr, false))
+        constraints += Set(new PropLiteral(repr, true), new PropLiteral(fRepr, true))
         repr
       }
       case And(fs) => {
-        val repr = nextId()
+        val repr = PropLiteralID.next
         val fsRepr = fs.map(f => rec(f))
         for(fRepr <- fsRepr)
-          constraints += Set(new Literal(repr, false), new Literal(fRepr, true))
-        constraints += (new Literal(repr, true) :: fsRepr.map(fRepr => new Literal(fRepr, false))).toSet
+          constraints += Set(new PropLiteral(repr, false), new PropLiteral(fRepr, true))
+        constraints += (new PropLiteral(repr, true) :: fsRepr.map(fRepr => new PropLiteral(fRepr, false))).toSet
         repr
       }
       case Or(fs) => {
-        val repr = nextId()
+        val repr = PropLiteralID.next
         val fsRepr = fs.map(f => rec(f))
         for(fRepr <- fsRepr)
-          constraints += Set(new Literal(repr, true), new Literal(fRepr, false))
-        constraints += (new Literal(repr, false) :: fsRepr.map(fRepr => new Literal(fRepr, true))).toSet
+          constraints += Set(new PropLiteral(repr, true), new PropLiteral(fRepr, false))
+        constraints += (new PropLiteral(repr, false) :: fsRepr.map(fRepr => new PropLiteral(fRepr, true))).toSet
         repr
       }
       case Implies(f1, f2) => {
-        val repr = nextId()
+        val repr = PropLiteralID.next
         val f1Repr = rec(f1)
         val f2Repr = rec(f2)
-        constraints += Set(new Literal(repr, false), new Literal(f1Repr, false), new Literal(f2Repr, true))
-        constraints += Set(new Literal(repr, true), new Literal(f1Repr, true))
-        constraints += Set(new Literal(repr, true), new Literal(f2Repr, false))
+        constraints += Set(new PropLiteral(repr, false), new PropLiteral(f1Repr, false), new PropLiteral(f2Repr, true))
+        constraints += Set(new PropLiteral(repr, true), new PropLiteral(f1Repr, true))
+        constraints += Set(new PropLiteral(repr, true), new PropLiteral(f2Repr, false))
         repr
       }
       case Iff(f1, f2) => {
-        val repr = nextId()
+        val repr = PropLiteralID.next
         val f1Repr = rec(f1)
         val f2Repr = rec(f2)
-        constraints += Set(new Literal(repr, false), new Literal(f1Repr, false), new Literal(f2Repr, true))
-        constraints += Set(new Literal(repr, false), new Literal(f1Repr, true), new Literal(f2Repr, false))
-        constraints += Set(new Literal(repr, true), new Literal(f1Repr, false), new Literal(f2Repr, false))
-        constraints += Set(new Literal(repr, true), new Literal(f1Repr, true), new Literal(f2Repr, true))
+        constraints += Set(new PropLiteral(repr, false), new PropLiteral(f1Repr, false), new PropLiteral(f2Repr, true))
+        constraints += Set(new PropLiteral(repr, false), new PropLiteral(f1Repr, true), new PropLiteral(f2Repr, false))
+        constraints += Set(new PropLiteral(repr, true), new PropLiteral(f1Repr, false), new PropLiteral(f2Repr, false))
+        constraints += Set(new PropLiteral(repr, true), new PropLiteral(f1Repr, true), new PropLiteral(f2Repr, true))
         repr
       }
-      case p@PropositionalVariable(_) => varToLiteral.get(p) match {
+      case p@PropositionalVariable(_) => varToPropLiteral.get(p) match {
         case Some(repr) => repr
         case None => {
-          val repr = nextId()
-          varToLiteral(p) = repr
+          val repr = PropLiteralID.next
+          varToPropLiteral(p) = repr
           repr
         }
       }
@@ -75,9 +69,9 @@ object ConjunctiveNormalForm {
     }
 
     val repr = rec(formula)
-    constraints += Set(new Literal(repr, true))
+    constraints += Set(new PropLiteral(repr, true))
      
-    (constraints.toSet, literalCounter + 1, varToLiteral.toMap)
+    (constraints.toSet, PropLiteralID.count, varToPropLiteral.toMap)
   }
 
 }
