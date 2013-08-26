@@ -16,8 +16,8 @@ import regolic.parsers.SmtLib2.Trees._
 import scala.collection.mutable.Map
 import scala.collection.mutable.ArrayBuffer
 
-class TheoryPropLiteralEquivalence {
-  val encoding = Map[Formula, Int]()
+class Encoding {
+  val id = Map[Formula, Int]()
   // in cases where there are no transformations to the literals,
   // theory == theoryOrig
   val theory = new ArrayBuffer[Formula]()
@@ -25,62 +25,62 @@ class TheoryPropLiteralEquivalence {
 
   def setEquiv(id: Int, f: Formula, fOrig: Formula) {
     // Invariant, id is the amount of calls to setEquiv
-    encoding(f) = id
+    this.id(f) = id
     theory += f
     theoryOrig += fOrig
   }
 
   def get(f: Formula) = {
-    encoding.get(f)
+    this.id.get(f)
   }
 }
 
 object PropositionalSkeleton {
 
-  def apply(formula: Formula, logic: Logic = Undef): (Set[Set[Literal]], TheoryPropLiteralEquivalence) = {
+  def apply(formula: Formula, logic: Logic = Undef): (Set[Set[Literal]], Encoding) = {
     import scala.collection.mutable.ListBuffer
 
     val constraints = new ListBuffer[Set[Literal]]
 
-    val tpEquivalence = new TheoryPropLiteralEquivalence
+    val encoding = new Encoding
 
     // For each subformula, create a new representation and add the constraints
     // while returning the representation
-    def rec(form: Formula): Int = form match {
+    def rec(form: Formula): Literal = form match {
       case f@Not((origEq@Equals(_, _))) => {
         // Treat negated equations separately to maintain NNF through flatten
         // transformation
         val ineq :: eqs = Flattener(Currifier(origEq))
-        val ineqRepr = tpEquivalence.get(ineq) match {
-          case Some(repr) => repr
+        val ineqRepr = encoding.get(ineq) match {
+          case Some(repr) => new TLiteral(repr)
           case None => {
-            val repr = TLiteralID.next
-            tpEquivalence.setEquiv(repr, ineq, origEq) 
-            repr
+            val reprID = TLiteralID.next
+            encoding.setEquiv(reprID, ineq, origEq) 
+            new TLiteral(reprID)
           }
         }
 
-      val notRepr = PropLiteralID.next
-        constraints += Set(new PropLiteral(notRepr, false), new TLiteral(ineqRepr, false))
-        constraints += Set(new PropLiteral(notRepr, true), new TLiteral(ineqRepr, true))
+        val notRepr = new PropLiteral(PropLiteralID.next)
+        constraints += Set(notRepr.neg, ineqRepr.neg)
+        constraints += Set(notRepr.pos, ineqRepr.pos)
         
         val fsRepr = notRepr :: eqs.map(eq => 
-          tpEquivalence.get(eq) match {
-            case Some(repr) => repr
+          encoding.get(eq) match {
+            case Some(repr) => new TLiteral(repr)
             case None => {
-              val repr = TLiteralID.next
-              tpEquivalence.setEquiv(repr, eq, origEq) 
-              repr
+              val reprID = TLiteralID.next
+              encoding.setEquiv(reprID, eq, origEq) 
+              new TLiteral(reprID)
             }
           }
         )
 
         val repr = if(fsRepr.tail != Nil) {
           // AND all the flattened terms together
-          val andRepr = PropLiteralID.next
+          val andRepr = new PropLiteral(PropLiteralID.next)
           for(fRepr <- fsRepr)
-            constraints += Set(new PropLiteral(andRepr, false), new TLiteral(fRepr, true))
-          constraints += (new PropLiteral(andRepr, true) :: fsRepr.map(fRepr => new TLiteral(fRepr, false))).toSet
+            constraints += Set(andRepr.neg, fRepr.pos)
+          constraints += (andRepr.pos :: fsRepr.map(fRepr => fRepr.neg)).toSet
           andRepr
         } else {
           fsRepr.head
@@ -88,27 +88,30 @@ object PropositionalSkeleton {
         repr
       }
       case (f: PredicateApplication) => {
-        val transformed = logic match {
-          case QF_UF => Flattener(Currifier(f))
-          case Undef => List(f)
+        val fsRepr = logic match {
+          case QF_UF => Flattener(Currifier(f)).map(eq => 
+            encoding.get(eq) match {
+              case Some(repr) => new TLiteral(repr)
+              case None => {
+                val repr = TLiteralID.next
+                encoding.setEquiv(repr, eq, f) 
+                new TLiteral(repr)
+              }
+            }
+          )
+          case Undef => {
+            val reprID = PropLiteralID.next
+            // TODO vartoliteral(reprID) = f
+            List(new PropLiteral(reprID))
+          }
           case _ => throw new Exception("This type of literal hasn't been implemented yet")
         }
-        val fsRepr = transformed.map(eq => 
-          tpEquivalence.get(eq) match {
-            case Some(repr) => repr
-            case None => {
-              val repr = TLiteralID.next
-              tpEquivalence.setEquiv(repr, eq, f) 
-              repr
-            }
-          }
-        )
         val repr = if(fsRepr.tail != Nil) {
           // AND all the flattened terms together
-          val andRepr = PropLiteralID.next
+          val andRepr = new PropLiteral(PropLiteralID.next)
           for(fRepr <- fsRepr)
-            constraints += Set(new PropLiteral(andRepr, false), new TLiteral(fRepr, true))
-          constraints += (new PropLiteral(andRepr, true) :: fsRepr.map(fRepr => new TLiteral(fRepr, false))).toSet
+            constraints += Set(andRepr.neg, fRepr.pos)
+          constraints += (andRepr.pos :: fsRepr.map(fRepr => fRepr.neg)).toSet
           andRepr
         } else {
           fsRepr.head
@@ -117,53 +120,53 @@ object PropositionalSkeleton {
       }
       case Not(f) => {
         val fRepr = rec(f)
-        val repr = PropLiteralID.next
-        constraints += Set(new PropLiteral(repr, false), new Literal(fRepr, false))
-        constraints += Set(new PropLiteral(repr, true), new Literal(fRepr, true))
+        val repr = new PropLiteral(PropLiteralID.next)
+        constraints += Set(repr.neg, fRepr.neg)
+        constraints += Set(repr.pos, fRepr.pos)
         repr
       }
       case And(fs) => {
-        val repr = PropLiteralID.next
+        val repr = new PropLiteral(PropLiteralID.next)
         val fsRepr = fs.map(f => rec(f))
         for(fRepr <- fsRepr)
-          constraints += Set(new PropLiteral(repr, false), new Literal(fRepr, true))
-        constraints += (new PropLiteral(repr, true) :: fsRepr.map(fRepr => new Literal(fRepr, false))).toSet
+          constraints += Set(repr.neg, fRepr.pos)
+        constraints += (repr.pos :: fsRepr.map(fRepr => fRepr.neg)).toSet
         repr
       }
       case Or(fs) => {
-        val repr = PropLiteralID.next
+        val repr = new PropLiteral(PropLiteralID.next)
         val fsRepr = fs.map(f => rec(f))
         for(fRepr <- fsRepr)
-          constraints += Set(new PropLiteral(repr, true), new Literal(fRepr, false))
-        constraints += (new PropLiteral(repr, false) :: fsRepr.map(fRepr => new Literal(fRepr, true))).toSet
+          constraints += Set(repr.pos, fRepr.neg)
+        constraints += (repr.neg :: fsRepr.map(fRepr => fRepr.pos)).toSet
         repr
       }
       case Implies(f1, f2) => {
-        val repr = PropLiteralID.next
+        val repr = new PropLiteral(PropLiteralID.next)
         val f1Repr = rec(f1)
         val f2Repr = rec(f2)
-        constraints += Set(new PropLiteral(repr, false), new Literal(f1Repr, false), new Literal(f2Repr, true))
-        constraints += Set(new PropLiteral(repr, true), new Literal(f1Repr, true))
-        constraints += Set(new PropLiteral(repr, true), new Literal(f2Repr, false))
+        constraints += Set(repr.neg, f1Repr.neg, f2Repr.pos)
+        constraints += Set(repr.pos, f1Repr.pos)
+        constraints += Set(repr.pos, f2Repr.neg)
         repr
       }
       case Iff(f1, f2) => {
-        val repr = PropLiteralID.next
+        val repr = new PropLiteral(PropLiteralID.next)
         val f1Repr = rec(f1)
         val f2Repr = rec(f2)
-        constraints += Set(new PropLiteral(repr, false), new Literal(f1Repr, false), new Literal(f2Repr, true))
-        constraints += Set(new PropLiteral(repr, false), new Literal(f1Repr, true), new Literal(f2Repr, false))
-        constraints += Set(new PropLiteral(repr, true), new Literal(f1Repr, false), new Literal(f2Repr, false))
-        constraints += Set(new PropLiteral(repr, true), new Literal(f1Repr, true), new Literal(f2Repr, true))
+        constraints += Set(repr.neg, f1Repr.neg, f2Repr.pos)
+        constraints += Set(repr.neg, f1Repr.pos, f2Repr.neg)
+        constraints += Set(repr.pos, f1Repr.neg, f2Repr.neg)
+        constraints += Set(repr.pos, f1Repr.pos, f2Repr.pos)
         repr
       }
       case _ => sys.error("Unhandled case in PropositionalSkeleton: " + form)
     }
 
     val repr = rec(formula)
-    constraints += Set(new Literal(repr, true))
+    constraints += Set(repr.pos)
      
-    (constraints.toSet, tpEquivalence)
+    (constraints.toSet, encoding)
   }
 
 }

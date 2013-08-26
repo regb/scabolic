@@ -7,6 +7,10 @@ abstract class Literal(val id: Int, val polInt: Int) {
 
   override def toString: String = (if(!polarity) "-" else "") + "v" + id
 
+  def neg: Literal
+
+  def pos: Literal
+
   def getID: Int
 }
 
@@ -29,6 +33,12 @@ class TLiteral(id: Int, polInt: Int) extends Literal(id, polInt) {
 
   def this(id: Int, polarity: Boolean) = this(id, if(polarity) 1 else 0)
 
+  def this(id: Int) = this(id, 0)
+
+  lazy val pos = new TLiteral(this.id, 1)
+
+  lazy val neg = this
+
   def getID = id
 }
 
@@ -37,6 +47,12 @@ object PropLiteralID extends LiteralID
 class PropLiteral(id: Int, polInt: Int) extends Literal(id, polInt) {
 
   def this(id: Int, polarity: Boolean) = this(id, if(polarity) 1 else 0)
+
+  def this(id: Int) = this(id, 0)
+
+  lazy val pos = new PropLiteral(this.id, 1)
+
+  lazy val neg = this
 
   def getID = id + TLiteralID.count
 }

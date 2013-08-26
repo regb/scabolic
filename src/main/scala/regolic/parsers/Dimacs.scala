@@ -7,6 +7,7 @@ import regolic.asts.core.Trees._
 import regolic.asts.fol.Trees._
 
 import regolic.sat.Literal
+import regolic.sat.PropLiteral
 
 /*
  * This DIMACS parser might not exactly follow the standard, but since I am not sure where the
@@ -68,11 +69,11 @@ object Dimacs {
             if(!numbers.isEmpty)
               numbers.map(i => {
                 if(i == 0 && currentClause != Nil) {
-                  clauses ::= (currentClause.map(i => if(i > 0) new Literal(i-1, 1) else new Literal(-i-1, 0))).toSet
+                  clauses ::= (currentClause.map(i => if(i > 0) new PropLiteral(i-1, 1) else new PropLiteral(-i-1, 0))).toSet
                   currentClause = Nil
                 } else
                   currentClause ::= i
-              })
+              }).asInstanceOf[List[Set[Literal]]]
           } catch {
             case (_: NumberFormatException) => throw FileFormatException("")
           }

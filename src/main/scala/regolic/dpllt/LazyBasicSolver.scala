@@ -1,5 +1,9 @@
 package regolic.dpllt
 
+import regolic.sat.PropLiteral
+import regolic.sat.PropLiteralID
+import regolic.sat.TLiteral
+import regolic.sat.TLiteralID
 import regolic.sat.Literal
 import regolic.sat.Solver.Results._
 import regolic.asts.core.Trees._
@@ -21,18 +25,17 @@ object LazyBasicSolver {
      */
     explanations.map{
       case (eq, explanation) => {
-        Set(new Literal(encoding(eq), true)) ++ explanation.map(exp => new
-          Literal(encoding(exp), false))
+        Set(new TLiteral(encoding(eq), true)) ++ explanation.map(exp => new TLiteral(encoding(exp), false))
       }
-    }.toList
+    }.toList.asInstanceOf[List[Set[Literal]]]
   }
 
   /*
    * Algorithm 11.2.1 from Decision Procedures by Kroening and Strichman
    */
   def solve(solver: regolic.smt.Solver, phi: Formula): Boolean = {
-    val (clauses, nbVars, tpEquivalence) = PropositionalSkeleton(phi)
-    val satSolver = new regolic.sat.Solver(nbVars)
+    val (clauses, encoding) = PropositionalSkeleton(phi)
+    val satSolver = new regolic.sat.Solver(PropLiteralID.count + TLiteralID.count)
     clauses.foreach(satSolver.addClause)
 
     while(true) {
@@ -41,7 +44,7 @@ object LazyBasicSolver {
           return false
         }
         case Satisfiable(alpha) => {
-          val thAlpha = tpEquivalence.theory.map{case (id, theoryLit) =>
+          val thAlpha = encoding.theory.zipWithIndex.map{case (theoryLit, id) =>
             if(alpha(id)) theoryLit else Not(theoryLit)
           }.toList
 
@@ -51,12 +54,12 @@ object LazyBasicSolver {
           } else {
             t match {
               case Some(explanation) => {
-                val blockingClauses = makeBlockingClauses(explanation, tpEquivalence.encoding)
+                val blockingClauses = makeBlockingClauses(explanation, encoding.id)
                 blockingClauses.foreach(satSolver.addClause)
               }
               case None => { //no explanation returned from T-solver, block alpha
                 satSolver.addClause(alpha.zipWithIndex.map{
-                  case (b, i) => new Literal(i, !b)
+                  case (b, i) => new TLiteral(i, !b)
                 }.toSet)
               }
             }

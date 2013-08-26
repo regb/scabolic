@@ -128,6 +128,9 @@ class CongruenceClosure extends TheorySolver {
         }
       }
     }
+    repr = Map[Term,Term]() ++ elems.map(e => (e, e))
+    classList = Map[Term, Queue[Term]]() ++ elems.map(el => (el, Queue(el)))
+    node = Map[Term, ProofStructureNode]() ++ elems.map{e => (e, new ProofStructureNode(e, null))}
   }
 
   private val elems = Set[Term]()
@@ -182,9 +185,9 @@ class CongruenceClosure extends TheorySolver {
     }
   }
 
-  val node = Map[Term, ProofStructureNode]() ++ elems.map{e => (e, new ProofStructureNode(e, null))}
+  var node: Map[Term, ProofStructureNode] = null
 
-  private var repr = Map[Term,Term]() ++ elems.map(e => (e, e))
+  private var repr: Map[Term, Term] = null
     
   private val pending: Queue[Any] = Queue()
 
@@ -198,7 +201,7 @@ class CongruenceClosure extends TheorySolver {
 
   var lookup: Map[(Term, Term), Option[PredicateApplication]] = Map().withDefaultValue(None)
 
-  private var classList = Map[Term, Queue[Term]]() ++ elems.map(el => (el, Queue(el)))
+  private var classList: Map[Term, Queue[Term]] = null
 
   val iStack = new Stack[State]
 
@@ -210,23 +213,23 @@ class CongruenceClosure extends TheorySolver {
   var trigger: Formula = null
 
   var negTable = Map[Formula, Formula]()
-  def setTrue(l: Formula): collection.immutable.Set[Formula] = {
+  def setTrue(l: Formula): Option[collection.immutable.Set[Formula]] = {
     trigger = l
     l match {
       case eq@Equals(t1, t2) => {
-        if(diseq.values.exists(_ == Not(l))) { // TODO inconsistent 
-          throw new Exception("Inconsistent: "+ (t1, t2) +" are unequal.")
+        if(diseq.values.exists(_ == Not(l))) { // inconsistent 
+          None
         } else {
           val tConsequence = merge(eq)
 
           // TODO how slow is cloning?
           iStack.push(new State(l, repr.clone, classList.clone, useList.clone, lookup.clone, diseq.clone))
-          tConsequence
+          Some(tConsequence)
         }
       }
       case Not(Equals(t1, t2)) => {
-        if(areCongruent(t1, t2)) { // TODO inconsistent
-          throw new Exception("Inconsistent: "+ (t1, t2) +" are congruent.")
+        if(areCongruent(t1, t2)) { // inconsistent
+          None
         } else {
           diseq(t1) += l
           diseq(t2) += l
@@ -246,7 +249,7 @@ class CongruenceClosure extends TheorySolver {
           // TODO how slow is cloning?
           iStack.push(new State(l, repr.clone, classList.clone, useList.clone, lookup.clone, diseq.clone))
           negTable ++= tConsequence.map(ineq => (ineq, l))
-          tConsequence.toSet
+          Some(tConsequence.toSet)
         }
       }
       case _ => throw new Exception("Unsupported formula")
@@ -285,6 +288,8 @@ class CongruenceClosure extends TheorySolver {
         case Equals(a: Variable, b: Variable) => (a, b)
         case (Equals(_, a: Variable), Equals(_, b: Variable)) => (a, b)
       }
+      println("classList:"+ classList.mkString("\n", "\n", "\n"))
+      println("repr:"+ repr.mkString("\n", "\n", "\n"))
       val (a, b) = if(classList(repr(p._1)).size > classList(repr(p._2)).size){
         p.swap
       } else p
