@@ -15,7 +15,7 @@ object Solver extends regolic.smt.Solver {
 
   val logic = QF_A
 
-  def isSat(f: Formula): Pair[Boolean, Option[Map[Formula, List[Formula]]]] = {
+  def isSat(f: Formula): Pair[Boolean, Option[Map[Formula, Set[Formula]]]] = {
     val Or(ands) = disjunctiveNormalForm(f)
 
     var modelFound = false

@@ -3,9 +3,9 @@ package regolic.sat
 import Solver.Results._
 import Solver.Clause
 
-import org.scalatest.FunSuite
+import regolic.helper.FunSuiteWithIDReset
 
-class IncrementalSuite extends FunSuite {
+class IncrementalSuite extends FunSuiteWithIDReset {
 
   private val a = new Literal(0, true)
   private val na = new Literal(0, false)
@@ -33,9 +33,11 @@ class IncrementalSuite extends FunSuite {
   }
 
   test("large dimacs example") {
+    println("in large dimacs example: "+ TLiteralID.count +", "+ PropLiteralID.count)
     val is = getClass.getResourceAsStream("/uuf100-013.cnf")
     val (satInstance, nbVars) = regolic.parsers.Dimacs.cnf(is)
     val s = new Solver(nbVars)
+    println("in large dimacs example nbVars: "+ nbVars)
 
     var i = 0
     var sResult: Result = Unknown

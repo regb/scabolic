@@ -3,9 +3,9 @@ package regolic.sat
 import regolic.asts.fol.Trees._
 import regolic.asts.core.Trees._
 
-import org.scalatest.FunSuite
+import regolic.helper.FunSuiteWithIDReset
 
-class ConjunctiveNormalFormSuite extends FunSuite {
+class ConjunctiveNormalFormSuite extends FunSuiteWithIDReset {
 
   val q1 = freshPropositionalVariable("Q")
   val q2 = freshPropositionalVariable("Q")

@@ -16,7 +16,7 @@ object Solver {
   class Clause(val lits: Array[Int]) {
     var activity: Double = 0d
     var locked = false
-    def this(listLits: Set[Literal]) = this(listLits.map(lit => lit.id + lit.id + (1 - lit.polInt)).toArray)
+    def this(listLits: Set[Literal]) = this(listLits.map(lit => 2*lit.getID + (1 - lit.polInt)).toArray)
     val size = lits.size
 
     override def toString = lits.map(lit => (if(lit % 2 == 0) "" else "-") + (lit >> 1)).mkString("[", ", ", "]")
@@ -140,7 +140,7 @@ class Solver(nbVars: Int) {
     }
     initClauses(this.learntClauses ::: incrementallyAddedClauses)
 
-    assumptions = assumps.map((lit: Literal) => (lit.id << 1) + lit.polInt ^ 1) // TODO correct literal to int conversion
+    assumptions = assumps.map((lit: Literal) => (lit.getID << 1) + lit.polInt ^ 1) // TODO correct literal to int conversion
 
     search()
   }

@@ -13,10 +13,11 @@ import regolic.smt.qfeuf.FastCongruenceSolver
 import regolic.sat.NaiveSolver
 import regolic.sat.Literal
 
-import org.scalatest.FunSuite
 import scala.util.Random
 
-class DplltSuite extends FunSuite {
+import regolic.helper.FunSuiteWithIDReset
+
+class DPLLTSuite extends FunSuiteWithIDReset {
 
   val x = freshVariable("v", IntSort())
   val y = freshVariable("v", IntSort())
@@ -65,16 +66,16 @@ class DplltSuite extends FunSuite {
     def applyAssignment(cnf: Set[Set[Literal]], assignment: Map[Int, Boolean]): Set[Set[Literal]] = {
       cnf.withFilter{s =>
         !s.exists{lit => {
-            if(assignment.contains(lit.id))
-              assignment(lit.id) == lit.polarity
+            if(assignment.contains(lit.getID))
+              assignment(lit.getID) == lit.polarity
             else
               false
           }
         }
       }.map{s =>
         s.filter{lit => {
-            if(assignment.contains(lit.id))
-              assignment(lit.id) == lit.polarity
+            if(assignment.contains(lit.getID))
+              assignment(lit.getID) == lit.polarity
             else
               true
           }
@@ -84,18 +85,25 @@ class DplltSuite extends FunSuite {
 
     val truthValTheory = evaluate(f)
 
-    val (constraints, _, idToEq, eqToId) = PropositionalSkeleton(f)
-    val idToTruthVal = idToEq.map{
-      case (litId, eq) => eq match {
+    val (constraints, encoding) = PropositionalSkeleton(f)
+    println("theory: "+ encoding.theory.mkString("\n", "\n", "\n"))
+    println("theoryOrig: "+ encoding.theoryOrig.mkString("\n", "\n", "\n"))
+    println("constraints: "+ constraints.mkString("\n", "\n", "\n"))
+    val idToTruthVal = encoding.theory.zipWithIndex.map{
+      case (eq, litId) => eq match {
         case Equals(t1, t2) => (litId, assignment(t1) == assignment(t2))
       }
-    }
+    }.toMap
     val truthValProp = NaiveSolver.isSat(applyAssignment(constraints, idToTruthVal))
 
     truthValTheory == truthValProp.nonEmpty
   }
-  test("PropositionalSkeleton") {
+
+  test("PropositionalSkeleton phi") {
     assert(propositionalSkeletonTest(phi))
+  }
+
+  test("PropositionalSkeleton psi") {
     assert(propositionalSkeletonTest(psi))
   }
 
@@ -152,7 +160,7 @@ class DplltSuite extends FunSuite {
   }
 
   test("explain") {
-    val inputEqs = List(
+    val inputEqs = Set(
       Equals(Apply(gVar, h), d),
       Equals(c, d),
       Equals(Apply(gVar, d), a),
@@ -160,11 +168,13 @@ class DplltSuite extends FunSuite {
       Equals(e, b),
       Equals(b, h)
     )
-    val cc = new CongruenceClosure(inputEqs)
+    val cc = new CongruenceClosure
+    cc.initialize(inputEqs.asInstanceOf[Set[Formula]])
     inputEqs.foreach(cc.merge)
     
     val explanation = cc.explain(a, b)
-    val ccSanity = new CongruenceClosure(explanation)
+    val ccSanity = new CongruenceClosure
+    ccSanity.initialize(explanation.asInstanceOf[Set[Formula]])
     explanation.foreach(ccSanity.merge)
     assert(ccSanity.areCongruent(a, b))
   }

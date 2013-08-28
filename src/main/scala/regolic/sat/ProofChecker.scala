@@ -46,7 +46,7 @@ object ProofChecker {
 
   def isResolvent(resolvent: Set[Literal], left: Set[Literal], right: Set[Literal]): Boolean = {
     left.exists(l1 => right.exists(l2 =>
-      l1.id == l2.id && l1.polarity != l2.polarity && 
+      l1.getID == l2.getID && l1.polarity != l2.polarity && 
       resolvent == (left.filterNot(_ == l1) ++ right.filterNot(_ == l2))
     ))
   }

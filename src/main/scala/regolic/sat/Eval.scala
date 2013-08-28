@@ -7,7 +7,7 @@ object Eval {
      to truth value.
    */
   def apply(clauses: Set[Set[Literal]], model: Array[Boolean]): Boolean = {
-    clauses.forall(cl => cl.exists(lit => model(lit.id) == lit.polarity))
+    clauses.forall(cl => cl.exists(lit => model(lit.getID) == lit.polarity))
   }
 
 }

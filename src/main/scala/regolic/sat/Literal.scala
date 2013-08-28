@@ -1,58 +1,48 @@
 package regolic.sat
 
-abstract class Literal(val id: Int, val polInt: Int) {
+// actualType is necessary because Literal can't be inherited, due to Set
+// invariance (when using Set[Set[Literal]] as CNF)
+class Literal(val id: Int, val polInt: Int, val actualType: LiteralTypes) {
   require(id >= 0)
+
+  def this(id: Int, polarity: Boolean, actualType: LiteralTypes = PropLiteral) = this(id, if(polarity) 1 else 0, actualType)
+
+  def this(id: Int, actualType: LiteralTypes) = this(id, 0, actualType)
 
   def polarity = polInt == 1
 
+  def pos = new Literal(this.id, 1, this.actualType)
+
+  def neg = this
+
+  // getId must be extended when there are more LiteralTypes
+  def getID = id + (actualType match {
+    case TLiteral => 0
+    case PropLiteral => TLiteralID.count
+  })
+
   override def toString: String = (if(!polarity) "-" else "") + "v" + id
 
-  def neg: Literal
-
-  def pos: Literal
-
-  def getID: Int
 }
 
 trait LiteralID {
-  var counter = -1
+  private var counter = -1
   def next = {
     counter += 1
     counter
   }
 
   def count = counter + 1
+
+  def reset = {
+    counter = -1
+  }
 }
 
-// Maybe more classes like TLiteral are necessary in the future. This should be
-// easily extendable. getId has to be properly implemented, and possibly changed
-// for the existing classes, if the order should be changed.
 object TLiteralID extends LiteralID
-
-class TLiteral(id: Int, polInt: Int) extends Literal(id, polInt) {
-
-  def this(id: Int, polarity: Boolean) = this(id, if(polarity) 1 else 0)
-
-  def this(id: Int) = this(id, 0)
-
-  lazy val pos = new TLiteral(this.id, 1)
-
-  lazy val neg = this
-
-  def getID = id
-}
-
 object PropLiteralID extends LiteralID
 
-class PropLiteral(id: Int, polInt: Int) extends Literal(id, polInt) {
+sealed trait LiteralTypes
+case object TLiteral extends LiteralTypes
+case object PropLiteral extends LiteralTypes
 
-  def this(id: Int, polarity: Boolean) = this(id, if(polarity) 1 else 0)
-
-  def this(id: Int) = this(id, 0)
-
-  lazy val pos = new PropLiteral(this.id, 1)
-
-  lazy val neg = this
-
-  def getID = id + TLiteralID.count
-}

@@ -14,7 +14,7 @@ import regolic.StopWatch
 
 object LazyBasicSolver {
 
-  private def makeBlockingClauses(explanations: Map[Formula, List[Formula]],
+  private def makeBlockingClauses(explanations: Map[Formula, Set[Formula]],
     encoding: collection.mutable.Map[Formula, Int]): List[Set[Literal]] = {
 
     /*
@@ -25,9 +25,9 @@ object LazyBasicSolver {
      */
     explanations.map{
       case (eq, explanation) => {
-        Set(new TLiteral(encoding(eq), true)) ++ explanation.map(exp => new TLiteral(encoding(exp), false))
+        Set(new Literal(encoding(eq), true, TLiteral)) ++ explanation.map(exp => new Literal(encoding(exp), false, TLiteral))
       }
-    }.toList.asInstanceOf[List[Set[Literal]]]
+    }.toList
   }
 
   /*
@@ -59,7 +59,7 @@ object LazyBasicSolver {
               }
               case None => { //no explanation returned from T-solver, block alpha
                 satSolver.addClause(alpha.zipWithIndex.map{
-                  case (b, i) => new TLiteral(i, !b)
+                  case (b, i) => new Literal(i, !b, TLiteral)
                 }.toSet)
               }
             }

@@ -10,7 +10,7 @@ import asts.fol.Manip._
 object NaiveSolver {
 
   def isSat(cnf: Set[Set[Literal]]): Option[Array[Boolean]] = {
-    val nbVars = cnf.map(cl => cl.map(lit => lit.id).max).max + 1
+    val nbVars = cnf.map(cl => cl.map(lit => lit.getID).max).max + 1
 
     val model = Array.fill(nbVars)(true)
     var modelIsValid = false

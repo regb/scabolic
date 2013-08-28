@@ -16,11 +16,11 @@ import scala.collection.mutable.ListBuffer
 object FastCongruenceSolver extends Solver {
   val logic = regolic.parsers.SmtLib2.Trees.QF_UF
 
-  def isSat(f: Formula): Pair[Boolean, Option[collection.immutable.Map[Formula, List[Formula]]]] = {
+  def isSat(f: Formula): Pair[Boolean, Option[collection.immutable.Map[Formula, collection.immutable.Set[Formula]]]] = {
     val And(fs) = f
 
-    val neqs = Map[PredicateApplication, PredicateApplication]()
-    val transformedToEq: collection.immutable.Map[PredicateApplication, PredicateApplication] = fs.flatMap{
+    val neqs = Map[Formula, Formula]()
+    val transformedToEq: collection.immutable.Map[Formula, Formula] = fs.flatMap{
       case eq@Equals(_, _) => Flattener(Currifier(eq)).map(l => (l, eq))
       case Not(eq@Equals(_, _)) => {
         val eqs = Flattener(Currifier(eq))
@@ -32,7 +32,7 @@ object FastCongruenceSolver extends Solver {
       
     val transformedEqs = transformedToEq.keySet
     val congruenceClosure = new CongruenceClosure
-    congruenceClosure.initialize(transformedEqs.asInstanceOf[collection.immutable.Set[Formula]])
+    congruenceClosure.initialize(transformedEqs)
     transformedEqs.foreach(congruenceClosure.merge)
 
     val unsatTerms = neqs.keys.filter{
@@ -42,7 +42,7 @@ object FastCongruenceSolver extends Solver {
     }.toList
 
     // For each such inequality, get the explanation why it must be an equality
-    val explanations: collection.immutable.Map[PredicateApplication, collection.immutable.Set[PredicateApplication]] = unsatTerms.map{
+    val explanations: collection.immutable.Map[Formula, collection.immutable.Set[Formula]] = unsatTerms.map{
       case eq@Equals((t1: Variable), (t2: Variable)) => (neqs(eq),
         congruenceClosure.explain(t1, t2).withFilter{
             /*
@@ -56,7 +56,7 @@ object FastCongruenceSolver extends Solver {
     if(unsatTerms.isEmpty)
       (true, None) // TODO what consequences to return for T-propagation?
     else
-      (false, Some(explanations.asInstanceOf[collection.immutable.Map[Formula, List[Formula]]]))
+      (false, Some(explanations))
   }
 
 }
@@ -115,17 +115,24 @@ class CongruenceClosure extends TheorySolver {
     
   def initialize(ls: collection.immutable.Set[Formula]) {//I.e. constructor
     for(l <- ls) {
+      println("l: "+ l)
       l match {
-        case Equals((c1: Variable), (c2: Variable)) => {
-          posLitList(c1) += l
-          posLitList(c2) += l
-          elems ++= extractVariables(c1)
-          elems ++= extractVariables(c2)
+        case Equals(t1, t2) => {
+          elems ++= extractVariables(t1)
+          elems ++= extractVariables(t2)
+          l match {
+            case Equals((c1: Variable), (c2: Variable)) => {
+              posLitList(c1) += l
+              posLitList(c2) += l
+            }
+            case _ => ()
+          }
         }
         case Not(Equals((c1: Variable), (c2: Variable))) => {
           negLitList(c1) += l
           negLitList(c2) += l
         }
+        case _ => ()
       }
     }
     repr = Map[Term,Term]() ++ elems.map(e => (e, e))
@@ -154,16 +161,21 @@ class CongruenceClosure extends TheorySolver {
     }
   }
   def backtrack(n: Int) = {
+    println("backtracking "+ n +" levels, iStack.size: "+ iStack.size)
     if(n <= iStack.size) {
-      1 to n foreach { _ => {
+      1 to n foreach { x => {
         val l = iStack.pop.l
         undoMerge(l)
+        if(iStack.top.useList.exists{case ((k: Variable),v) => k.name == "x8"})
+          println(x)
       }}
 
       val s = iStack.top
       repr = s.repr
       classList = s.classList
+      println("before useList: "+ useList.mkString("\n", "\n", "\n"))
       useList = s.useList
+      println("after useList: "+ useList.mkString("\n", "\n", "\n"))
       lookup = s.lookup
       diseq = s.diseq
     } else {
@@ -174,12 +186,12 @@ class CongruenceClosure extends TheorySolver {
   def explain(l: Formula): collection.immutable.Set[Formula] = {
     l match{
       case Equals((e1: Variable), (d1: Variable)) => {
-        explain(e1, d1).asInstanceOf[collection.immutable.Set[Formula]]
+        explain(e1, d1)
       }
       case Not(Equals((d1: Variable), (e1: Variable))) => {
         val cause = negTable(l)
         val Not(Equals((d2: Variable), (e2: Variable))) = cause
-        (explain(d1, d2) union explain(e1, e2)).asInstanceOf[collection.immutable.Set[Formula]] + cause
+        (explain(d1, d2) union explain(e1, e2)) + cause
       }
       case _ => throw new Exception("explain shouldn't be called on equalities containing functions")
     }
@@ -191,15 +203,15 @@ class CongruenceClosure extends TheorySolver {
     
   private val pending: Queue[Any] = Queue()
 
-  private var useList = new HashMap[Term, Queue[PredicateApplication]] {
+  private var useList = new HashMap[Term, Queue[Formula]] {
     override def default(k: Term) = {
-      val v = Queue[PredicateApplication]()
+      val v = Queue[Formula]()
       this += (k -> v)
       v
     }
   }
 
-  var lookup: Map[(Term, Term), Option[PredicateApplication]] = Map().withDefaultValue(None)
+  var lookup: Map[(Term, Term), Option[Formula]] = Map().withDefaultValue(None)
 
   private var classList: Map[Term, Queue[Term]] = null
 
@@ -207,8 +219,8 @@ class CongruenceClosure extends TheorySolver {
 
   class State(val l: Formula, val repr: Map[Term, Term], val classList:
     Map[Term, Queue[Term]], val useList: HashMap[Term,
-    Queue[PredicateApplication]], val lookup: Map[(Term, Term),
-    Option[PredicateApplication]], val diseq: HashMap[Term, Set[Formula]])
+    Queue[Formula]], val lookup: Map[(Term, Term),
+    Option[Formula]], val diseq: HashMap[Term, Set[Formula]])
 
   var trigger: Formula = null
 
@@ -256,7 +268,7 @@ class CongruenceClosure extends TheorySolver {
     }
   }
 
-  def merge(eq: PredicateApplication): collection.immutable.Set[Formula] = {
+  def merge(eq: Formula): collection.immutable.Set[Formula] = {
     eq match {
       case Equals(a: Variable, b: Variable) => {
         pending.enqueue(eq)
@@ -288,8 +300,6 @@ class CongruenceClosure extends TheorySolver {
         case Equals(a: Variable, b: Variable) => (a, b)
         case (Equals(_, a: Variable), Equals(_, b: Variable)) => (a, b)
       }
-      println("classList:"+ classList.mkString("\n", "\n", "\n"))
-      println("repr:"+ repr.mkString("\n", "\n", "\n"))
       val (a, b) = if(classList(repr(p._1)).size > classList(repr(p._2)).size){
         p.swap
       } else p
@@ -375,7 +385,7 @@ class CongruenceClosure extends TheorySolver {
     normalize(s) == normalize(t)
   }
 
-  private val pendingProofs: Queue[PredicateApplication] = Queue()
+  private val pendingProofs: Queue[Formula] = Queue()
   private val eqClass: Map[ProofStructureNode,ProofStructureNode] = Map()
 
   private def reverseEdges(from: ProofStructureNode) = {
@@ -454,14 +464,14 @@ class CongruenceClosure extends TheorySolver {
       Some(commonPath.reverse.head._1)
   }
 
-  def explain(c1: Variable, c2: Variable): collection.immutable.Set[PredicateApplication] = {
+  def explain(c1: Variable, c2: Variable): collection.immutable.Set[Formula] = {
     //println("Explaining why "+ c1 +" = "+ c2)
     //println(node.values.mkString("digraph g {\nnode [shape=plaintext];\n", "\n", "\n}"))
     // reset makes explanations complete, but is it necessary?
     eqClass.clear()
     eqClass ++= node.values.zip(node.values)
 
-    var explanation = new ListBuffer[PredicateApplication]
+    var explanation = new ListBuffer[Formula]
     pendingProofs.enqueue(Equals(c1, c2))
     while(pendingProofs.nonEmpty) {
       val Equals(a, b) = pendingProofs.dequeue()
@@ -478,8 +488,8 @@ class CongruenceClosure extends TheorySolver {
     explanation.toSet
   }
 
-  private def explainAlongPath(aL: ProofStructureNode, c: ProofStructureNode): ListBuffer[PredicateApplication] = {
-    var explanation = new ListBuffer[PredicateApplication]
+  private def explainAlongPath(aL: ProofStructureNode, c: ProofStructureNode): ListBuffer[Formula] = {
+    var explanation = new ListBuffer[Formula]
     var a = computeHighestNode(aL)
     while(a.name != c.name) {
       val b = a.parent

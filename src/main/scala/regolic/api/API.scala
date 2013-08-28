@@ -9,7 +9,6 @@ import regolic.sat.Solver.Results._
 import regolic.sat.Solver.Clause
 import regolic.sat.ConjunctiveNormalForm
 import regolic.sat.Literal
-import regolic.sat.PropLiteral
 
 object API {
 
@@ -33,7 +32,7 @@ object API {
       case Not(v) if(mapping.contains(v)) => mapping(v)
       case v@PropositionalVariable(_) if(mapping.contains(v)) => mapping(v)
       case _ => sys.error(lit +" not a literal or a new variable")
-    }}.map(i => if(i > 0) new PropLiteral(i-1, 1) else new PropLiteral(-i-1, 0)).toArray
+    }}.map(i => if(i > 0) new Literal(i-1, true) else new Literal(-i-1, false)).toArray
     
     println("cnf form computed")
 

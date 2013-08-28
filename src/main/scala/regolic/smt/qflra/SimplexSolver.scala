@@ -17,7 +17,7 @@ object SimplexSolver extends regolic.smt.Solver {
 
   val logic = QF_LRA
 
-  def isSat(f: Formula): Pair[Boolean, Option[Map[Formula, List[Formula]]]] = {
+  def isSat(f: Formula): Pair[Boolean, Option[Map[Formula, Set[Formula]]]] = {
     val Or(ands) = disjunctiveNormalForm(f)
 
     var modelFound = false
