@@ -2,7 +2,7 @@ package regolic.sat
 
 // actualType is necessary because Literal can't be inherited, due to Set
 // invariance (when using Set[Set[Literal]] as CNF)
-class Literal(val id: Int, val polInt: Int, val actualType: LiteralTypes) {
+class Literal(private val id: Int, val polInt: Int, val actualType: LiteralTypes) {
   require(id >= 0)
 
   def this(id: Int, polarity: Boolean, actualType: LiteralTypes = PropLiteral) = this(id, if(polarity) 1 else 0, actualType)
