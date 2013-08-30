@@ -10,13 +10,12 @@ import scala.collection.mutable.Queue
 import scala.collection.mutable.Stack
 import scala.collection.mutable.Map
 import scala.collection.mutable.HashMap
-import scala.collection.mutable.Set
 import scala.collection.mutable.ListBuffer
 
 object FastCongruenceSolver extends Solver {
   val logic = regolic.parsers.SmtLib2.Trees.QF_UF
 
-  def isSat(f: Formula): Pair[Boolean, Option[collection.immutable.Map[Formula, collection.immutable.Set[Formula]]]] = {
+  def isSat(f: Formula): Pair[Boolean, Option[collection.immutable.Map[Formula, Set[Formula]]]] = {
     val And(fs) = f
 
     val neqs = Map[Formula, Formula]()
@@ -42,7 +41,7 @@ object FastCongruenceSolver extends Solver {
     }.toList
 
     // For each such inequality, get the explanation why it must be an equality
-    val explanations: collection.immutable.Map[Formula, collection.immutable.Set[Formula]] = unsatTerms.map{
+    val explanations: collection.immutable.Map[Formula, Set[Formula]] = unsatTerms.map{
       case eq@Equals((t1: Variable), (t2: Variable)) => (neqs(eq),
         congruenceClosure.explain(t1, t2).withFilter{
             /*
@@ -85,23 +84,23 @@ class CongruenceClosure extends TheorySolver {
   // TODO collect EqClass stuff in separate object
   val logic = regolic.parsers.SmtLib2.Trees.QF_UF
 
-  private val posLitList = new HashMap[Term, Set[Formula]] {
+  private val posLitList = new HashMap[Term, collection.mutable.Set[Formula]] {
     override def default(k: Term) = {
-      val v = Set[Formula]()
+      val v = collection.mutable.Set[Formula]()
       this += (k -> v)
       v
     }
   }
-  private val negLitList = new HashMap[Term, Set[Formula]] {
+  private val negLitList = new HashMap[Term, collection.mutable.Set[Formula]] {
     override def default(k: Term) = {
-      val v = Set[Formula]()
+      val v = collection.mutable.Set[Formula]()
       this += (k -> v)
       v
     }
   }
-  private var diseq = new HashMap[Term, Set[Formula]] {
+  private var diseq = new HashMap[Term, collection.mutable.Set[Formula]] {
     override def default(k: Term) = {
-      val v = Set[Formula]()
+      val v = collection.mutable.Set[Formula]()
       this += (k -> v)
       v
     }
@@ -113,7 +112,7 @@ class CongruenceClosure extends TheorySolver {
     case _ => throw new Exception("Unexpected term "+ t)
   }
     
-  def initialize(ls: collection.immutable.Set[Formula]) {//I.e. constructor
+  def initialize(ls: Set[Formula]) {//I.e. constructor
     for(l <- ls) {
       println("l: "+ l)
       l match {
@@ -140,7 +139,7 @@ class CongruenceClosure extends TheorySolver {
     node = Map[Term, ProofStructureNode]() ++ elems.map{e => (e, new ProofStructureNode(e, null))}
   }
 
-  private val elems = Set[Term]()
+  private val elems = collection.mutable.Set[Term]()
 
   def undoMerge(l: Formula) {
     while(!undoStack(l).isEmpty) {
@@ -166,8 +165,8 @@ class CongruenceClosure extends TheorySolver {
       1 to n foreach { x => {
         val l = iStack.pop.l
         undoMerge(l)
-        if(iStack.top.useList.exists{case ((k: Variable),v) => k.name == "x8"})
-          println(x)
+        //if(iStack.top.useList.exists{case ((k: Variable),v) => k.name == "x8"})
+        println("undoing: "+ l)
       }}
 
       val s = iStack.top
@@ -183,7 +182,7 @@ class CongruenceClosure extends TheorySolver {
     }
   }
 
-  def explain(l: Formula): collection.immutable.Set[Formula] = {
+  def explain(l: Formula): Set[Formula] = {
     l match{
       case Equals((e1: Variable), (d1: Variable)) => {
         explain(e1, d1)
@@ -220,14 +219,14 @@ class CongruenceClosure extends TheorySolver {
   class State(val l: Formula, val repr: Map[Term, Term], val classList:
     Map[Term, Queue[Term]], val useList: HashMap[Term,
     Queue[Formula]], val lookup: Map[(Term, Term),
-    Option[Formula]], val diseq: HashMap[Term, Set[Formula]])
+    Option[Formula]], val diseq: HashMap[Term, collection.mutable.Set[Formula]])
 
   var trigger: Formula = null
 
   var negTable = Map[Formula, Formula]()
-  def setTrue(l: Formula): Option[collection.immutable.Set[Formula]] = {
+  def setTrue(l: Formula): Option[Set[Formula]] = {
     trigger = l
-    l match {
+    val retVal = l match {
       case eq@Equals(t1, t2) => {
         if(diseq.values.exists(_ == Not(l))) { // inconsistent 
           None
@@ -235,8 +234,9 @@ class CongruenceClosure extends TheorySolver {
           val tConsequence = merge(eq)
 
           // TODO how slow is cloning?
-          iStack.push(new State(l, repr.clone, classList.clone, useList.clone, lookup.clone, diseq.clone))
-          Some(tConsequence)
+          //iStack.push(new State(l, repr.clone, classList.clone, useList.clone, lookup.clone, diseq.clone))
+          //Some(tConsequence)
+          Some(Set.empty[Formula])
         }
       }
       case Not(Equals(t1, t2)) => {
@@ -259,16 +259,19 @@ class CongruenceClosure extends TheorySolver {
           }
 
           // TODO how slow is cloning?
-          iStack.push(new State(l, repr.clone, classList.clone, useList.clone, lookup.clone, diseq.clone))
+          //iStack.push(new State(l, repr.clone, classList.clone, useList.clone, lookup.clone, diseq.clone))
           negTable ++= tConsequence.map(ineq => (ineq, l))
-          Some(tConsequence.toSet)
+          //Some(tConsequence.toSet)
+          Some(Set.empty[Formula])
         }
       }
       case _ => throw new Exception("Unsupported formula")
     }
+    iStack.push(new State(l, repr.clone, classList.clone, useList.clone, lookup.clone, diseq.clone))
+    retVal
   }
 
-  def merge(eq: Formula): collection.immutable.Set[Formula] = {
+  def merge(eq: Formula): Set[Formula] = {
     eq match {
       case Equals(a: Variable, b: Variable) => {
         pending.enqueue(eq)
@@ -284,14 +287,14 @@ class CongruenceClosure extends TheorySolver {
             lookup((repr(a1), repr(a2))) = Some(eq)
             useList(repr(a1)).enqueue(eq)
             useList(repr(a2)).enqueue(eq)
-            collection.immutable.Set.empty[Formula] // no new unions, no T-consequences
+            Set.empty[Formula] // no new unions, no T-consequences
           }
         }
       }
     }
   }
   
-  private def propagate(): collection.immutable.Set[Formula] = {
+  private def propagate(): Set[Formula] = {
     val tConsequence = ListBuffer[Formula]()
     while(pending.nonEmpty) {
       val e = pending.dequeue()
@@ -312,9 +315,6 @@ class CongruenceClosure extends TheorySolver {
 
         while(classList(oldreprA).nonEmpty) {
           val c = classList(oldreprA).dequeue()
-          repr(c) = repr(b)
-          classList(repr(b)).enqueue(c)
-
           /*
            *If a positive SetTrue, and its subsequent congruence closure, produces a
            *union such that a class with former representative a is now represented by a
@@ -325,6 +325,7 @@ class CongruenceClosure extends TheorySolver {
            *currently true disequalities between representatives; analogously
            *also the negative literal list of all b is traversed.
            */
+
           tConsequence ++= posLitList(c).filter{
             case Equals(t1, t2) => (repr(t1) == oldreprA && repr(t2) == repr(b)) || (repr(t1) == repr(b) && repr(t2) == oldreprA)
           }
@@ -341,6 +342,9 @@ class CongruenceClosure extends TheorySolver {
               }
             }
           }}
+
+          repr(c) = repr(b)
+          classList(repr(b)).enqueue(c)
         }
 
         while(useList(oldreprA).nonEmpty) {
@@ -464,7 +468,7 @@ class CongruenceClosure extends TheorySolver {
       Some(commonPath.reverse.head._1)
   }
 
-  def explain(c1: Variable, c2: Variable): collection.immutable.Set[Formula] = {
+  def explain(c1: Variable, c2: Variable): Set[Formula] = {
     //println("Explaining why "+ c1 +" = "+ c2)
     //println(node.values.mkString("digraph g {\nnode [shape=plaintext];\n", "\n", "\n}"))
     // reset makes explanations complete, but is it necessary?

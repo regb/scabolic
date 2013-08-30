@@ -460,6 +460,7 @@ class DPLLTSolver(nbVars: Int, tSolver: TheorySolver, encoding: Encoding) {
               case tExplVar => encoding.id(tExplVar)*2
             }).toArray
           )
+          println("explanation of "+ (if((p & 1) == 0) encoding.theory(p>>1) else Not(encoding.theory(p>>1))) + ": "+ expl.mkString("\n", "\n", "\n"))
         }
         c = c - 1
         seen(p>>1) = false
@@ -664,10 +665,11 @@ class DPLLTSolver(nbVars: Int, tSolver: TheorySolver, encoding: Encoding) {
   }
 
 
-  private[this] def enqueueLiteral(lit: Int, from: Clause = null) {
+  private[this] def enqueueLiteral(lit: Int, from: Clause = null): Boolean = {
     val id = lit >> 1
     val pol = (lit & 1) ^ 1
     //assert(model(id) == -1) // TODO
+    var retVal = false
     if(model(id) == -1) {
       model(id) = pol
       trail.push(lit)
@@ -680,22 +682,23 @@ class DPLLTSolver(nbVars: Int, tSolver: TheorySolver, encoding: Encoding) {
         from.locked = true
       }
       levels(id) = decisionLevel
+      retVal = true
     } else {
       assert(model(id) == pol)
     }
+    retVal
   }
 
-  val decisionStack = new collection.mutable.Stack[Int]
+  def isTheoryLit(lit: Int): Boolean = (lit >> 1) < TLiteralID.count
 
-  def tEnqueueLiteral(lit: Int, from: Clause = null, isDecision: Boolean = false) {
-    println("in tEnqueueLiteral "+ (lit >> 1))
-    enqueueLiteral(lit, from)
-    if((lit >> 1) < TLiteralID.count) { // check if literal should be handled by tSolver
+  def tEnqueueLiteral(lit: Int, from: Clause = null) {
+    val wasPushed = enqueueLiteral(lit, from)
+    if((lit >> 1) < TLiteralID.count && wasPushed) { // check if literal should be handled by tSolver
       val tLit = if((lit & 1) == 0) encoding.theory(lit >> 1) else Not(encoding.theory(lit >> 1))
-      println("setTrue: "+ tLit)
+      println("setTrue("+ tLit +") at decisionLevel: "+ decisionLevel)
       val t = tSolver.setTrue(tLit)
       if(t != None) {
-        println("t-consequence: "+ t.mkString("\n", "\n", "\n"))
+        //println("t-consequence: "+ t.mkString("\n", "\n", "\n"))
         t.get.withFilter(_ != tLit).foreach(tConsLit => tConsLit match {
             case Not(tConsVar) => {
               println("enqueuing theory consequence: "+ tConsLit +" = "+ encoding.id(tConsVar))
@@ -710,9 +713,6 @@ class DPLLTSolver(nbVars: Int, tSolver: TheorySolver, encoding: Encoding) {
       } else {
         status = Conflict
       }
-      decisionStack.push(1)
-    } else {
-      decisionStack.push(0)
     }
   }
 
@@ -797,7 +797,7 @@ class DPLLTSolver(nbVars: Int, tSolver: TheorySolver, encoding: Encoding) {
         nbRestarts += 1
         backtrackTo(0)
         if(learntClause.size == 1) //since we do not learn the clause
-          enqueueLiteral(learntClause.lits(0), learntClause)
+          tEnqueueLiteral(learntClause.lits(0), learntClause)
         cnfFormula.augmentMaxLearnt()
       } else {
         assert(decisionLevel > backtrackLevel)
@@ -805,7 +805,7 @@ class DPLLTSolver(nbVars: Int, tSolver: TheorySolver, encoding: Encoding) {
         val lit = learntClause.lits(0)
         //assert(isUnassigned(lit))
         //assert(learntClause.lits.tail.forall(isUnsat))
-        enqueueLiteral(lit, learntClause) //only on non restart
+        tEnqueueLiteral(lit, learntClause) //only on non restart
         //note that if the unitClause is of size 1, there will be an auto-reset to backtrack level 0 so this is correct as well
       }
       if(learntClause.size > 1) //we only learn if it is not unit, if it is unit, then it is processed via the unitClauses and its consequences is added at level 0 which is never forgot
@@ -816,21 +816,18 @@ class DPLLTSolver(nbVars: Int, tSolver: TheorySolver, encoding: Encoding) {
 
 
   private[this] def backtrackTo(lvl: Int) {
-    // TODO how far to backtrack?
-    println("decisionLevel: "+ decisionLevel)
-    var j = 0
-    (1 to (decisionLevel - lvl)) foreach { _ => 
-      j += decisionStack.pop
-    }
-    tSolver.backtrack(j)
+    var tDecisions = 0
     while(decisionLevel > lvl && !trail.isEmpty) {
       val head = trail.pop()
       decisionLevel = levels(head >> 1)
-      if(decisionLevel > lvl)
+      if(decisionLevel > lvl) {
         undo(head)
-      else
+        if(isTheoryLit(head))
+          tDecisions += 1
+      } else
         trail.push(head)
     }
+    tSolver.backtrack(tDecisions)
     qHead = trail.size
     decisionLevel = lvl
   }

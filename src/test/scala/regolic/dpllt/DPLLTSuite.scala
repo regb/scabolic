@@ -179,4 +179,13 @@ class DPLLTSuite extends FunSuiteWithIDReset {
     assert(ccSanity.areCongruent(a, b))
   }
 
+  test("setTrue") {
+
+    val cc = new CongruenceClosure
+    cc.initialize(Set(Equals(a,b), Equals(d,c), Equals(d,b)))
+    println("tConsequence: "+ cc.setTrue(Equals(a,b)))
+    println("tConsequence: "+ cc.setTrue(Equals(d,c)))
+    println("tConsequence: "+ cc.setTrue(Equals(d,b)))
+  }
+
 }
