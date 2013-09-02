@@ -294,8 +294,9 @@ class DPLLTSolver(nbVars: Int, tSolver: TheorySolver, encoding: Encoding) {
       val litsUnique = cl.lits.toSet
       if(litsUnique.size == 1) {
         val id = litsUnique.head >> 1
-        if(model(id) == -1)
+        if(model(id) == -1) {
           tEnqueueLiteral(litsUnique.head)
+        }
         else if(model(id) == (litsUnique.head & 1))
           status = Unsatisfiable
       }
@@ -462,6 +463,7 @@ class DPLLTSolver(nbVars: Int, tSolver: TheorySolver, encoding: Encoding) {
           )
           println("explanation of "+ (if((p & 1) == 0) encoding.theory(p>>1) else Not(encoding.theory(p>>1))) + ": "+ expl.mkString("\n", "\n", "\n"))
         }
+        
         c = c - 1
         seen(p>>1) = false
 
@@ -471,6 +473,7 @@ class DPLLTSolver(nbVars: Int, tSolver: TheorySolver, encoding: Encoding) {
         //  assert(confl.lits.tail.forall(lit => isUnsat(lit)))
         //}
       } while(c > 0)
+
     }
     assert(isAssigned(p))
     //p is 1-UIP
@@ -699,6 +702,10 @@ class DPLLTSolver(nbVars: Int, tSolver: TheorySolver, encoding: Encoding) {
       val t = tSolver.setTrue(tLit)
       if(t != None) {
         //println("t-consequence: "+ t.mkString("\n", "\n", "\n"))
+        // TODO
+        // when calling explain, check what's up with the decision level. make
+        // sure that no literal, derived from it via deduce is used in the
+        // explanation
         t.get.withFilter(_ != tLit).foreach(tConsLit => tConsLit match {
             case Not(tConsVar) => {
               println("enqueuing theory consequence: "+ tConsLit +" = "+ encoding.id(tConsVar))
@@ -796,8 +803,10 @@ class DPLLTSolver(nbVars: Int, tSolver: TheorySolver, encoding: Encoding) {
         nextRestart = nbConflicts + restartInterval
         nbRestarts += 1
         backtrackTo(0)
-        if(learntClause.size == 1) //since we do not learn the clause
+        if(learntClause.size == 1) { //since we do not learn the clause 
           tEnqueueLiteral(learntClause.lits(0), learntClause)
+          assert(status != Conflict)
+        }
         cnfFormula.augmentMaxLearnt()
       } else {
         assert(decisionLevel > backtrackLevel)
@@ -806,12 +815,14 @@ class DPLLTSolver(nbVars: Int, tSolver: TheorySolver, encoding: Encoding) {
         //assert(isUnassigned(lit))
         //assert(learntClause.lits.tail.forall(isUnsat))
         tEnqueueLiteral(lit, learntClause) //only on non restart
+        assert(status != Conflict)
         //note that if the unitClause is of size 1, there will be an auto-reset to backtrack level 0 so this is correct as well
       }
       if(learntClause.size > 1) //we only learn if it is not unit, if it is unit, then it is processed via the unitClauses and its consequences is added at level 0 which is never forgot
         cnfFormula.learn(learntClause)
       status = Unknown
     }
+    println("done backtracking")
   }
 
 
@@ -888,9 +899,6 @@ class DPLLTSolver(nbVars: Int, tSolver: TheorySolver, encoding: Encoding) {
             if(isUnassigned(lits(0))) {
               nbPropagations += 1
               tEnqueueLiteral(lits(0), clause)
-              if(status == Conflict)
-                conflict = clause
-              println("conflict: "+ conflict)
             } else if(isUnsat(lits(0))) {
               status = Conflict
               qHead == trail.size
