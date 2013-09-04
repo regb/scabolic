@@ -1,5 +1,7 @@
 package regolic.sat
 
+// Invariant: different literal types are stored in different id intervals
+
 // actualType is necessary because Literal can't be inherited, due to Set
 // invariance (when using Set[Set[Literal]] as CNF)
 class Literal(private val id: Int, val polInt: Int, val actualType: LiteralTypes) {
