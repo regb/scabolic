@@ -24,7 +24,7 @@ trait TheorySolver {
 
   def backtrack(n: Int): Unit
 
-  def explain(l: Formula): Set[Formula]
+  def explain(l: Formula, lPrime: Formula): Set[Formula]
 
   def setTrue(l: Formula): Option[Set[Formula]]
   

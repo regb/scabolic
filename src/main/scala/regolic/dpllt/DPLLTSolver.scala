@@ -261,6 +261,8 @@ class DPLLTSolver(nbVars: Int, tSolver: TheorySolver, encoding: Encoding) {
   private[this] val find1UIPStopWatch = StopWatch("backtrack.conflictanalysis.find1uip")
   private[this] val clauseMinimizationStopWatch = StopWatch("backtrack.conflictanalysis.clauseminimization")
 
+  private[this] val tReasons: Array[Int] = new Array(2*TLiteralID.count)
+
   def resetSolver() {
     nbConflicts = 0
     nbDecisions = 0
@@ -453,9 +455,11 @@ class DPLLTSolver(nbVars: Int, tSolver: TheorySolver, encoding: Encoding) {
         } while(!seen(p>>1))
 
         confl = reasons(p>>1)
-        if(confl == null) { // TODO
-        // TODO make sure that explanation can't be circular
-          val expl = tSolver.explain(if((p & 1) == 0) encoding.theory(p>>1) else Not(encoding.theory(p>>1)))
+        if(confl == null) {
+          val expl = tSolver.explain(
+            if((p & 1) == 0) encoding.theory(p>>1) else Not(encoding.theory(p>>1)), // l
+            if((tReasons(p) & 1) == 0) encoding.theory(tReasons(p)>>1) else Not(encoding.theory(tReasons(p)>>1)) // lPrime
+          )
           confl = new Clause(expl.map(tExplLit => tExplLit match {
               case Not(tExplVar) => encoding.id(tExplVar)*2 + 1
               case tExplVar => encoding.id(tExplVar)*2
@@ -696,6 +700,7 @@ class DPLLTSolver(nbVars: Int, tSolver: TheorySolver, encoding: Encoding) {
 
   def tEnqueueLiteral(lit: Int, from: Clause = null) {
     val wasPushed = enqueueLiteral(lit, from)
+
     if((lit >> 1) < TLiteralID.count && wasPushed) { // check if literal should be handled by tSolver
       val tLit = if((lit & 1) == 0) encoding.theory(lit >> 1) else Not(encoding.theory(lit >> 1))
       println("setTrue("+ tLit +") at decisionLevel: "+ decisionLevel)
@@ -706,14 +711,18 @@ class DPLLTSolver(nbVars: Int, tSolver: TheorySolver, encoding: Encoding) {
         // when calling explain, check what's up with the decision level. make
         // sure that no literal, derived from it via deduce is used in the
         // explanation
-        t.get.withFilter(_ != tLit).foreach(tConsLit => tConsLit match {
-            case Not(tConsVar) => {
-              println("enqueuing theory consequence: "+ tConsLit +" = "+ encoding.id(tConsVar))
-              enqueueLiteral(encoding.id(tConsVar)*2 + 1)
-            }
-            case tConsVar => {
-              println("enqueuing theory consequence: "+ tConsLit +" = "+ encoding.id(tConsVar))
-              enqueueLiteral(encoding.id(tConsVar)*2)
+        t.get.withFilter(_ != tLit).foreach(tConsLit => {
+            tConsLit match {
+              case Not(tConsVar) => {
+                println("enqueuing theory consequence: "+ tConsLit +" = "+ encoding.id(tConsVar))
+                enqueueLiteral(encoding.id(tConsVar)*2 + 1)
+                tReasons(encoding.id(tConsVar)*2 + 1) = lit
+              }
+              case tConsVar => {
+                println("enqueuing theory consequence: "+ tConsLit +" = "+ encoding.id(tConsVar))
+                enqueueLiteral(encoding.id(tConsVar)*2)
+                tReasons(encoding.id(tConsVar)*2) = lit
+              }
             }
           }
         )

@@ -68,6 +68,8 @@ class CongruenceClosure extends TheorySolver {
   
   /*
    * Representing the so-called proof forest
+   * TODO the graph should be represented by an Int array as described in the
+   * paper, but need proper optimization work first
    */
   class ProofStructureNode(val name: Term, var edgeLabel: Any) {
     var parent: ProofStructureNode = null
@@ -171,23 +173,25 @@ class CongruenceClosure extends TheorySolver {
   def undoMerge(l: Formula) {
    /*
     * Example: 
-    * a -> b -> c -> d
-    * insert b -> e
-    * a -> b <- c <- d
-    *      '-> e
-    * undo b -> e
+    *   a -> b -> c -> d
+    *   insert b -> e:
+    *     a -> b <- c <- d
+    *          '-> e
+    *     from = b
+    *     reversedTo = d
+    *   undo b -> e:
+    *     a -> b -> c -> d
     */
-    while(!undoStack(l).isEmpty) {
-      val (from, reversedTo) = undoStack(l).pop
-      from.parent = null // remove edge b -> e
-      reverseEdges(reversedTo) // reverse b <- c <- d
+    while(!undoEdgesStack(l).isEmpty) {
+      val (from, reversedTo) = undoEdgesStack(l).pop
+      removeEdge(from, reversedTo)
     }
 
-    while(!reprChangeStack(l).isEmpty) {
-      val change = reprChangeStack(l).pop
-      repr(change.elem) = change.oldRepr
-      classList(change.newRepr).dequeueFirst(_ == change.elem)
-      classList(change.oldRepr).enqueue(change.elem)
+    while(!undoReprChangeStack(l).isEmpty) {
+      val (elem, oldRepr, newRepr) = undoReprChangeStack(l).pop
+      repr(elem) = oldRepr
+      classList(newRepr).dequeueFirst(_ == elem)
+      classList(oldRepr).enqueue(elem)
     }
   }
 
@@ -215,18 +219,51 @@ class CongruenceClosure extends TheorySolver {
     println("t-backtracking done")
   }
 
-  def explain(l: Formula): Set[Formula] = {
-    l match{
+  // l is t-consequence of setTrue(lPrime)
+  def explain(l: Formula, lPrime: Formula): Set[Formula] = {
+    assert(!iStack.isEmpty)
+    
+    // undo all merges after lPrime was pushed onto the iStack
+    val restoreIStack = Stack[Formula]()
+    val restoreEdgesStack = Stack[Pair[ProofStructureNode, ProofStructureNode]]()
+    while(iStack.top != lPrime) {
+      val top = iStack.pop
+      restoreIStack.push(top)
+      if(iStack.isEmpty)
+        throw new Exception("lPrime was not pushed to iStack")
+
+      undoEdgesStack(top).foreach{case (from, reversedTo) => {
+          // not storing edge label is fine as parent is null anyhow
+          restoreEdgesStack.push((from, from.parent))
+          removeEdge(from, reversedTo)
+        }
+      }
+    }
+
+    // actual explain computation
+    val retVal = l match{
       case Equals((e1: Variable), (d1: Variable)) => {
         explain(e1, d1)
       }
       case Not(Equals((d1: Variable), (e1: Variable))) => {
-        val cause = negTable(l)
+        val cause = negReason(l)
         val Not(Equals((d2: Variable), (e2: Variable))) = cause
         (explain(d1, d2) union explain(e1, e2)) + cause
       }
       case _ => throw new Exception("explain shouldn't be called on equalities containing functions")
     }
+
+    // restore state before computing the explanation
+    while(!restoreIStack.isEmpty) {
+      val top = restoreIStack.pop
+      iStack.push(top)
+    }
+    while(!restoreEdgesStack.isEmpty) {
+      val (from, to) = restoreEdgesStack.pop
+      makeEdge(from, to)
+    }
+
+    retVal
   }
 
   var node = Map[Term, ProofStructureNode]()
@@ -249,17 +286,15 @@ class CongruenceClosure extends TheorySolver {
   val iStack = new Stack[Formula]
 
 
-  private val reprChangeStack = new HashMap[Formula, Stack[ReprChange]] {
+  private val undoReprChangeStack = new HashMap[Formula, Stack[Tuple3[Term, Term, Term]]] {
     override def default(k: Formula) = {
-      val v = Stack[ReprChange]()
+      val v = Stack[Tuple3[Term, Term, Term]]()
       this += (k -> v)
       v
     }
   }
  
-  class ReprChange(val elem: Term, val oldRepr: Term, val newRepr: Term)
-
-  var negTable = Map[Formula, Formula]()
+  var negReason = Map[Formula, Formula]()
 
   var trigger: Formula = null
 
@@ -310,7 +345,7 @@ class CongruenceClosure extends TheorySolver {
             }
           }
 
-          negTable ++= tConsequence.map(ineq => (ineq, l))
+          negReason ++= tConsequence.map(ineq => (ineq, l))
           //Some(tConsequence.toSet)
           Some(Set.empty[Formula])
         }
@@ -385,10 +420,10 @@ class CongruenceClosure extends TheorySolver {
             case Not(Equals(t1, t2)) => {
               val (timestamp, diseqSet) = diseq(repr(t1))
               if(isTimestampValid(timestamp) && diseqSet.contains(Not(Equals(repr(t1), repr(t2))))) {
-                negTable(ineq) = Not(Equals(repr(t1), repr(t2)))
+                negReason(ineq) = Not(Equals(repr(t1), repr(t2)))
                 true
               } else if(isTimestampValid(timestamp) && diseqSet.contains(Not(Equals(repr(t2), repr(t1))))) {
-                negTable(ineq) = Not(Equals(repr(t2), repr(t1)))
+                negReason(ineq) = Not(Equals(repr(t2), repr(t1)))
                 true
               } else {
                 false
@@ -396,7 +431,7 @@ class CongruenceClosure extends TheorySolver {
             }
           }}
 
-          reprChangeStack(trigger).push(new ReprChange(c, repr(c), repr(b)))
+          undoReprChangeStack(trigger).push((c, repr(c), repr(b)))
           repr(c) = repr(b)
           classList(repr(b)).enqueue(c)
         }
@@ -469,23 +504,38 @@ class CongruenceClosure extends TheorySolver {
     q
   }
 
-  private val undoStack = new HashMap[Formula, Stack[Pair[ProofStructureNode, ProofStructureNode]]] {
+  private val undoEdgesStack = new HashMap[Formula, Stack[Pair[ProofStructureNode, ProofStructureNode]]] {
     override def default(k: Formula) = {
       val v = Stack[Pair[ProofStructureNode, ProofStructureNode]]()
       this += (k -> v)
       v
     }
   }
+
+  // removes the edge from to from.parent and reverses the edges in order to
+  // restore the state before the edge was inserted (mind the order of edge insertions)
+  private def removeEdge(from: ProofStructureNode, reversedTo: ProofStructureNode) {
+    // not clearing edge label is fine as parent is null anyhow
+    from.parent = null
+    reverseEdges(reversedTo)
+  }
+  
+  private def makeEdge(from: ProofStructureNode, to: ProofStructureNode, label: Any = null): ProofStructureNode =  {
+    val retVal = reverseEdges(from)
+    from.parent = to
+    if(label != null)
+      from.edgeLabel = label
+    retVal
+  }
   
   private def insertEdge(a: Variable, b: Variable, label: Any) = {
     //println(node.values.mkString("digraph g {\nnode [shape=plaintext];\n", "\n", "\n}"))
     val from = node(a)
-    val reversedTo = reverseEdges(from)
-    from.parent = node(b)
-    from.edgeLabel = label
+    val reversedTo = makeEdge(node(a), node(b), label)
+
     //println(node.values.mkString("digraph g {\nnode [shape=plaintext];\n", "\n", "\n}"))
     //println("inserted "+ a +" -> "+ b +" repr a: "+ repr(a) +", repr b: "+ repr(b))
-    undoStack(trigger).push((from, reversedTo))
+    undoEdgesStack(trigger).push((from, reversedTo))
   }
   
   private def findEqClass(x: ProofStructureNode): ProofStructureNode = {
