@@ -699,36 +699,81 @@ class DPLLTSolver(nbVars: Int, tSolver: TheorySolver, encoding: Encoding) {
   def isTheoryLit(lit: Int): Boolean = (lit >> 1) < TLiteralID.count
 
   def tEnqueueLiteral(lit: Int, from: Clause = null) {
-    val wasPushed = enqueueLiteral(lit, from)
-
-    if((lit >> 1) < TLiteralID.count && wasPushed) { // check if literal should be handled by tSolver
+    if(lit < TLiteralID.count) {
       val tLit = if((lit & 1) == 0) encoding.theory(lit >> 1) else Not(encoding.theory(lit >> 1))
-      println("setTrue("+ tLit +") at decisionLevel: "+ decisionLevel)
-      val t = tSolver.setTrue(tLit)
+      var enqueuedLit = 0
+      val t = tLit match {
+        case Not(l) if tSolver.isTrue(Not(l)) => {
+          enqueuedLit = lit
+          val wasPushed = enqueueLiteral(enqueuedLit, from)
+          assert(wasPushed)
+          println("setTrue("+ tLit +")")
+          tSolver.setTrue(tLit)
+        }
+        case Not(l) if tSolver.isTrue(l) => {
+          enqueuedLit = lit ^ 1
+          val wasPushed = enqueueLiteral(enqueuedLit, from)
+          assert(wasPushed)
+          println("setTrue("+ l +")")
+          tSolver.setTrue(l)
+        }
+        case l if tSolver.isTrue(l) => {
+          enqueuedLit = lit
+          val wasPushed = enqueueLiteral(enqueuedLit, from)
+          assert(wasPushed)
+          println("setTrue("+ tLit +")")
+          tSolver.setTrue(tLit)
+        }
+        case l if tSolver.isTrue(Not(l)) => {
+          enqueuedLit = lit ^ 1
+          val wasPushed = enqueueLiteral(enqueuedLit, from)
+          assert(wasPushed)
+          println("setTrue("+ l +")")
+          tSolver.setTrue(Not(l))
+        }
+        case _ => None
+      }
+      
+      //if(tSolver.isTrue(tLit)) {
+        //enqueuedLit = lit
+        //val wasPushed = enqueueLiteral(enqueuedLit, from)
+        //assert(wasPushed)
+        //println("setTrue("+ tLit +")")
+        //tSolver.setTrue(tLit)
+      //} else if(tSolver.isTrue(Not(tLit))) {
+        //enqueuedLit = lit ^ 1
+        //val wasPushed = enqueueLiteral(enqueuedLit, from)
+        //assert(wasPushed)
+        //println("setTrue("+ Not(tLit) +")")
+        //tSolver.setTrue(Not(tLit))
+      //}
+      //else
+        //None
+
       if(t != None) {
         //println("t-consequence: "+ t.mkString("\n", "\n", "\n"))
-        // TODO
-        // when calling explain, check what's up with the decision level. make
-        // sure that no literal, derived from it via deduce is used in the
-        // explanation
         t.get.withFilter(_ != tLit).foreach(tConsLit => {
             tConsLit match {
               case Not(tConsVar) => {
                 println("enqueuing theory consequence: "+ tConsLit +" = "+ encoding.id(tConsVar))
                 enqueueLiteral(encoding.id(tConsVar)*2 + 1)
-                tReasons(encoding.id(tConsVar)*2 + 1) = lit
+                tReasons(encoding.id(tConsVar)*2 + 1) = enqueuedLit
               }
               case tConsVar => {
                 println("enqueuing theory consequence: "+ tConsLit +" = "+ encoding.id(tConsVar))
                 enqueueLiteral(encoding.id(tConsVar)*2)
-                tReasons(encoding.id(tConsVar)*2) = lit
+                tReasons(encoding.id(tConsVar)*2) = enqueuedLit
               }
             }
           }
         )
       } else {
         status = Conflict
+        conflict = reasons(enqueuedLit >> 1)
       }
+    } else {
+      // propositional literal
+      enqueueLiteral(lit, from)
     }
   }
 

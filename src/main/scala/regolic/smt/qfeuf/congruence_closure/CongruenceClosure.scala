@@ -250,6 +250,7 @@ class CongruenceClosure extends TheorySolver {
         val Not(Equals((d2: Variable), (e2: Variable))) = cause
         (explain(d1, d2) union explain(e1, e2)) + cause
       }
+      // TODO i don't think that's correct
       case _ => throw new Exception("explain shouldn't be called on equalities containing functions")
     }
 
@@ -273,13 +274,6 @@ class CongruenceClosure extends TheorySolver {
   private val pending: Queue[Any] = Queue()
 
   private var useList = Map[Term, Queue[Formula]]()
-  //private var useList = new HashMap[Term, Queue[Formula]] {
-    //override def default(k: Term) = { // TODO initialize everything upfront
-      //val v = Queue[Formula]()
-      //this += (k -> v)
-      //v
-    //}
-  //}
 
   private var classList = Map[Term, Queue[Term]]()
 
@@ -305,50 +299,65 @@ class CongruenceClosure extends TheorySolver {
   def setTrue(l: Formula): Option[Set[Formula]] = {
     ctr += 1
     trigger = l
+    if(iStack.nonEmpty && explain(l, iStack.top).isEmpty) // iStack |= not(l)
+      throw new Exception(l +"inconsistent with the I-stack")
+
     val retVal = l match {
       case eq@Equals(t1, t2) => {
-        if(diseq.values.exists{
-            case (timestamp, diseqSet) => isTimestampValid(timestamp) && diseqSet.contains(Not(l))
-          }) {
-          None // inconsistent 
-        } else {
+        //if(explain(l, l).isEmpty) {
+        ////if(diseq.values.exists{
+            ////case (timestamp, diseqSet) => isTimestampValid(timestamp) && diseqSet.contains(Not(l))
+          ////}) {
+          ////None // inconsistent 
+          //throw new Exception(t1 +" and "+ t2 +" are not congruent. Should be caught by isTrue")
+        //} else {
           val tConsequence = merge(eq)
 
           //Some(tConsequence)
           Some(Set.empty[Formula])
-        }
+        //}
       }
       case Not(Equals(t1, t2)) => {
-        if(areCongruent(t1, t2)) {
-          None // inconsistent
-        } else {
-          if(isTimestampValid(diseq(t1)._1))
-            diseq(t1)._2 += l
-          else
-            diseq(t1) = (ctr, collection.mutable.Set(l))
+        //if(areCongruent(t1, t2)) {
+          ////None // inconsistent
+          //throw new Exception(t1 +" and "+ t2 +" are congruent. Should be caught by isTrue")
+        //} else {
+          //Diseq, a hash table containing all currently true disequalities between
+          //representatives
+          if(t1.isInstanceOf[Variable] && t2.isInstanceOf[Variable] &&
+            classList(t1).nonEmpty && classList(t2).nonEmpty) {
+            if(isTimestampValid(diseq(t1)._1))
+              diseq(t1)._2 += l
+            else
+              diseq(t1) = (ctr, collection.mutable.Set(l))
 
-          if(isTimestampValid(diseq(t2)._1))
-            diseq(t2)._2 += l
-          else
-            diseq(t2) = (ctr, collection.mutable.Set(l))
+            if(isTimestampValid(diseq(t2)._1))
+              diseq(t2)._2 += l
+            else
+              diseq(t2) = (ctr, collection.mutable.Set(l))
 
-          val (a, b) = (repr(t1), repr(t2))
-          val (cla, clb) = (classList(a), classList(b))
-          val cl = if(cla.size < clb.size) cla else clb
-          val tConsequence = ListBuffer[Formula]()
-          for(c <- cl) {
-            tConsequence ++= negLitList(c).filter{
-              case Not(Equals(t1, t2)) => {
-                (repr(t1) == a && repr(t2) == b) ||
-                (repr(t1) == b && repr(t2) == a) 
+            val (a, b) = (repr(t1), repr(t2))
+            val (cla, clb) = (classList(a), classList(b))
+            val cl = if(cla.size < clb.size) cla else clb
+            val tConsequence = ListBuffer[Formula]()
+            for(c <- cl) {
+              tConsequence ++= negLitList(c).filter{
+                case Not(Equals(t1, t2)) => {
+                  (repr(t1) == a && repr(t2) == b) ||
+                  (repr(t1) == b && repr(t2) == a) 
+                }
               }
             }
+
+            negReason ++= tConsequence.map(ineq => (ineq, l))
+            //Some(tConsequence.toSet)
+            Some(Set.empty[Formula])
+          } else {
+            // TODO what happens in this case
+            Some(Set.empty[Formula])
           }
 
-          negReason ++= tConsequence.map(ineq => (ineq, l))
-          //Some(tConsequence.toSet)
-          Some(Set.empty[Formula])
-        }
+          //}
       }
       case _ => throw new Exception("Unsupported formula")
     }
