@@ -46,6 +46,8 @@ object DPLLTSolverWrapper {
         )
       }
     ))
+    tSolver.initialize(encoding.funEqs.toSet)
+    encoding.funEqs.foreach(tSolver.setTrue)
 
     println("EUF literals: "+ TLiteralID.count)
     dplltSolver.solve()
@@ -707,28 +709,24 @@ class DPLLTSolver(nbVars: Int, tSolver: TheorySolver, encoding: Encoding) {
           enqueuedLit = lit
           val wasPushed = enqueueLiteral(enqueuedLit, from)
           assert(wasPushed)
-          println("setTrue("+ tLit +")")
           tSolver.setTrue(tLit)
         }
         case Not(l) if tSolver.isTrue(l) => {
           enqueuedLit = lit ^ 1
           val wasPushed = enqueueLiteral(enqueuedLit, from)
           assert(wasPushed)
-          println("setTrue("+ l +")")
           tSolver.setTrue(l)
         }
         case l if tSolver.isTrue(l) => {
           enqueuedLit = lit
           val wasPushed = enqueueLiteral(enqueuedLit, from)
           assert(wasPushed)
-          println("setTrue("+ tLit +")")
           tSolver.setTrue(tLit)
         }
         case l if tSolver.isTrue(Not(l)) => {
           enqueuedLit = lit ^ 1
           val wasPushed = enqueueLiteral(enqueuedLit, from)
           assert(wasPushed)
-          println("setTrue("+ l +")")
           tSolver.setTrue(Not(l))
         }
         case _ => None

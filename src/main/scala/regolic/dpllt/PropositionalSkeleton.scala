@@ -23,6 +23,8 @@ class Encoding {
   val theory = new ArrayBuffer[Formula]()
   val theoryOrig = new ArrayBuffer[Formula]()
 
+  val funEqs = new ArrayBuffer[Formula]()
+
   def setEquiv(id: Int, f: Formula, fOrig: Formula) {
     // Invariant, id is the amount of calls to setEquiv
     this.id(f) = id
@@ -50,74 +52,27 @@ object PropositionalSkeleton {
     // For each subformula, create a new representation and add the constraints
     // while returning the representation
     def rec(form: Formula): Literal = form match {
-      case f@Not((origEq@Equals(_, _))) => {
-        // Treat negated equations separately to maintain NNF through flatten
-        // transformation
-        val ineq :: eqs = Flattener(Currifier(origEq))
-        val ineqRepr = encoding.get(ineq) match {
-          case Some(repr) => new Literal(repr, TLiteral)
-          case None => {
-            val reprID = TLiteralID.next
-            encoding.setEquiv(reprID, ineq, origEq) 
-            new Literal(reprID, TLiteral)
-          }
-        }
-
-        val notRepr = new Literal(PropLiteralID.next, PropLiteral)
-        constraints += Set(notRepr.neg, ineqRepr.neg)
-        constraints += Set(notRepr.pos, ineqRepr.pos)
-        
-        val fsRepr = notRepr :: eqs.map(eq => 
-          encoding.get(eq) match {
-            case Some(repr) => new Literal(repr, TLiteral)
-            case None => {
-              val reprID = TLiteralID.next
-              encoding.setEquiv(reprID, eq, origEq) 
-              new Literal(reprID, TLiteral)
-            }
-          }
-        )
-
-        val repr = if(fsRepr.tail != Nil) {
-          // AND all the flattened terms together
-          val andRepr = new Literal(PropLiteralID.next, PropLiteral)
-          for(fRepr <- fsRepr)
-            constraints += Set(andRepr.neg, fRepr.pos)
-          constraints += (andRepr.pos :: fsRepr.map(fRepr => fRepr.neg)).toSet
-          andRepr
-        } else {
-          fsRepr.head
-        }
-        repr
-      }
       case (f: PredicateApplication) => {
-        val fsRepr = f match {
-          case Equals(_, _) => Flattener(Currifier(f)).map(eq => 
-            encoding.get(eq) match {
+        val repr = f match {
+          case Equals(_, _) => {
+            val flat = Flattener(Currifier(f))
+            val repr = encoding.get(flat.head) match {
               case Some(repr) => new Literal(repr, TLiteral)
               case None => {
                 val reprID = TLiteralID.next
-                encoding.setEquiv(reprID, eq, f) 
+                encoding.setEquiv(reprID, flat.head, f) 
                 new Literal(reprID, TLiteral)
               }
             }
-          )
+            encoding.funEqs ++= flat.tail
+            repr
+          }
           case PropositionalVariable(_) => {
             val reprID = PropLiteralID.next
             // TODO vartoliteral(reprID) = f
-            List(new Literal(reprID, PropLiteral))
+            new Literal(reprID, PropLiteral)
           }
           case _ => throw new Exception("This type of literal hasn't been implemented yet")
-        }
-        val repr = if(fsRepr.tail != Nil) {
-          // AND all the flattened terms together
-          val andRepr = new Literal(PropLiteralID.next, PropLiteral)
-          for(fRepr <- fsRepr)
-            constraints += Set(andRepr.neg, fRepr.pos)
-          constraints += (andRepr.pos :: fsRepr.map(fRepr => fRepr.neg)).toSet
-          andRepr
-        } else {
-          fsRepr.head
         }
         repr
       }

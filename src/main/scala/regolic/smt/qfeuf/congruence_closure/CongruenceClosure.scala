@@ -139,11 +139,12 @@ class CongruenceClosure extends TheorySolver {
   }
     
   def initialize(ls: Set[Formula]) {//I.e. constructor
+    val newElems = collection.mutable.Set[Term]()
     for(l <- ls) {
       l match {
         case Equals(t1, t2) => {
-          elems ++= extractVariables(t1)
-          elems ++= extractVariables(t2)
+          newElems ++= extractVariables(t1)
+          newElems ++= extractVariables(t2)
           if(t1.isInstanceOf[Variable] && t2.isInstanceOf[Variable]) {
             posLitList(t1) += l
             posLitList(t2) += l
@@ -156,16 +157,17 @@ class CongruenceClosure extends TheorySolver {
         case _ => ()
       }
     }
-    elems.foreach(e => {
+    newElems.foreach(e => {
         useList(e) = Queue[Formula]()
         diseq(e) = (0, collection.mutable.Set[Formula]())
         repr(e) = e
         classList(e) = Queue(e)
         node(e) = new ProofStructureNode(e, null)
       })
-    repr = Map[Term,Term]() ++ elems.map(e => (e, e))
-    classList = Map[Term, Queue[Term]]() ++ elems.map(el => (el, Queue(el)))
-    node = Map[Term, ProofStructureNode]() ++ elems.map{e => (e, new ProofStructureNode(e, null))}
+    repr ++= newElems.map(e => (e, e))
+    classList ++= newElems.map(el => (el, Queue(el)))
+    node ++= newElems.map{e => (e, new ProofStructureNode(e, null))}
+    elems ++= newElems
   }
 
   private val elems = collection.mutable.Set[Term]()
@@ -205,6 +207,8 @@ class CongruenceClosure extends TheorySolver {
       }
     }
   }
+
+
   def backtrack(n: Int) = {
     println("in tSolver backtrack")
     if(n <= iStack.size) {
@@ -250,7 +254,6 @@ class CongruenceClosure extends TheorySolver {
         val Not(Equals((d2: Variable), (e2: Variable))) = cause
         (explain(d1, d2) union explain(e1, e2)) + cause
       }
-      // TODO i don't think that's correct
       case _ => throw new Exception("explain shouldn't be called on equalities containing functions")
     }
 
@@ -297,10 +300,11 @@ class CongruenceClosure extends TheorySolver {
   var ctr: Timestamp = -1
 
   def setTrue(l: Formula): Option[Set[Formula]] = {
+    println("setTrue: "+ l)
     ctr += 1
     trigger = l
-    if(iStack.nonEmpty && explain(l, iStack.top).isEmpty) // iStack |= not(l)
-      throw new Exception(l +"inconsistent with the I-stack")
+    //if(iStack.nonEmpty && explain(l, iStack.top).isEmpty) // iStack |= not(l)
+      //throw new Exception(l +"inconsistent with the I-stack")
 
     val retVal = l match {
       case eq@Equals(t1, t2) => {
@@ -620,8 +624,9 @@ class CongruenceClosure extends TheorySolver {
         case (Equals(fa@FunctionApplication(_, List(a1, a2)), a: Variable),
           Equals(fb@FunctionApplication(_, List(b1, b2)), b: Variable)) => {
           
-          explanation += Equals(fa, a)
-          explanation += Equals(fb, b)
+          // Map explanation back
+          //explanation += Equals(fa, a)
+          //explanation += Equals(fb, b)
 
           pendingProofs.enqueue(Equals(a1, b1))
           pendingProofs.enqueue(Equals(a2, b2))
