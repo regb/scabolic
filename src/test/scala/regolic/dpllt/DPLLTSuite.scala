@@ -179,13 +179,51 @@ class DPLLTSuite extends FunSuiteWithIDReset {
     assert(ccSanity.areCongruent(a, b))
   }
 
-  test("setTrue") {
+  test("setTrue conflicts example 1") {
+    val cc1 = new CongruenceClosure
+    cc1.initialize(Set(Not(Equals(a,c)), Equals(a,b), Equals(b,c)))
+    assert(cc1.setTrue(Not(Equals(a,c))) != None)
+    assert(cc1.setTrue(Equals(a,b)) != None)
+    assert(cc1.setTrue(Equals(b,c)) === None)
 
-    val cc = new CongruenceClosure
-    cc.initialize(Set(Equals(a,b), Equals(d,c), Equals(d,b)))
-    println("tConsequence: "+ cc.setTrue(Equals(a,b)))
-    println("tConsequence: "+ cc.setTrue(Equals(d,c)))
-    println("tConsequence: "+ cc.setTrue(Equals(d,b)))
+    val cc2 = new CongruenceClosure
+    cc2.initialize(Set(Not(Equals(a,c)), Equals(a,b), Equals(b,c)))
+    assert(cc2.setTrue(Equals(a,b)) != None)
+    assert(cc2.setTrue(Not(Equals(a,c))) != None)
+    assert(cc2.setTrue(Equals(b,c)) === None)
+
+    val cc3 = new CongruenceClosure
+    cc3.initialize(Set(Not(Equals(a,c)), Equals(a,b), Equals(b,c)))
+    assert(cc3.setTrue(Equals(a,b)) != None)
+    assert(cc3.setTrue(Equals(b,c)) != None)
+    assert(cc3.setTrue(Not(Equals(a,c))) === None)
+  }
+  
+  test("setTrue conflicts example 2") {
+    val cc1 = new CongruenceClosure
+    cc1.initialize(Set(Equals(Apply(gVar,c),a), Equals(Apply(gVar,d),b), Equals(c,d), Not(Equals(a,b))))
+    assert(cc1.setTrue(Equals(Apply(gVar,c),a)) != None)
+    assert(cc1.setTrue(Equals(Apply(gVar,d),b)) != None)
+    assert(cc1.setTrue(Equals(c,d)) != None)
+    assert(cc1.setTrue(Not(Equals(a,b))) === None)
+    
+    val cc2 = new CongruenceClosure
+    cc2.initialize(Set(Equals(Apply(gVar,c),a), Equals(Apply(gVar,d),b), Equals(c,d), Not(Equals(a,b))))
+    assert(cc2.setTrue(Equals(Apply(gVar,c),a)) != None)
+    assert(cc2.setTrue(Equals(Apply(gVar,d),b)) != None)
+    assert(cc2.setTrue(Not(Equals(a,b))) != None)
+    assert(cc2.setTrue(Equals(c,d)) === None)
   }
 
+  test("setTrue a != a") {
+    val cc1 = new CongruenceClosure
+    cc1.initialize(Set(Not(Equals(a,a))))
+    assert(cc1.setTrue(Not(Equals(a,a))) === None)
+  }
+
+  test("setTrue a = a") {
+    val cc1 = new CongruenceClosure
+    cc1.initialize(Set(Equals(a,a)))
+    assert(cc1.setTrue(Equals(a,a)) != None)
+  }
 }
