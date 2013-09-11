@@ -4,9 +4,9 @@ import regolic.sat.Solver.Results._
 import regolic.asts.core.Trees._
 import API._
 
-import regolic.helper.FunSuiteWithIDReset
+import org.scalatest.FunSuite
 
-class APISuite extends FunSuiteWithIDReset {
+class APISuite extends FunSuite {
 
   val x1 = boolVar()
   val x2 = boolVar()

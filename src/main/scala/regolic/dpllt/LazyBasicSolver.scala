@@ -1,9 +1,7 @@
 package regolic.dpllt
 
 import regolic.sat.PropLiteral
-import regolic.sat.PropLiteralID
 import regolic.sat.TLiteral
-import regolic.sat.TLiteralID
 import regolic.sat.Literal
 import regolic.sat.Solver.Results._
 import regolic.asts.core.Trees._
@@ -34,8 +32,8 @@ object LazyBasicSolver {
    * Algorithm 11.2.1 from Decision Procedures by Kroening and Strichman
    */
   def solve(solver: regolic.smt.Solver, phi: Formula): Boolean = {
-    val (clauses, encoding) = PropositionalSkeleton(phi)
-    val satSolver = new regolic.sat.Solver(PropLiteralID.count + TLiteralID.count)
+    val (clauses, encoding, nbTVars, nbPropVars) = PropositionalSkeleton(phi)
+    val satSolver = new regolic.sat.Solver(nbTVars + nbPropVars)
     clauses.foreach(satSolver.addClause)
 
     while(true) {

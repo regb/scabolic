@@ -15,9 +15,9 @@ import regolic.sat.Literal
 
 import scala.util.Random
 
-import regolic.helper.FunSuiteWithIDReset
+import org.scalatest.FunSuite
 
-class DPLLTSuite extends FunSuiteWithIDReset {
+class DPLLTSuite extends FunSuite {
 
   val x = freshVariable("v", IntSort())
   val y = freshVariable("v", IntSort())
@@ -226,4 +226,49 @@ class DPLLTSuite extends FunSuiteWithIDReset {
     cc1.initialize(Set(Equals(a,a)))
     assert(cc1.setTrue(Equals(a,a)) != None)
   }
+
+  test("backtrack 1") {
+    // (a=b) AND (d=e OR a!=c) AND (b=c)
+    val cc1 = new CongruenceClosure
+    cc1.initialize(Set(Equals(a,b), Equals(d,e), Equals(a,c), Not(Equals(b,c))))
+    assert(cc1.setTrue(Equals(a,b)) != None)
+    assert(cc1.setTrue(Not(Equals(a,c))) != None)
+    assert(cc1.setTrue(Equals(b,c)) === None)
+    cc1.backtrack(2)
+    assert(cc1.setTrue(Equals(d,e)) != None)
+    assert(cc1.setTrue(Equals(b,c)) != None)
+  }
+
+  test("backtrack 2") {
+    val cc1 = new CongruenceClosure
+    cc1.initialize(Set(Equals(Apply(gVar,e),b), Equals(d,a),
+      Not(Equals(h,c)), Equals(Apply(gVar,h),b),
+      Equals(Apply(gVar,h),c), Equals(Apply(gVar,e),h)))
+    assert(cc1.setTrue(Equals(Apply(gVar,e),b)) != None)
+    assert(cc1.setTrue(Equals(Apply(gVar,e),h)) != None)
+    assert(cc1.setTrue(Equals(Apply(gVar,h),b)) != None)
+    assert(cc1.setTrue(Equals(Apply(gVar,h),c)) != None)
+    assert(cc1.setTrue(Not(Equals(h,c))) === None)
+    cc1.backtrack(1)
+    assert(cc1.setTrue(Equals(d,a)) != None)
+  }
+
+  // (assert (= (f (f x)) x))
+  // (assert (= (f x) y))
+  // (assert (not (= x y)))
+  test("nested functions") {
+    val cc1 = new CongruenceClosure
+    val l1 = Flattener(Currifier(
+      Equals(FunctionApplication(g, List(FunctionApplication(g, List(x)))), x)
+    ))
+
+    val l2 = Flattener(Currifier(
+      Equals(FunctionApplication(g, List(x)),y)
+    ))
+
+    val eqs: Set[Formula] = (l1 ::: l2).toSet + Not(Equals(x,y))
+    cc1.initialize(eqs)
+    eqs.foreach(eq => assert(cc1.setTrue(eq) != None))
+  }
+
 }

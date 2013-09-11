@@ -3,8 +3,6 @@ package regolic.dpllt
 import regolic.sat.Literal
 import regolic.sat.TLiteral
 import regolic.sat.PropLiteral
-import regolic.sat.TLiteralID
-import regolic.sat.PropLiteralID
 
 import regolic.asts.core.Trees._
 import regolic.asts.fol.Trees._
@@ -39,11 +37,24 @@ class Encoding {
 
 object PropositionalSkeleton {
 
-  def apply(formula: Formula): (Set[Set[Literal]], Encoding) = {
+  def apply(formula: Formula): (Set[Set[Literal]], Encoding, Int, Int) = {
     import scala.collection.mutable.ListBuffer
 
-    PropLiteralID.reset
-    TLiteralID.reset
+    trait LiteralID {
+      private var counter = -1
+      def next = {
+        counter += 1
+        counter
+      }
+
+      def count = counter + 1
+
+      def reset = {
+        counter = -1
+      }
+    }
+    object TLiteralID extends LiteralID
+    object PropLiteralID extends LiteralID
 
     val constraints = new ListBuffer[Set[Literal]]
 
@@ -123,8 +134,17 @@ object PropositionalSkeleton {
 
     val repr = rec(formula)
     constraints += Set(repr.pos)
+
+    for(c <- constraints)
+      for(l <- c) {
+        l.setOffset(l.actualType match {
+          case TLiteral => 0
+          case PropLiteral => TLiteralID.count
+        })
+        println("l: "+ l +" l.getID: "+ l.getID)
+      }
      
-    (constraints.toSet, encoding)
+    (constraints.toSet, encoding, TLiteralID.count, PropLiteralID.count)
   }
 
 }

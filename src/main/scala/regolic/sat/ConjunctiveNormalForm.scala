@@ -10,7 +10,20 @@ object ConjunctiveNormalForm {
     import scala.collection.mutable.HashMap
     import scala.collection.mutable.ListBuffer
 
-    PropLiteralID.reset
+    trait LiteralID {
+      private var counter = -1
+      def next = {
+        counter += 1
+        counter
+      }
+
+      def count = counter + 1
+
+      def reset = {
+        counter = -1
+      }
+    }
+    object PropLiteralID extends LiteralID
 
     val constraints = new ListBuffer[Set[Literal]]
     var varToLiteral = new HashMap[Formula, Int]()
