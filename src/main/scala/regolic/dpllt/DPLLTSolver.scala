@@ -702,56 +702,22 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
     if((lit >> 1) < nbTVars) {
       val tLit = if((lit & 1) == 0) encoding.theory(lit >> 1) else Not(encoding.theory(lit >> 1))
       println(" is tLit: "+ tLit)
-      var enqueuedLit = 0
-      enqueuedLit = lit
-      val wasPushed = enqueueLiteral(enqueuedLit, from)
-      assert(wasPushed)
-      val t = tSolver.setTrue(tLit)
-      //val t = tLit match {
-        //case Not(l) if tSolver.isTrue(tLit) => {
-          //enqueuedLit = lit
-          //val wasPushed = enqueueLiteral(enqueuedLit, from)
-          //assert(wasPushed)
-          //tSolver.setTrue(tLit)
-        //}
-        //case Not(l) if tSolver.isTrue(l) => {
-          //enqueuedLit = lit ^ 1
-          //val wasPushed = enqueueLiteral(enqueuedLit, from)
-          //assert(wasPushed)
-          //tSolver.setTrue(l)
-        //}
-        //case l if tSolver.isTrue(l) => {
-          //enqueuedLit = lit
-          //val wasPushed = enqueueLiteral(enqueuedLit, from)
-          //assert(wasPushed)
-          //tSolver.setTrue(tLit)
-        //}
-        //case l if tSolver.isTrue(Not(l)) => {
-          //enqueuedLit = lit ^ 1
-          //val wasPushed = enqueueLiteral(enqueuedLit, from)
-          //assert(wasPushed)
-          //tSolver.setTrue(Not(l))
-        //}
-        //case _ => None
-      //}
-      
-      //if(tSolver.isTrue(tLit)) {
-        //enqueuedLit = lit
-        //val wasPushed = enqueueLiteral(enqueuedLit, from)
-        //assert(wasPushed)
-        //println("setTrue("+ tLit +")")
-        //tSolver.setTrue(tLit)
-      //} else if(tSolver.isTrue(Not(tLit))) {
-        //enqueuedLit = lit ^ 1
-        //val wasPushed = enqueueLiteral(enqueuedLit, from)
-        //assert(wasPushed)
-        //println("setTrue("+ Not(tLit) +")")
-        //tSolver.setTrue(Not(tLit))
-      //}
-      //else
-        //None
 
-      t match {
+      val (propLit, theoryLit) = if(from == null) {
+        // decision
+        tLit match {
+          case Not(l) if tSolver.isTrue(Not(l)) => (lit, Not(l))
+          case Not(l) if tSolver.isTrue(l) =>      (lit ^ 1, l)
+          case l if tSolver.isTrue(Not(l)) =>      (lit ^ 1, Not(l))
+          case l if tSolver.isTrue(l) =>           (lit, l)
+        }
+      } else {
+        // bcp
+        (lit, tLit)
+      }
+      val wasPushed = enqueueLiteral(propLit, from)
+      assert(wasPushed)
+      tSolver.setTrue(theoryLit) match {
         case Some(tConsequence) => {
           //println("t-consequence: "+ t.mkString("\n", "\n", "\n"))
           tConsequence.withFilter(_ != tLit).foreach(tConsLit => {
@@ -759,12 +725,12 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
                 case Not(tConsVar) => {
                   println("enqueuing theory consequence: "+ tConsLit +" = "+ encoding.id(tConsVar))
                   enqueueLiteral(encoding.id(tConsVar)*2 + 1)
-                  tReasons(encoding.id(tConsVar)*2 + 1) = enqueuedLit
+                  tReasons(encoding.id(tConsVar)*2 + 1) = propLit
                 }
                 case tConsVar => {
                   println("enqueuing theory consequence: "+ tConsLit +" = "+ encoding.id(tConsVar))
                   enqueueLiteral(encoding.id(tConsVar)*2)
-                  tReasons(encoding.id(tConsVar)*2) = enqueuedLit
+                  tReasons(encoding.id(tConsVar)*2) = propLit
                 }
               }
             }
@@ -772,7 +738,7 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
         } 
         case None => {
           status = Conflict
-          conflict = reasons(enqueuedLit >> 1)
+          conflict = reasons(propLit >> 1)
           println("Conflict 1: "+ conflict)
         }
       }

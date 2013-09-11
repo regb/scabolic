@@ -331,12 +331,12 @@ class CongruenceClosure extends TheorySolver {
 
     val retVal = l match {
       case eq@Equals(t1, t2) => {
-        //merge(eq)
-        val tmp = merge(eq)
-        tmp match {
-          case None => None
-          case _ => Some(Set.empty[Formula])
-        }
+        merge(eq)
+        //val tmp = merge(eq)
+        //tmp match {
+          //case None => None
+          //case _ => Some(Set.empty[Formula])
+        //}
       }
       case Not(Equals(t1: Variable, t2: Variable)) => {
         if(!areCongruent(t1, t2)) {
@@ -360,8 +360,8 @@ class CongruenceClosure extends TheorySolver {
           }
 
           negReason ++= tConsequence.map(ineq => (ineq, l))
-          //Some(tConsequence.toSet)
-          Some(Set.empty[Formula])
+          Some(tConsequence.toSet)
+          //Some(Set.empty[Formula])
         } else
           None // inconsistent
       }

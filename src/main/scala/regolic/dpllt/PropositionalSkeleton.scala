@@ -141,7 +141,6 @@ object PropositionalSkeleton {
           case TLiteral => 0
           case PropLiteral => TLiteralID.count
         })
-        println("l: "+ l +" l.getID: "+ l.getID)
       }
      
     (constraints.toSet, encoding, TLiteralID.count, PropLiteralID.count)
