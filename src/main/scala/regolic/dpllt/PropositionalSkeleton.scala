@@ -80,7 +80,7 @@ object PropositionalSkeleton {
           }
           case PropositionalVariable(_) => {
             val reprID = PropLiteralID.next
-            // TODO vartoliteral(reprID) = f
+            // TODO varToLiteral map
             new Literal(reprID, PropLiteral)
           }
           case _ => throw new Exception("This type of literal hasn't been implemented yet")

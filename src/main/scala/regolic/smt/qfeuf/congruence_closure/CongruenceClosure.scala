@@ -153,6 +153,11 @@ class CongruenceClosure extends TheorySolver {
           }
         }
         case Not(eq@Equals((t1: Variable), (t2: Variable))) => {
+          // TODO we should check if the repr exists when we setTrue an
+          // inequality and return an Error if not, rather than adding them for
+          // all variables
+          newElems ++= extractVariables(t1)
+          newElems ++= extractVariables(t2)
           //posLitList(t1) += eq
           //posLitList(t2) += eq
           negLitList(t1) += l
@@ -172,6 +177,8 @@ class CongruenceClosure extends TheorySolver {
     classList ++= newElems.map(el => (el, Queue(el)))
     node ++= newElems.map{e => (e, new ProofStructureNode(e, null))}
     elems ++= newElems
+
+    println("repr: "+ repr.mkString("\n", "\n", "\n"))
   }
 
   private val elems = collection.mutable.Set[Term]()
@@ -215,7 +222,7 @@ class CongruenceClosure extends TheorySolver {
 
   val invalidTimestamps = collection.mutable.Set[Timestamp]()
   def backtrack(n: Int) = {
-    println("in tSolver backtrack: "+ iStack.mkString("\n", "\n", "\n"))
+    //println("in tSolver backtrack: "+ iStack.mkString("\n", "\n", "\n"))
     if(n <= iStack.size) {
       1 to n foreach { _ => {
         val delTimestamp = new Timestamp(iStack.top._1, iStack.size)
@@ -227,12 +234,13 @@ class CongruenceClosure extends TheorySolver {
     } else {
       throw new Exception("Can't pop "+ n +" literals from I-stack.")
     }
-    println("t-backtracking done: "+ iStack.mkString("\n", "\n", "\n"))
+    //println("t-backtracking done: "+ iStack.mkString("\n", "\n", "\n"))
   }
 
   // l is t-consequence of setTrue(lPrime)
   def explain(l: Formula, lPrime: Formula): Set[Formula] = {
     assert(!iStack.isEmpty)
+    println("in explain, l: "+ l +", lPrime: "+ lPrime)
     
     // undo all merges after lPrime was pushed onto the iStack
     val restoreIStack = Stack[Pair[Int, Formula]]()
@@ -258,6 +266,7 @@ class CongruenceClosure extends TheorySolver {
       }
       case Not(Equals((d1: Variable), (e1: Variable))) => {
         val cause = negReason(l)
+        println("cause:" + cause)
         val Not(Equals((d2: Variable), (e2: Variable))) = cause
         (explain(d1, d2) union explain(e1, e2)) + cause
       }
@@ -331,12 +340,12 @@ class CongruenceClosure extends TheorySolver {
 
     val retVal = l match {
       case eq@Equals(t1, t2) => {
-        merge(eq)
-        //val tmp = merge(eq)
-        //tmp match {
-          //case None => None
-          //case _ => Some(Set.empty[Formula])
-        //}
+        //merge(eq)
+        val tmp = merge(eq)
+        tmp match {
+          case None => None
+          case _ => Some(Set.empty[Formula])
+        }
       }
       case Not(Equals(t1: Variable, t2: Variable)) => {
         if(!areCongruent(t1, t2)) {
@@ -360,8 +369,8 @@ class CongruenceClosure extends TheorySolver {
           }
 
           negReason ++= tConsequence.map(ineq => (ineq, l))
-          Some(tConsequence.toSet)
-          //Some(Set.empty[Formula])
+          //Some(tConsequence.toSet)
+          Some(Set.empty[Formula])
         } else
           None // inconsistent
       }
@@ -425,6 +434,10 @@ class CongruenceClosure extends TheorySolver {
           // is not pushed onto the I-stack, make sure to set the timestamp
           // invalid here.
           // As it stands now, it gets taken care of in backtrack.
+          //println(trigger +" is inconsistent because of "+ repr(a) +" != "+
+            //diseq(repr(a)).filter{case(t,v) => {t.isValid && v == repr(b)}})
+          //println(repr(a) +" = "+ a +" because of: "+ explain(repr(a).asInstanceOf[Variable], a))
+          //println(repr(b) +" = "+ b +" because of: "+ explain(repr(b).asInstanceOf[Variable], b))
           return None
         }
 
@@ -470,9 +483,13 @@ class CongruenceClosure extends TheorySolver {
         diseq(oldreprA).foreach{d => d match {
           case (t,v) if t.isValid => {
             diseq(repr(b)) += Pair(currentTimestamp, v)
-            diseq(v) ++= diseq(v).map{case (t,r) if t.isValid => {
-              (currentTimestamp, repr(r))
-            }}
+            diseq(v) ++= diseq(v).map{pair => {
+                pair match {
+                  case (t,r) if t.isValid => (currentTimestamp, repr(r))
+                  case _ => pair
+                }
+              }
+            }
           }
           case _ => ()
         }}

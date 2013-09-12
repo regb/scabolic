@@ -21,7 +21,6 @@ class Literal(private val id: Int, private var offset: Int, val polInt: Int, val
   def getID = id + offset
 
   def setOffset(offset: Int) {
-    println("offset: "+ offset)
     this.offset = offset
   }
 
