@@ -177,8 +177,6 @@ class CongruenceClosure extends TheorySolver {
     classList ++= newElems.map(el => (el, Queue(el)))
     node ++= newElems.map{e => (e, new ProofStructureNode(e, null))}
     elems ++= newElems
-
-    println("repr: "+ repr.mkString("\n", "\n", "\n"))
   }
 
   private val elems = collection.mutable.Set[Term]()
@@ -223,11 +221,13 @@ class CongruenceClosure extends TheorySolver {
   val invalidTimestamps = collection.mutable.Set[Timestamp]()
   def backtrack(n: Int) = {
     //println("in tSolver backtrack: "+ iStack.mkString("\n", "\n", "\n"))
+    //println("repr before backtracking: "+ repr.mkString("\n", "\n", "\n"))
     if(n <= iStack.size) {
       1 to n foreach { _ => {
         val delTimestamp = new Timestamp(iStack.top._1, iStack.size)
         invalidTimestamps += delTimestamp
 
+        //println("popping: "+ iStack.top._2)
         undoMerge(iStack.pop._2)
       }}
 
@@ -235,12 +235,16 @@ class CongruenceClosure extends TheorySolver {
       throw new Exception("Can't pop "+ n +" literals from I-stack.")
     }
     //println("t-backtracking done: "+ iStack.mkString("\n", "\n", "\n"))
+  
+    //println("t-backtracking done, invalid timestamps: "+ invalidTimestamps.mkString("\n", "\n", "\n"))
+    //println("repr after backtracking: "+ repr.mkString("\n", "\n", "\n"))
+    //println("diseq after backtracking: "+ diseq.mkString("\n", "\n", "\n"))
   }
 
   // l is t-consequence of setTrue(lPrime)
   def explain(l: Formula, lPrime: Formula): Set[Formula] = {
     assert(!iStack.isEmpty)
-    println("in explain, l: "+ l +", lPrime: "+ lPrime)
+    //println("in explain, l: "+ l +", lPrime: "+ lPrime)
     
     // undo all merges after lPrime was pushed onto the iStack
     val restoreIStack = Stack[Pair[Int, Formula]]()
@@ -266,7 +270,7 @@ class CongruenceClosure extends TheorySolver {
       }
       case Not(Equals((d1: Variable), (e1: Variable))) => {
         val cause = negReason(l)
-        println("cause:" + cause)
+        //println("cause:" + cause)
         val Not(Equals((d2: Variable), (e2: Variable))) = cause
         (explain(d1, d2) union explain(e1, e2)) + cause
       }
@@ -333,7 +337,7 @@ class CongruenceClosure extends TheorySolver {
   // Every call to setTrue needs to push a literal to the iStack, so that
   // backtracking is possible for each T-literal enqueued in the DPLL engine
   def setTrue(l: Formula): Option[Set[Formula]] = {
-    println("setTrue: "+ l)
+    //println("setTrue: "+ l)
     trigger = l
     ctr += 1
     iStack.push((ctr, l))
@@ -378,11 +382,12 @@ class CongruenceClosure extends TheorySolver {
     }
 
     //println("iStack before pushing "+ l +":"+ iStack.mkString("\n", "\n", "\n"))
-    if(retVal != None)
-      println("t-consequences: "+ retVal.get.mkString("\n", "\n", "\n"))
-    else
-      println("inconsistency detected")
+    //if(retVal != None)
+      //println("t-consequences: "+ retVal.get.mkString("\n", "\n", "\n"))
+    //else
+      //println("inconsistency detected")
     //println("after setTrue("+ l +"): "+ repr.mkString("\n", "\n", "\n"))
+    //println("repr: "+ repr.mkString("\n", "\n", "\n"))
     //println("diseq: "+ diseq.mkString("\n", "\n", "\n"))
     //println("lookup: "+ lookup.mkString("\n", "\n", "\n"))
 
@@ -428,6 +433,9 @@ class CongruenceClosure extends TheorySolver {
       // merge classes of a and b (a => b)
       if(repr(a) != repr(b)) {
 
+        //println("repr("+ a +"): "+ repr(a))
+        //println("repr("+ b +"): "+ repr(b))
+        //println("--diseq: "+ diseq.mkString("\n", "\n", "\n"))
         // trying to merge classes, which are disequal
         if(diseq(repr(a)).exists{case(t,v) => {t.isValid && v == repr(b)}}) {
           // If for some reason, the trigger literal causing this inconsistency
@@ -436,7 +444,7 @@ class CongruenceClosure extends TheorySolver {
           // As it stands now, it gets taken care of in backtrack.
           //println(trigger +" is inconsistent because of "+ repr(a) +" != "+
             //diseq(repr(a)).filter{case(t,v) => {t.isValid && v == repr(b)}})
-          //println(repr(a) +" = "+ a +" because of: "+ explain(repr(a).asInstanceOf[Variable], a))
+          //println(repr(a) +" = "+ a +" because of: "+explain(repr(a).asInstanceOf[Variable], a))
           //println(repr(b) +" = "+ b +" because of: "+ explain(repr(b).asInstanceOf[Variable], b))
           return None
         }
@@ -495,8 +503,8 @@ class CongruenceClosure extends TheorySolver {
         }}
         // TODO maybe just completely clear diseq(oldreprA). invalid timestamps
         // aren't needed and valid ones are moved
-        //diseq(oldreprA) = diseq(oldreprA).filter{case (t,_) => t.isValid}
-        diseq(oldreprA).clear
+        diseq(oldreprA) = diseq(oldreprA).filter{case (t,_) => t.isValid}
+        //diseq(oldreprA).clear
         //(currentTimestamp, collection.mutable.Set.empty[Term])
 
         while(useList(oldreprA).nonEmpty) {
@@ -676,8 +684,8 @@ class CongruenceClosure extends TheorySolver {
           
           // Map explanation back
           // TODO uncommenting this breaks the explain test case
-          //explanation += Equals(fa, a)
-          //explanation += Equals(fb, b)
+          explanation += Equals(fa, a)
+          explanation += Equals(fb, b)
 
           pendingProofs.enqueue(Equals(a1, b1))
           pendingProofs.enqueue(Equals(a2, b2))

@@ -86,9 +86,9 @@ class DPLLTSuite extends FunSuite {
     val truthValTheory = evaluate(f)
 
     val (constraints, encoding, _, _) = PropositionalSkeleton(f)
-    println("theory: "+ encoding.theory.mkString("\n", "\n", "\n"))
-    println("theoryOrig: "+ encoding.theoryOrig.mkString("\n", "\n", "\n"))
-    println("constraints: "+ constraints.mkString("\n", "\n", "\n"))
+    //println("theory: "+ encoding.theory.mkString("\n", "\n", "\n"))
+    //println("theoryOrig: "+ encoding.theoryOrig.mkString("\n", "\n", "\n"))
+    //println("constraints: "+ constraints.mkString("\n", "\n", "\n"))
     val idToTruthVal = encoding.theory.zipWithIndex.map{
       case (eq, litId) => eq match {
         case Equals(t1, t2) => (litId, assignment(t1) == assignment(t2))
@@ -276,6 +276,38 @@ class DPLLTSuite extends FunSuite {
     val x1 = freshVariable("x", IntSort()); val y1 = freshVariable("y", IntSort()); val z1 = freshVariable("z", IntSort());
     val x2 = freshVariable("x", IntSort()); val y2 = freshVariable("y", IntSort()); val z2 = freshVariable("z", IntSort());
     val x3 = freshVariable("x", IntSort()); val y3 = freshVariable("y", IntSort()); val z3 = freshVariable("z", IntSort());
+    val x4 = freshVariable("x", IntSort());
+
+    // This model is invalid. Either (x3=y3 and y3=x4) or (x3=z3 and z3=x4) has
+    // to be true, otherwise the instance is unsat propositionally
+    val diamond: List[Formula] = List(
+      Not(Equals(x0, y0)),
+      Not(Equals(y0, x1)),
+      Equals(x0, z0),
+      Equals(z0, x1),
+      Equals(x1, y1),
+      Equals(y1, x2),
+      Not(Equals(x1, z1)),
+      Not(Equals(z1, x2)),
+      Not(Equals(x2, y2)),
+      Not(Equals(y2, x3)),
+      Equals(x2, z2),
+      Equals(z2, x3),
+      Not(Equals(x3, x4)),
+      Equals(x0, x4)
+    )
+    val cc = new CongruenceClosure
+    cc.initialize(diamond.toSet)
+    val results = diamond.map(eq => cc.setTrue(eq))
+    assert(results.exists(_ == None))
+  }
+
+
+  test("diamond 2") {
+    val x0 = freshVariable("x", IntSort()); val y0 = freshVariable("y", IntSort()); val z0 = freshVariable("z", IntSort());
+    val x1 = freshVariable("x", IntSort()); val y1 = freshVariable("y", IntSort()); val z1 = freshVariable("z", IntSort());
+    val x2 = freshVariable("x", IntSort()); val y2 = freshVariable("y", IntSort()); val z2 = freshVariable("z", IntSort());
+    val x3 = freshVariable("x", IntSort()); val y3 = freshVariable("y", IntSort()); val z3 = freshVariable("z", IntSort());
     val x4 = freshVariable("x", IntSort()); val y4 = freshVariable("y", IntSort()); val z4 = freshVariable("z", IntSort());
     val x5 = freshVariable("x", IntSort()); val y5 = freshVariable("y", IntSort()); val z5 = freshVariable("z", IntSort());
     val x6 = freshVariable("x", IntSort()); val y6 = freshVariable("y", IntSort()); val z6 = freshVariable("z", IntSort());
@@ -300,117 +332,167 @@ class DPLLTSuite extends FunSuite {
     val x25 = freshVariable("x", IntSort()); val y25 = freshVariable("y", IntSort()); val z25 = freshVariable("z", IntSort());
     val x26 = freshVariable("x", IntSort()); val y26 = freshVariable("y", IntSort()); val z26 = freshVariable("z", IntSort());
 
-    val diamond: Set[Formula] = Set(
-      Not(Equals(x0, y0)),
-      Not(Equals(y0, x1)),
-      Equals(x0, z0),
-      Equals(z0, x1),
-      Equals(x1, y1),
-      Equals(y1, x2),
-      Not(Equals(x1, z1)),
-      Not(Equals(z1, x2)),
-      Not(Equals(x2, y2)),
-      Not(Equals(y2, x3)),
-      Equals(x2, z2),
-      Equals(z2, x3),
-      Not(Equals(x3, y3)),
-      Not(Equals(y3, x4)),
-      Not(Equals(x3, z3)),
-      Not(Equals(z3, x4)),
-      Not(Equals(x4, y4)),
-      Not(Equals(y4, x5)),
-      Not(Equals(x4, z4)),
-      Not(Equals(z4, x5)),
-      Equals(x5, y5),
-      Equals(y5, x6),
-      Not(Equals(x5, z5)),
-      Not(Equals(z5, x6)),
-      Not(Equals(x6, y6)),
-      Not(Equals(y6, x7)),
-      Equals(x6, z6),
-      Equals(z6, x7),
-      Equals(x7, y7),
-      Equals(y7, x8),
-      Not(Equals(x7, z7)),
-      Not(Equals(z7, x8)),
-      Not(Equals(x8, y8)),
-      Not(Equals(y8, x9)),
-      Equals(x8, z8),
-      Equals(z8, x9),
-      Not(Equals(x9, y9)),
-      Not(Equals(y9, x10)),
-      Not(Equals(x9, z9)),
-      Not(Equals(z9, x10)),
-      Equals(x10, y10),
-      Equals(y10, x11),
-      Not(Equals(x10, z10)),
-      Not(Equals(z10, x11)),
-      Not(Equals(x11, y11)),
-      Not(Equals(y11, x12)),
-      Equals(x11, z11),
-      Equals(z11, x12),
-      Not(Equals(x12, y12)),
-      Not(Equals(y12, x13)),
-      Not(Equals(x12, z12)),
-      Not(Equals(z12, x13)),
-      Equals(x13, y13),
-      Equals(y13, x14),
-      Not(Equals(x13, z13)),
-      Not(Equals(z13, x14)),
-      Not(Equals(x14, y14)),
-      Not(Equals(y14, x15)),
-      Equals(x14, z14),
-      Equals(z14, x15),
-      Not(Equals(x15, y15)),
-      Not(Equals(y15, x16)),
-      Not(Equals(x15, z15)),
-      Not(Equals(z15, x16)),
-      Not(Equals(x16, y16)),
-      Not(Equals(y16, x17)),
-      Not(Equals(x16, z16)),
-      Not(Equals(z16, x17)),
-      Not(Equals(x17, y17)),
-      Not(Equals(y17, x18)),
-      Equals(x17, z17),
-      Equals(z17, x18),
-      Not(Equals(x18, y18)),
-      Not(Equals(y18, x19)),
-      Equals(x18, z18),
-      Equals(z18, x19),
-      Not(Equals(x19, y19)),
-      Not(Equals(y19, x20)),
-      Equals(x19, z19),
-      Equals(z19, x20),
-      Not(Equals(x20, y20)),
-      Not(Equals(y20, x21)),
-      Equals(x20, z20),
-      Equals(z20, x21),
-      Equals(x21, y21),
-      Equals(y21, x22),
-      Not(Equals(x21, z21)),
-      Not(Equals(z21, x22)),
-      Not(Equals(x22, y22)),
-      Not(Equals(y22, x23)),
-      Not(Equals(x22, z22)),
-      Not(Equals(z22, x23)),
-      Not(Equals(x23, y23)),
-      Not(Equals(y23, x24)),
-      Equals(x23, z23),
-      Equals(z23, x24),
-      Equals(x24, y24),
-      Equals(y24, x25),
-      Not(Equals(x24, z24)),
-      Not(Equals(z24, x25)),
-      Not(Equals(x25, y25)),
-      Not(Equals(y25, x26)),
-      Not(Equals(x25, z25)),
-      Not(Equals(z25, x26)),
-      Equals(x0, x26)
+    val diamond = List[Formula](
+      Equals(x0, y0),
+      Equals(y0, x1),
+      Not(Equals(x0, z0)),
+      Not(Equals(z0, x1)),
+      Not(Equals(x1, y1)),
+      Not(Equals(y1, x2)),
+      Equals(x1, z1),
+      Equals(z1, x2),
+      Equals(x2, y2),
+      Equals(y2, x3),
+      Not(Equals(x2, z2)),
+      Not(Equals(z2, x3)),
+      Equals(x3, y3),
+      Equals(y3, x4),
+      Equals(x3, z3),
+      Equals(z3, x4),
+      Equals(x4, y4),
+      Equals(y4, x5),
+      Equals(x4, z4),
+      Equals(z4, x5),
+      Not(Equals(x5, y5)),
+      Not(Equals(y5, x6)),
+      Equals(x5, z5),
+      Equals(z5, x6),
+      Equals(x6, y6),
+      Equals(y6, x7),
+      Not(Equals(x6, z6)),
+      Not(Equals(z6, x7)),
+      Not(Equals(x7, y7)),
+      Not(Equals(y7, x8)),
+      Equals(x7, z7),
+      Equals(z7, x8),
+      Equals(x8, y8),
+      Equals(y8, x9),
+      Not(Equals(x8, z8)),
+      Not(Equals(z8, x9)),
+      Equals(x9, y9),
+      Equals(y9, x10),
+      Equals(x9, z9),
+      Equals(z9, x10),
+      Not(Equals(x10, y10)),
+      Not(Equals(y10, x11)),
+      Equals(x10, z10),
+      Equals(z10, x11),
+      Equals(x11, y11),
+      Equals(y11, x12),
+      Not(Equals(x11, z11)),
+      Not(Equals(z11, x12)),
+      Equals(x12, y12),
+      Equals(y12, x13),
+      Equals(x12, z12),
+      Equals(z12, x13),
+      Not(Equals(x13, y13)),
+      Not(Equals(y13, x14)),
+      Equals(x13, z13),
+      Equals(z13, x14),
+      Equals(x14, y14),
+      Equals(y14, x15),
+      Not(Equals(x14, z14)),
+      Not(Equals(z14, x15)),
+      Equals(x15, y15),
+      Equals(y15, x16),
+      Equals(x15, z15),
+      Equals(z15, x16),
+      Equals(x16, y16),
+      Equals(y16, x17),
+      Equals(x16, z16),
+      Equals(z16, x17),
+      Equals(x17, y17),
+      Equals(y17, x18),
+      Not(Equals(x17, z17)),
+      Not(Equals(z17, x18)),
+      Equals(x18, y18),
+      Equals(y18, x19),
+      Not(Equals(x18, z18)),
+      Not(Equals(z18, x19)),
+      Equals(x19, y19),
+      Equals(y19, x20),
+      Not(Equals(x19, z19)),
+      Not(Equals(z19, x20)),
+      Equals(x20, y20),
+      Equals(y20, x21),
+      Not(Equals(x20, z20)),
+      Not(Equals(z20, x21)),
+      Not(Equals(x21, y21)),
+      Not(Equals(y21, x22)),
+      Equals(x21, z21),
+      Equals(z21, x22),
+      Equals(x22, y22),
+      Equals(y22, x23),
+      Equals(x22, z22),
+      Equals(z22, x23),
+      Equals(x23, y23),
+      Equals(y23, x24),
+      Not(Equals(x23, z23)),
+      Not(Equals(z23, x24)),
+      Not(Equals(x24, y24)),
+      Not(Equals(y24, x25)),
+      Equals(x24, z24),
+      Equals(z24, x25),
+      Equals(x25, y25),
+      Equals(y25, x26),
+      Equals(x25, z25),
+      Equals(z25, x26),
+      Not(Equals(x0, x26))
     )
+
     val cc = new CongruenceClosure
-    cc.initialize(diamond)
+    cc.initialize(diamond.toSet)
     val results = diamond.map(eq => cc.setTrue(eq))
-    assert(results.exists(_ == None))
-    assert(regolic.smt.qfeuf.CongruenceSolver.isSat(diamond.toList) == None)
+    assert(results.reverse.tail.forall(_ != None))
+    assert(results.reverse.head == None)
+    //assert(cc.setTrue(diamond.reverse.head) == None)
+    //cc.backtrack(15)
+    //val posLit = diamond.reverse.take(15).reverse.head
+    //val posLit2 = diamond.reverse.take(14).reverse.head
+    //assert(cc.setTrue(Not(posLit)) != None)
+    //assert(cc.setTrue(Not(posLit2)) != None)
+    //assert(diamond.reverse.take(13).map(eq => cc.setTrue(eq)).exists(_ == None))
+  }
+
+  test("backtrack 3") {
+    val eq = Equals(a,b)
+    val cc = new CongruenceClosure
+    cc.initialize(Set[Formula](eq))
+    assert(cc.isTrue(eq) === false)
+    cc.setTrue(eq)
+    assert(cc.isTrue(eq) === true)
+    cc.backtrack(1)
+    assert(cc.isTrue(eq) === false)
+  }
+
+  test("backtrack 4") {
+    val x0 = freshVariable("x", IntSort());
+    val x1 = freshVariable("x", IntSort());
+    val y0 = freshVariable("y", IntSort());
+
+    val diamond = List[Formula](
+      Not(Equals(x0, x1)),
+      Equals(x0, y0),
+      Equals(y0, x1)
+    )
+
+    val afterBacktracking = List[Formula](
+      Equals(x0, x1)
+    )
+
+    val cc = new CongruenceClosure
+    val dSet = diamond.toSet
+    cc.initialize(dSet)
+    val results = diamond.map(eq => cc.setTrue(eq))
+    assert(results.reverse.tail.forall(_ != None))
+    assert(results.reverse.head == None)
+
+    cc.backtrack(2)
+
+    
+
+    val resultsAfterBacktracking = afterBacktracking.map(eq => cc.setTrue(eq))
+    assert(resultsAfterBacktracking.exists(_ == None))
+            
   }
 }
