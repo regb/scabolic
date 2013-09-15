@@ -44,10 +44,12 @@ object SmtLib2 {
   import Trees._
 
   private var funSymbols: Map[String, FunctionSymbol] = Map()
+  private var predSymbols: Map[String, PredicateSymbol] = Map()
 
   def apply(input: java.io.Reader): List[Command] = {
 
     funSymbols = Map()
+    predSymbols = Map()
 
     val l = new sexpr.Lexer(input)
     val p = new sexpr.Parser(l)
@@ -67,7 +69,10 @@ object SmtLib2 {
         case SList(List(SSymbol("DECLARE-FUN"), SSymbol(fun), SList(sorts), sort)) => {
           val paramSorts = sorts map parseSort
           val returnSort = parseSort(sort)
-          funSymbols += (fun -> FunctionSymbol(fun, paramSorts, returnSort))
+          if(returnSort == Sort("BOOL", List()))
+            predSymbols += (fun -> PredicateSymbol(fun, paramSorts))
+          else
+            funSymbols += (fun -> FunctionSymbol(fun, paramSorts, returnSort))
         }
         case SList(List(SSymbol("ASSERT"), term)) =>
           cmds.append(Assert(parseFormula(term, Map())))
@@ -108,9 +113,10 @@ object SmtLib2 {
 
   def parseFormulaTerm(sExpr: SExpr, scope: Map[String, Either[Formula, Term]]): Either[Formula, Term] = {
     try {
+      println("parsing: " + sExpr)
       Left(parseFormula(sExpr, scope))
     } catch {
-      case (_: Throwable) => Right(parseTerm(sExpr, scope))
+      case (ex: Throwable) => { ex.printStackTrace; println("failed, trying term"); Right(parseTerm(sExpr, scope))}
     }
   }
 
@@ -211,6 +217,7 @@ object SmtLib2 {
         case RealTrees.RealSort() => RealTrees.GreaterEqualSymbol()
       }
       case "=" => EqualsSymbol(args(0).sort)
+      case _ => predSymbols(sym)
     }
 
     PredicateApplication(predSym, args.toList)
