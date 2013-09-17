@@ -13,6 +13,9 @@ import regolic.smt.qflra.SimplexSolver
 
 import regolic.dpllt.LazyBasicSolver
 import regolic.dpllt.DPLLTSolverWrapper
+import regolic.dpllt.Results._
+
+import regolic.sexpr.SExprs._
 
 trait TheorySolver {
 
@@ -35,9 +38,10 @@ object TheorySolver {
   val allSolvers: List[TheorySolver] = List() // TODO wrapper object for congruence closure
 
   def execute(cmds: List[Command]) {
-    println("Executing following script: " + cmds)
     var solver: Option[TheorySolver] = None
     var asserts: List[Formula] = List(True())
+
+    var expectedResult: Option[Boolean] = None
 
     for(cmd <- cmds) {
       cmd match {
@@ -53,13 +57,35 @@ object TheorySolver {
         }
         case CheckSat => {
           val formula = simplify(asserts.foldLeft(True(): Formula)((acc, f) => And(acc, f)))
-          //println("isSat: "+ FastCongruenceSolver.isSat(formula))
           val cc = new CongruenceClosure
-          //println("isSat: " + DPLLTSolverWrapper(solver.get, formula))
-          println("isSat: " + DPLLTSolverWrapper(cc, formula))
+          val result = DPLLTSolverWrapper(cc, formula)
+
+          val resultString = result match {
+            case Satisfiable(_) if expectedResult == Some(false) => "sat | should be unsat"
+            case Satisfiable(_) => "sat"
+            case Unsatisfiable if expectedResult == Some(true) => "unsat | should be sat"
+            case Unsatisfiable => "unsat"
+          }
+          println(resultString)
+        }
+        case SetInfo(attr) => {
+          attr match {
+            case Attribute("STATUS", Some(SSymbol("SAT"))) => expectedResult = Some(true)
+            case Attribute("STATUS", Some(SSymbol("UNSAT"))) => expectedResult = Some(false)
+            case Attribute("STATUS", _) => {
+              println("WARNING: set-info status set to unsupported value")
+              expectedResult = None
+            }
+            // TODO
+            case Attribute("SOURCE", Some(SSymbol(src))) => ()
+            case Attribute("SMT-LIB-VERSION", Some(SDouble(ver))) => ()
+            case Attribute("CATEGORY", Some(SString(cat))) => ()
+            case _ => println("WARNING: unsupported set-info attribute")
+          }
         }
         case Exit => {
           // TODO
+          sys.exit()
         }
       }
     }
