@@ -495,4 +495,69 @@ class DPLLTSuite extends FunSuite {
     assert(resultsAfterBacktracking.exists(_ == None))
             
   }
+
+  test("backtrack 5") {
+    val x0 = freshVariable("x", IntSort());
+    val x1 = freshVariable("x", IntSort());
+    val y0 = freshVariable("y", IntSort());
+
+    val eqs = List[Formula](
+      Equals(x0, y0),
+      Equals(y0, x1)
+    )
+
+    val cc = new CongruenceClosure
+
+    cc.initialize(eqs.toSet)
+    println("1st run")
+    cc.setTrue(Equals(x0, y0))
+    val r1 = cc.setTrue(Equals(y0, x1))
+    cc.backtrack(2)
+    println("2nd run")
+    cc.setTrue(Equals(y0, x1))
+    val r2 = cc.setTrue(Equals(x0, y0))
+    cc.backtrack(2)
+    println("3rd run")
+    cc.setTrue(Equals(x0, y0))
+    val r3 = cc.setTrue(Equals(y0, x1))
+    assert(r1 === r2)
+    assert(r3 === r2)
+
+  }
+
+  test("backtrack 6") {
+    val eqs = List[Formula](
+      Equals(a, b),
+      Equals(b, c)
+    )
+
+    val cc = new CongruenceClosure
+
+    cc.initialize(eqs.toSet)
+
+    cc.setTrue(Equals(a,b))
+    cc.setTrue(Equals(b,c))
+    cc.backtrack(2)
+  }
+
+/*
+ *  test("negReason") {
+ *    // TODO assertion
+ *    val x0 = freshVariable("x", IntSort());
+ *    val x1 = freshVariable("x", IntSort());
+ *    val y0 = freshVariable("y", IntSort());
+ *
+ *    val formula = List[Formula](
+ *      Not(Equals(x0, x1)),
+ *      Equals(x0, y0)
+ *    )
+ *
+ *    val cc = new CongruenceClosure
+ *    val fSet = formula.toSet
+ *    cc.initialize(fSet)
+ *    val results = formula.map(eq => cc.setTrue(eq))
+ *
+ *    println("explanation: "+ cc.explain(Not(Equals(x1, y0)), Equals(x0, y0)).mkString("\n", "\n", "\n"))
+ *  }
+ */
 }

@@ -83,7 +83,7 @@ object PropositionalSkeleton {
             // TODO varToLiteral map
             new Literal(reprID, PropLiteral)
           }
-          case _ => throw new Exception("This type of literal hasn't been implemented yet")
+          case _ => throw new Exception("This type of literal hasn't been implemented yet: "+ f)
         }
         repr
       }
