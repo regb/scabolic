@@ -27,11 +27,13 @@ trait TheorySolver {
 
   def backtrack(n: Int): Unit
 
-  def explain(l: Formula, lPrime: Formula): Set[Formula]
+  def explain(l: Formula, lPrime: Formula = null): Set[Formula]
 
   def setTrue(l: Formula): Option[Set[Formula]]
   
   val iStack: collection.mutable.Stack[Pair[Int, Formula]]
+
+  var reason: Formula
 }
 
 object TheorySolver {

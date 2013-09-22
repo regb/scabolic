@@ -540,24 +540,43 @@ class DPLLTSuite extends FunSuite {
     cc.backtrack(2)
   }
 
-/*
- *  test("negReason") {
- *    // TODO assertion
- *    val x0 = freshVariable("x", IntSort());
- *    val x1 = freshVariable("x", IntSort());
- *    val y0 = freshVariable("y", IntSort());
- *
- *    val formula = List[Formula](
- *      Not(Equals(x0, x1)),
- *      Equals(x0, y0)
- *    )
- *
- *    val cc = new CongruenceClosure
- *    val fSet = formula.toSet
- *    cc.initialize(fSet)
- *    val results = formula.map(eq => cc.setTrue(eq))
- *
- *    println("explanation: "+ cc.explain(Not(Equals(x1, y0)), Equals(x0, y0)).mkString("\n", "\n", "\n"))
- *  }
- */
+  test("negReason") {
+    // TODO assertion
+    val x0 = freshVariable("x", IntSort());
+    val x1 = freshVariable("x", IntSort());
+    val y0 = freshVariable("y", IntSort());
+
+    val formula = List[Formula](
+      Not(Equals(x0, x1)),
+      Equals(x1, y0),
+      Equals(x0, y0)
+    )
+
+    val cc = new CongruenceClosure
+    val fSet = formula.toSet
+    cc.initialize(fSet)
+    val results = formula.map(eq => cc.setTrue(eq))
+
+    println("explanation: "+ cc.explain(Not(Equals(x0, y0))).mkString("\n", "\n", "\n"))
+  }
+
+  test("explain with backtracking") {
+    val formula = List[Formula](
+      Not(Equals(a, b)),
+      Equals(c, a),
+      Equals(d, b)
+    )
+
+    val cc = new CongruenceClosure
+    val fSet = formula.toSet
+    cc.initialize(fSet)
+    val results = formula.map(eq => cc.setTrue(eq))
+
+    println("explanation: "+ cc.explain(Not(Equals(c, b)), Equals(c, a)).mkString("\n", "\n", "\n"))
+
+    cc.backtrack(1)
+    cc.setTrue(Equals(d,b))
+    println("explanation: "+ cc.explain(Not(Equals(c, b)), Equals(c, a)).mkString("\n", "\n", "\n"))
+
+  }
 }
