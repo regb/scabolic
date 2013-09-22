@@ -113,10 +113,9 @@ object SmtLib2 {
 
   def parseFormulaTerm(sExpr: SExpr, scope: Map[String, Either[Formula, Term]]): Either[Formula, Term] = {
     try {
-      println("parsing: " + sExpr)
       Left(parseFormula(sExpr, scope))
     } catch {
-      case (ex: Throwable) => { ex.printStackTrace; println("failed, trying term"); Right(parseTerm(sExpr, scope))}
+      case (ex: Throwable) => Right(parseTerm(sExpr, scope))
     }
   }
 
