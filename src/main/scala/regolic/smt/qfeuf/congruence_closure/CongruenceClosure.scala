@@ -202,7 +202,7 @@ class CongruenceClosure extends TheorySolver {
 
 
   val invalidTimestamps = collection.mutable.Set[Timestamp]()
-  def backtrack(n: Int) = {
+  def backtrack(n: Int) {
     if(n <= iStack.size) {
       1 to n foreach { _ => {
         val (topCtr, topTrigger) = iStack.pop
@@ -219,6 +219,29 @@ class CongruenceClosure extends TheorySolver {
 
     } else {
       throw new Exception("Can't pop "+ n +" literals from I-stack.")
+    }
+  }
+
+  def backtrackTo(l: Formula) {
+    //println("istack: "+ iStack.mkString("\n", "\n", "\n"))
+    if(l != null) {
+      var tmp: Formula = null
+      do {
+        val (topCtr, topTrigger) = iStack.pop
+        tmp = topTrigger
+        val delTimestamp = new Timestamp(iStack.size + 1, topCtr)
+        //println("invalidating timestamp "+ delTimestamp)
+        invalidTimestamps += delTimestamp
+
+        println("popping: "+ topTrigger)
+        //println("delTimestamp: "+ delTimestamp)
+        undoMerge(topTrigger)
+
+        if(iStack.isEmpty)
+          throw new Exception(l +" was not pushed to iStack")
+      } while(tmp != l) 
+
+      pending.clear()
     }
   }
 
@@ -250,6 +273,7 @@ class CongruenceClosure extends TheorySolver {
         //println("negReason: "+ negReason.mkString("\n", "\n", "\n"))
         //val cause = negReason(l)
         // if valid
+        // TODO
         val cause = diseq(repr(d1)).find{case (t,elem,_) => t.isValid && elem == repr(e1)}.get._3
         println("cause: "+ cause)
 
@@ -257,10 +281,12 @@ class CongruenceClosure extends TheorySolver {
         // Checking for 1 congruence is enough. If d1 congruent e2 as well, that
         // would mean that d1 = d2 AND d1 = e2 AND d2 != e2, which is
         // inconsistent
-        if(areCongruent(d1,d2))
+        if(areCongruent(d1,d2)) {
           (explain(d1, d2) union explain(e1, e2)) + cause
-        else
+        } else {
+          assert(areCongruent(d1, e2))
           (explain(d1, e2) union explain(e1, d2)) + cause
+        }
       }
       case _ => throw new Exception("explain called on unsupported formula type "+ l)
     }
@@ -395,10 +421,10 @@ class CongruenceClosure extends TheorySolver {
     //if(retVal == None)
       //backtrack(1)
 
-    if(retVal != None)
-      println("t-consequences: "+ retVal.get.mkString("\n", "\n", "\n"))
-    else
-      println("inconsistency detected")
+    //if(retVal != None)
+      //println("t-consequences: "+ retVal.get.mkString("\n", "\n", "\n"))
+    //else
+      //println("inconsistency detected")
     //println("after setTrue("+ l +"): "+ repr.mkString("\n", "\n", "\n"))
     //println("repr: "+ repr.mkString("\n", "\n", "\n"))
     //println("diseq: "+ diseq.mkString("\n", "\n", "\n"))
@@ -505,22 +531,8 @@ class CongruenceClosure extends TheorySolver {
           case (t,v,reason1) if t.isValid => {
             diseq(repr(b)) += Tuple3(currentTimestamp, v, reason1)
 
-            println("moving "+ v +" to "+ repr(b))
+            //println("moving "+ v +" to "+ repr(b))
 
-            tConsequence ++= negLitList(v).filter{ineq => ineq match {
-              case Not(Equals(t1, t2)) => {
-                if((repr(t1) == repr(b) && repr(t2) == v) || (repr(t1) == v && repr(t2) == repr(b))) {
-                  println("  repr("+ t1 +"): "+ repr(t1))
-                  println("  repr("+ t2 +"): "+ repr(t2))
-                  println("  tConsequence: "+ ineq)
-                  true
-                } else {
-                  false
-                }
-              }
-            }}
-
-            // TODO duplication?
             diseq(v) ++= diseq(v).map{pair => {
                 pair match {
                   case (t,r,reason2) if t.isValid => (currentTimestamp, repr(r), reason2)
@@ -532,6 +544,38 @@ class CongruenceClosure extends TheorySolver {
           case _ => ()
         }}
         diseq(oldreprA).retain{case (t,_,_) => t.isValid} // try to do this more compactly
+
+        for(aP <- classList(oldreprA)) {
+          tConsequence ++= negLitList(aP).filter{ineq => ineq match {
+            case Not(Equals(t1, t2)) => {
+              if(diseq(oldreprA).exists{case (t,v,_) => t.isValid && (v == repr(t1) || v == repr(t2))}) {
+                //println("  repr("+ t1 +"): "+ repr(t1))
+                //println("  repr("+ t2 +"): "+ repr(t2))
+                //println("  tConsequence: "+ ineq)
+                true
+              } else {
+                false
+              }
+            }
+          }}
+        }
+
+
+        for(bP <- classList(repr(b))) {
+          tConsequence ++= negLitList(bP).filter{ineq => ineq match {
+            case Not(Equals(t1, t2)) => {
+              if(diseq(repr(b)).exists{case (t,v,_) => t.isValid && (v == repr(t1) || v == repr(t2))}) {
+                //println("  repr("+ t1 +"): "+ repr(t1))
+                //println("  repr("+ t2 +"): "+ repr(t2))
+                //println("  tConsequence: "+ ineq)
+                true
+              } else {
+                false
+              }
+            }
+          }}
+        }
+
 
         while(useList(oldreprA).nonEmpty) {
           val f1 = useList(oldreprA).remove(0) // TODO foreach and clear at the end
