@@ -210,7 +210,7 @@ class CongruenceClosure extends TheorySolver {
         //println("invalidating timestamp "+ delTimestamp)
         invalidTimestamps += delTimestamp
 
-        println("popping: "+ topTrigger)
+        //println("popping: "+ topTrigger)
         //println("delTimestamp: "+ delTimestamp)
         undoMerge(topTrigger)
       }}
@@ -233,7 +233,7 @@ class CongruenceClosure extends TheorySolver {
         //println("invalidating timestamp "+ delTimestamp)
         invalidTimestamps += delTimestamp
 
-        println("popping: "+ topTrigger)
+        //println("popping: "+ topTrigger)
         //println("delTimestamp: "+ delTimestamp)
         undoMerge(topTrigger)
 
@@ -248,7 +248,7 @@ class CongruenceClosure extends TheorySolver {
   // l is t-consequence of setTrue(lPrime)
   def explain(l: Formula, lPrime: Formula = null): Set[Formula] = {
     assert(!iStack.isEmpty)
-    println("in explain, l: "+ l +", lPrime: "+ lPrime)
+    //println("in explain, l: "+ l +", lPrime: "+ lPrime)
     
     val restoreIStack = Stack[Pair[Int, Formula]]()
     if(lPrime != null) {
@@ -275,7 +275,7 @@ class CongruenceClosure extends TheorySolver {
         // if valid
         // TODO
         val cause = diseq(repr(d1)).find{case (t,elem,_) => t.isValid && elem == repr(e1)}.get._3
-        println("cause: "+ cause)
+        //println("cause: "+ cause)
 
         val Not(Equals((d2: Variable), (e2: Variable))) = cause
         // Checking for 1 congruence is enough. If d1 congruent e2 as well, that
@@ -306,7 +306,7 @@ class CongruenceClosure extends TheorySolver {
       }
     }
 
-    println("explanation: "+ retVal.mkString("\n", "\n", "\n"))
+    //println("explanation: "+ retVal.mkString("\n", "\n", "\n"))
 
     retVal
   }
@@ -368,7 +368,7 @@ class CongruenceClosure extends TheorySolver {
   // Every call to setTrue needs to push a literal to the iStack, so that
   // backtracking is possible for each T-literal enqueued in the DPLL engine
   def setTrue(l: Formula): Option[Set[Formula]] = {
-    println("setTrue: "+ l +" h: "+ iStack.size)
+    //println("setTrue: "+ l +" h: "+ iStack.size)
     trigger = l
     ctr += 1
     iStack.push((ctr, l))
@@ -490,8 +490,8 @@ class CongruenceClosure extends TheorySolver {
           // As it stands now, it gets taken care of in backtrack.
           //println("------------------------------------NONE")
           ////println("invalid timestamps: "+ invalidTimestamps.mkString("\n", "\n", "\n"))
-          println("a: "+ a +", repr(a): "+ repr(a))
-          println("b: "+ b +", repr(b): "+ repr(b))
+          //println("a: "+ a +", repr(a): "+ repr(a))
+          //println("b: "+ b +", repr(b): "+ repr(b))
           reason = Not(Equals(a,b))
           //println("diseq("+repr(a)+"): "+ diseq(repr(a)).mkString("\n", "\n", "\n"))
 
