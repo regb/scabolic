@@ -6,12 +6,8 @@ import regolic.asts.fol.Trees._
 import regolic.asts.fol.Manip._
 import regolic.parsers.SmtLib2.Trees._
 
-import regolic.smt.qfeuf.CongruenceSolver
 import regolic.smt.qfeuf.CongruenceClosure
-import regolic.smt.qfeuf.FastCongruenceSolver
-import regolic.smt.qflra.SimplexSolver
 
-import regolic.dpllt.LazyBasicSolver
 import regolic.dpllt.DPLLTSolverWrapper
 import regolic.dpllt.Results._
 
@@ -62,6 +58,7 @@ object TheorySolver {
         }
         case CheckSat => {
           val formula = simplify(asserts.foldLeft(True(): Formula)((acc, f) => And(acc, f)))
+          // TODO select correct theory solver
           val cc = new CongruenceClosure
           val result = DPLLTSolverWrapper(cc, formula)
 

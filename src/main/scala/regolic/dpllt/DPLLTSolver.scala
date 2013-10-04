@@ -286,6 +286,9 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
   private[this] val conflictAnalysisStopWatch = StopWatch("backtrack.conflictanalysis")
   private[this] val find1UIPStopWatch = StopWatch("backtrack.conflictanalysis.find1uip")
   private[this] val clauseMinimizationStopWatch = StopWatch("backtrack.conflictanalysis.clauseminimization")
+  private[this] val explainStopwatch = StopWatch("explain")
+  private[this] val setTrueStopwatch = StopWatch("setTrue")
+  private[this] val tBacktrackStopwatch = StopWatch("t-backtrack")
 
   // 1 reason / var should be sufficient (instead of 1 reason / lit)
   private[this] val tReasons: Array[Formula] = new Array(nbTVars*2)
@@ -315,6 +318,8 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
     conflictAnalysisStopWatch.reset()
     find1UIPStopWatch.reset()
     clauseMinimizationStopWatch.reset()
+    explainStopwatch.reset()
+    setTrueStopwatch.reset()
   }
 
   def initClauses(clauses: List[Clause]) {
@@ -427,6 +432,10 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
       println("        clausemin:      " + clauseMinimizationStopWatch.seconds + " sec")
       println("        find1uip:       " + find1UIPStopWatch.seconds + " sec")
     }
+    println("  toplevelloop:         " + topLevelStopWatch.seconds + " sec")
+    println("  setTrue:         " + setTrueStopwatch.seconds + " sec")
+    println("  explain:         " + explainStopwatch.seconds + " sec")
+    println("  t-backtrack:         " + tBacktrackStopwatch.seconds + " sec")
 
     status match {
       case Unknown | Conflict => sys.error("unexpected")
@@ -787,7 +796,9 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
       }
       enqueueLiteral(enqueuedLit, from)
 
-      val solverResult = tSolver.setTrue(theoryLit)
+      val solverResult = setTrueStopwatch.time{
+        tSolver.setTrue(theoryLit)
+      }
       solverResult match {
         case Some(tConsequence) => {
           //println("t-consequence: "+ t.mkString("\n", "\n", "\n"))
@@ -813,9 +824,11 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
           status = Conflict
 
           val id = (enqueuedLit >> 1)
-          val expl = tSolver.explain(
-            tSolver.reason
-          )
+          val expl = explainStopwatch.time {
+              tSolver.explain(
+                tSolver.reason
+              )
+          }
           //println("expl: "+ expl.mkString("\n", "\n", "\n"))
           //println("encoding.id: "+ encoding.id.mkString("\n", "\n", "\n"))
           var tmp = expl.map(tExplLit => tExplLit match {
@@ -996,26 +1009,21 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
 
 
   private[this] def backtrackTo(lvl: Int) {
-    //println("backtracking to lvl: "+ lvl)
-    var tDecisions = 0
     var lastTLit: Formula = null
     while(decisionLevel > lvl && !trail.isEmpty) {
       val head = trail.pop()
       decisionLevel = levels(head >> 1)
       if(decisionLevel > lvl) {
         undo(head)
-        //println("undo id "+ (head >> 1))
         if(isTheoryLit(head)) {
           lastTLit = if((head & 1) == 0) encoding.theory(head >> 1) else Not(encoding.theory(head>>1))
-          //println("  is tLit: "+ lastTLit)
-          tDecisions += 1
         }
       } else
         trail.push(head)
     }
-    //tSolver.backtrack(tDecisions)
-    //println("lastTLit: "+ lastTLit)
-    tSolver.backtrackTo(lastTLit)
+    tBacktrackStopwatch.time{
+      tSolver.backtrackTo(lastTLit)
+    }
 
     qHead = trail.size
     decisionLevel = lvl

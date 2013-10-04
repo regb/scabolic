@@ -7,13 +7,13 @@ import regolic.asts.fol.Manip._
 import regolic.parsers.SmtLib2.Trees._
 
 import regolic.smt.qfeuf.CongruenceSolver
-import regolic.smt.qfeuf.FastCongruenceSolver
+//import regolic.smt.qfeuf.FastCongruenceSolver
 import regolic.smt.qflra.SimplexSolver
 
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.ListBuffer
 
-import regolic.dpllt.LazyBasicSolver
+//import regolic.dpllt.LazyBasicSolver
 
 trait Solver {
 
@@ -33,7 +33,7 @@ trait Solver {
 
 object Solver {
 
-  val allSolvers: List[Solver] = List(FastCongruenceSolver, SimplexSolver, regolic.smt.qfa.Solver)
+  val allSolvers: List[Solver] = List(/*FastCongruenceSolver,*/ SimplexSolver, regolic.smt.qfa.Solver)
 
   def execute(cmds: List[Command]) {
     println("Executing following script: " + cmds)
@@ -55,7 +55,7 @@ object Solver {
         case CheckSat => {
           val formula = simplify(asserts.foldLeft(True(): Formula)((acc, f) => And(acc, f)))
           //println("isSat: "+ FastCongruenceSolver.isSat(formula))
-          println("isSat: " + LazyBasicSolver.solve(solver.get, formula))
+          //println("isSat: " + LazyBasicSolver.solve(solver.get, formula))
         }
         case Exit => {
           // TODO
