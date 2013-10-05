@@ -11,6 +11,9 @@ import scala.collection.mutable.Stack
 import scala.collection.mutable.Map
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.ListBuffer
+import scala.collection.mutable.ArrayBuffer
+
+import regolic.StopWatch
 
 //object FastCongruenceSolver extends Solver {
   //val logic = regolic.parsers.SmtLib2.Trees.QF_UF
@@ -66,6 +69,8 @@ import scala.collection.mutable.ListBuffer
  */
 class CongruenceClosure extends TheorySolver {
   
+  private[this] val sw = StopWatch("ccStopwatch")
+  var time: Double = 0.0f
   /*
    * Representing the so-called proof forest
    * TODO the graph should be represented by an Int array as described in the
@@ -73,7 +78,7 @@ class CongruenceClosure extends TheorySolver {
    */
   private var proofStructure: Array[Int] = null
   private var proofLabels: Array[Int] = null
-  class ProofStructureNode(val name: Term, var edgeLabel: Any) {
+  class ProofStructureNode(val name: Term, var edgeLabel: Pair[Formula, Formula]) {
     var parent: ProofStructureNode = null
 
     def hasParent = parent != null
@@ -84,16 +89,16 @@ class CongruenceClosure extends TheorySolver {
     }
   }
 
-  // TODO change Maps to Arrays where a Term.id is the index?
   // TODO collect EqClass stuff in separate object
   val logic = regolic.parsers.SmtLib2.Trees.QF_UF
 
   private var posLitList: Array[Array[Formula]] = null
   private var negLitList: Array[Array[Formula]] = null
 
+  // Maybe try representing diseq with a map or a 2-dimensional array
   private var diseq: Array[ListBuffer[Tuple3[Timestamp,Int,Formula]]] = null
 
-  val lookup: Map[(Int, Int), Pair[Timestamp, Formula]] = Map()//.withDefaultValue((new Timestamp(0,0), null))
+  val lookup: Map[(Int, Int), Pair[Timestamp, Formula]] = Map()
 
   def extractVariables(t: Term) = t match {
     case Apply((c1: Variable), (c2: Variable)) => List(c1, c2)
@@ -167,7 +172,7 @@ class CongruenceClosure extends TheorySolver {
       idToTerm(id) = t
 
       repr(id) = id
-      classList(id) = ListBuffer()
+      classList(id) = ArrayBuffer()
       classList(id) += id
       useList(id) = ListBuffer()
       diseq(id) = ListBuffer()
@@ -200,8 +205,10 @@ class CongruenceClosure extends TheorySolver {
     }
 
     while(!undoReprChangeStack(l).isEmpty) {
-      val (elem, oldRepr, newRepr) = undoReprChangeStack(l).pop
+      val (elem, oldRepr) = undoReprChangeStack(l).pop
+      val newRepr = repr(elem)
       repr(elem) = oldRepr
+      classList(newRepr) -= elem
       classList(oldRepr).append(elem)
     }
     
@@ -234,11 +241,8 @@ class CongruenceClosure extends TheorySolver {
       1 to n foreach { _ => {
         val (topCtr, topTrigger) = iStack.pop
         val delTimestamp = new Timestamp(iStack.size + 1, topCtr)
-        //println("invalidating timestamp "+ delTimestamp)
         invalidTimestamps += delTimestamp
 
-        //println("popping: "+ topTrigger)
-        //println("delTimestamp: "+ delTimestamp)
         undoMerge(topTrigger)
       }}
 
@@ -247,37 +251,26 @@ class CongruenceClosure extends TheorySolver {
     } else {
       throw new Exception("Can't pop "+ n +" literals from I-stack.")
     }
-    currentTimestamp = new Timestamp(iStack.size, ctr)
   }
 
   def backtrackTo(l: Formula) {
-    //println("istack: "+ iStack.mkString("\n", "\n", "\n"))
     if(l != null) {
-      var tmp: Formula = null
+      var poppedLiteral: Formula = null
       do {
         val (topCtr, topTrigger) = iStack.pop
-        tmp = topTrigger
+        poppedLiteral = topTrigger
         val delTimestamp = new Timestamp(iStack.size + 1, topCtr)
-        //println("invalidating timestamp "+ delTimestamp)
         invalidTimestamps += delTimestamp
 
-        //println("popping: "+ topTrigger)
-        //println("delTimestamp: "+ delTimestamp)
         undoMerge(topTrigger)
-
-        if(iStack.isEmpty)
-          throw new Exception(l +" was not pushed to iStack")
-      } while(tmp != l) 
+      } while(poppedLiteral != l) 
 
       pending.clear()
     }
-    currentTimestamp = new Timestamp(iStack.size, ctr)
   }
 
   // l is t-consequence of setTrue(lPrime)
   def explain(l: Formula, lPrime: Formula = null): Set[Formula] = {
-    //println("in explain, l: "+ l +", lPrime: "+ lPrime)
-    
     val restoreIStack = Stack[Pair[Int, Formula]]()
     if(lPrime != null) {
       // undo all merges after lPrime was pushed onto the iStack
@@ -302,17 +295,15 @@ class CongruenceClosure extends TheorySolver {
         //val cause = negReason(l)
         // if valid
         // TODO
-        val cause = diseq(repr(termToId(d1))).find{case (t,elem,_) => t.isValid && elem == repr(termToId(e1))}.get._3
-        //println("cause: "+ cause)
+        val cause = diseq(repr(termToId(d1))).find{case (t,elem,_) => t.isValid && repr(elem) == repr(termToId(e1))}.get._3
 
         val Not(Equals((d2: Variable), (e2: Variable))) = cause
         // Checking for 1 congruence is enough. If d1 congruent e2 as well, that
         // would mean that d1 = d2 AND d1 = e2 AND d2 != e2, which is
         // inconsistent
-        val d1Id = termToId(d1)
-        val d2Id = termToId(d2)
-        val e1Id = termToId(e1)
-        val e2Id = termToId(e2)
+        val d1Id = termToId(d1); val d2Id = termToId(d2)
+        val e1Id = termToId(e1); val e2Id = termToId(e2)
+        //println(node.mkString("digraph g {\nnode [shape=plaintext];\n", "\n", "\n}"))
         if(areCongruent(d1,d2)) {
           (explain(d1Id, d2Id) union explain(e1Id, e2Id)) + cause
         } else {
@@ -352,14 +343,14 @@ class CongruenceClosure extends TheorySolver {
   // queue does not support 
   private var useList: Array[ListBuffer[Formula]] = null
 
-  private var classList: Array[ListBuffer[Int]] = null
+  private var classList: Array[ArrayBuffer[Int]] = null
 
   val iStack = new Stack[Pair[Int, Formula]]
 
 
-  private val undoReprChangeStack = new HashMap[Formula, Stack[Tuple3[Int, Int, Int]]] {
+  private val undoReprChangeStack = new HashMap[Formula, Stack[Pair[Int, Int]]] {
     override def default(k: Formula) = {
-      val v = Stack[Tuple3[Int, Int, Int]]()
+      val v = Stack[Pair[Int, Int]]()
       this += (k -> v)
       v
     }
@@ -399,14 +390,12 @@ class CongruenceClosure extends TheorySolver {
   // Every call to setTrue needs to push a literal to the iStack, so that
   // backtracking is possible for each T-literal enqueued in the DPLL engine
   def setTrue(l: Formula): Option[Set[Formula]] = {
-    //println("setTrue: "+ l +" h: "+ iStack.size)
     trigger = l
     ctr += 1
     iStack.push((ctr, l))
     reason = null
     currentTimestamp = new Timestamp(iStack.size, ctr)
 
-    //if((l & 1) == 0) {
     val retVal = l match {
       case Equals(_,_) => {
         //merge(eq)
@@ -420,8 +409,7 @@ class CongruenceClosure extends TheorySolver {
         if(!areCongruent(t1, t2)) {
           //Diseq, a hash table containing all currently true disequalities between
           //representatives
-          val t1Id = termToId(t1)
-          val t2Id = termToId(t2)
+          val t1Id = termToId(t1); val t2Id = termToId(t2)
           diseq(repr(t1Id)) += Tuple3(currentTimestamp, repr(t2Id), trigger)
           diseq(repr(t2Id)) += Tuple3(currentTimestamp, repr(t1Id), trigger)
 
@@ -433,8 +421,7 @@ class CongruenceClosure extends TheorySolver {
           for(c <- cl) {
             tConsequence ++= negLitList(c).filter{
               case Not(Equals(s1, s2)) => {
-                val s1Id = termToId(s1)
-                val s2Id = termToId(s2)
+                val s1Id = termToId(s1); val s2Id = termToId(s2)
                 (repr(s1Id) == a && repr(s2Id) == b) ||
                 (repr(s1Id) == b && repr(s2Id) == a) 
               }
@@ -451,21 +438,6 @@ class CongruenceClosure extends TheorySolver {
         }
       }
     }
-
-    //println("iStack before pushing "+ l +":"+ iStack.mkString("\n", "\n", "\n"))
-
-    //if(retVal == None)
-      //backtrack(1)
-
-    //if(retVal != None)
-      //println("t-consequences: "+ retVal.get.mkString("\n", "\n", "\n"))
-    //else
-      //println("inconsistency detected")
-    //println("after setTrue("+ l +"): "+ repr.mkString("\n", "\n", "\n"))
-    //println("repr: "+ repr.mkString("\n", "\n", "\n"))
-    //println("diseq: "+ diseq.mkString("\n", "\n", "\n"))
-    //println("lookup: "+ lookup.mkString("\n", "\n", "\n"))
-
     retVal
   }
 
@@ -476,23 +448,16 @@ class CongruenceClosure extends TheorySolver {
         propagate()
       }
       case Equals(Apply(a1, a2), a: Variable) => {
-        val a1Id = termToId(a1)
-        val a2Id = termToId(a2)
-        lookup(repr(a1Id),repr(a2Id)) match {
-          case (timestamp, eq2@Equals(Apply(_, _), _)) if timestamp.isValid => {
-            pending.enqueue((eq, eq2))
-            propagate()
-          }
-          case (timestamp, _) => {
-            // all equalities containing apply are merged at the beginning and
-            // there should never be backtracking, so the timestamp stays valid.
-            //assert(timestamp.isValid)
-
-            lookup += ((repr(a1Id), repr(a2Id)) -> (currentTimestamp, eq))
-            useList(repr(a1Id)).append(eq)
-            useList(repr(a2Id)).append(eq)
-            Some(Set.empty[Formula]) // no new unions, no T-consequences
-          }
+        val a1Id = termToId(a1); val a2Id = termToId(a2)
+        val lookedUp = lookup.getOrElse((repr(a1Id), repr(a2Id)), null)
+        if(lookedUp != null && lookedUp._1.isValid) {
+          pending.enqueue((eq, lookedUp._2))
+          propagate()
+        } else {
+          lookup += ((repr(a1Id), repr(a2Id)) -> (currentTimestamp, eq))
+          useList(repr(a1Id)).append(eq)
+          useList(repr(a2Id)).append(eq)
+          Some(Set.empty[Formula]) // no new unions, no T-consequences
         }
       }
     }
@@ -517,12 +482,12 @@ class CongruenceClosure extends TheorySolver {
       if(repr(a) != repr(b)) {
 
         // trying to merge classes, which are disequal
-        if(diseq(repr(a)).exists{case(t,v,_) => {t.isValid && v == repr(b)}}) {
+        if(diseq(repr(a)).exists{case(t,v,_) => {t.isValid && repr(v) == repr(b)}}) {
           // If for some reason, the trigger literal causing this inconsistency
           // is not pushed onto the I-stack, make sure to set the timestamp
           // invalid here.
           // As it stands now, it gets taken care of in backtrack.
-          reason = Not(e._1)
+          reason = Not(Equals(idToTerm(a), idToTerm(b)))
           return None
         }
 
@@ -534,43 +499,40 @@ class CongruenceClosure extends TheorySolver {
         for(c <- classList(oldreprA)) {
           tConsequence ++= posLitList(c).filter{
             case Equals(t1, t2) => {
-              val t1Id = termToId(t1)
-              val t2Id = termToId(t2)
+              val t1Id = termToId(t1); val t2Id = termToId(t2)
               (repr(t1Id) == oldreprA && repr(t2Id) == repr(b)) || (repr(t1Id) == repr(b) && repr(t2Id) == oldreprA)
             }
           }
 
-          undoReprChangeStack(trigger).push((c, repr(c), repr(b)))
+          assert(repr(c) == oldreprA)
+          undoReprChangeStack(trigger).push((c, oldreprA))
           repr(c) = repr(b)
           classList(repr(b)).append(c)
         }
         classList(oldreprA).clear()
 
-        // update disequalities
-        diseq(oldreprA).foreach{d => d match {
-          case (t,v,reason1) if t.isValid => {
-            diseq(repr(b)) += Tuple3(currentTimestamp, v, reason1)
-
-            diseq(v) ++= diseq(v).map{triple => {
-                triple match {
-                  case (t,r,reason2) if t.isValid => (currentTimestamp, repr(r), reason2)
-                  case _ => triple
-                }
-              }
+        for(d <- diseq(oldreprA)) {
+          d match {
+            case (t,v,reason1) if t.isValid => {
+              diseq(repr(b)) += Tuple3(currentTimestamp, v, reason1)
             }
+            // Removing while iterating possible with ListBuffer
+            case _ => diseq(oldreprA) -= d
           }
-          case _ => ()
-        }}
-        // try to do this more compactly in loop, but need to take care that
-        // iteration isn't affected (how robust is iterator?)
-        diseq(oldreprA).filterNot{case (t,_,_) => t.isValid}
+        }
 
+      sw.time {
+      }
+      time += sw.seconds
+      sw.reset
+
+      /*
+        // TODO classList is empty here
         for(aP <- classList(oldreprA)) {
           tConsequence ++= negLitList(aP).filter{ineq => ineq match {
             case Not(Equals(t1, t2)) => {
-              val t1Id = termToId(t1)
-              val t2Id = termToId(t2)
-              diseq(oldreprA).exists{case (t,v,_) => t.isValid && (v == repr(t1Id) || v == repr(t2Id))}
+              val t1Id = termToId(t1); val t2Id = termToId(t2)
+              diseq(oldreprA).exists{case (t,v,_) => t.isValid && (repr(v) == repr(t1Id) || repr(v) == repr(t2Id))}
             }
           }}
         }
@@ -578,29 +540,26 @@ class CongruenceClosure extends TheorySolver {
         for(bP <- classList(repr(b))) {
           tConsequence ++= negLitList(bP).filter{ineq => ineq match {
             case Not(Equals(t1, t2)) => {
-              val t1Id = termToId(t1)
-              val t2Id = termToId(t2)
-              diseq(repr(b)).exists{case (t,v,_) => t.isValid && (v == repr(t1Id) || v == repr(t2Id))}
+              val t1Id = termToId(t1); val t2Id = termToId(t2)
+              diseq(repr(b)).exists{case (t,v,_) => t.isValid && (repr(v) == repr(t1Id) || repr(v) == repr(t2Id))}
             }
           }}
         }
+        */
 
         for(f1 <- useList(oldreprA)) {
           val Equals(Apply(c1, c2),_) = f1
 
-          val c1Id = termToId(c1)
-          val c2Id = termToId(c2)
-          lookup(repr(c1Id), repr(c2Id)) match {
-            case (timestamp, f2@Equals(Apply(_, _),_)) if timestamp.isValid => {
-              undoUseListStack(trigger).push(Tuple3(f1, oldreprA, -1))
-              pending.enqueue((f1, f2))
-            }
-            case (timestamp, _) => {
-              lookup += ((repr(c1Id), repr(c2Id)) -> (currentTimestamp, f1))
+          val c1Id = termToId(c1); val c2Id = termToId(c2)
+          val lookedUp = lookup.getOrElse((repr(c1Id), repr(c2Id)), null)
+          if(lookedUp != null && lookedUp._1.isValid) {
+            undoUseListStack(trigger).push(Tuple3(f1, oldreprA, -1))
+            pending.enqueue((f1, lookedUp._2))
+          } else {
+            lookup += ((repr(c1Id), repr(c2Id)) -> (currentTimestamp, f1))
 
-              undoUseListStack(trigger).push(Tuple3(f1, oldreprA, repr(b)))
-              useList(repr(b)).append(f1)
-            }
+            undoUseListStack(trigger).push(Tuple3(f1, oldreprA, repr(b)))
+            useList(repr(b)).append(f1)
           }
         }
         useList(oldreprA).clear()
@@ -617,14 +576,18 @@ class CongruenceClosure extends TheorySolver {
       case Apply(t1, t2) => {
         val u1 = normalize(t1)
         val u2 = normalize(t2)
-        lookup(termToId(u1), termToId(u2)) match {
-          case (timestamp, Equals(_,a)) if u1.isInstanceOf[Variable] &&
-            u2.isInstanceOf[Variable] && timestamp.isValid => {
+        if(u1.isInstanceOf[Variable] && u2.isInstanceOf[Variable]) {
+          val lookedUp = lookup.getOrElse((termToId(u1), termToId(u2)), null)
+          if(lookedUp != null && lookedUp._1.isValid) {
+            val Equals(_, a) = lookedUp._2
             if(termToId.contains(a)) idToTerm(repr(termToId(a))) else a
+          } else {
+            Apply(u1, u2)
           }
-          case _ => Apply(u1, u2)
         }
-      }
+        else
+          Apply(u1, u2)
+        }
     }
   }
 
@@ -639,8 +602,8 @@ class CongruenceClosure extends TheorySolver {
     var p = from
     var q: ProofStructureNode = null
     var r: ProofStructureNode = null
-    var qEdge: Any = null
-    var rEdge: Any = null
+    var qEdge: Pair[Formula, Formula] = null
+    var rEdge: Pair[Formula, Formula] = null
 
     while(p != null) {
       r = q
@@ -673,21 +636,18 @@ class CongruenceClosure extends TheorySolver {
     reverseEdges(reversedTo)
   }
   
-  private def makeEdge(from: ProofStructureNode, to: ProofStructureNode, label: Any = null): ProofStructureNode =  {
+  private def makeEdge(from: ProofStructureNode, to: ProofStructureNode, label: Pair[Formula, Formula]): ProofStructureNode =  {
     val retVal = reverseEdges(from)
     from.parent = to
-    if(label != null)
-      from.edgeLabel = label
+    from.edgeLabel = label
     retVal
   }
   
-  private def insertEdge(a: Int, b: Int, label: Any) = {
-    //println(node.values.mkString("digraph g {\nnode [shape=plaintext];\n", "\n", "\n}"))
+  private def insertEdge(a: Int, b: Int, label: Pair[Formula, Formula]) = {
     val from = node(a)
     val reversedTo = makeEdge(node(a), node(b), label)
 
-    //println(node.values.mkString("digraph g {\nnode [shape=plaintext];\n", "\n", "\n}"))
-    //println("inserted "+ a +" -> "+ b +" repr a: "+ repr(a) +", repr b: "+ repr(b))
+    //println(node.mkString("digraph g {\nnode [shape=plaintext];\n", "\n", "\n}"))
     undoEdgesStack(trigger).push((from, reversedTo))
   }
   
@@ -731,9 +691,8 @@ class CongruenceClosure extends TheorySolver {
   }
 
   def explain(c1: Int, c2: Int): Set[Formula] = {
-    //println("Explaining why "+ c1 +" = "+ c2)
-    //println(node.values.mkString("digraph g {\nnode [shape=plaintext];\n", "\n", "\n}"))
-    // reset makes explanations complete, but is it necessary?
+    //println(node.mkString("digraph g {\nnode [shape=plaintext];\n", "\n", "\n}"))
+    // TODO reset makes explanations complete, but is it necessary?
     eqClass.clear()
     eqClass ++= node.map(n => (n, n))
 
@@ -744,13 +703,12 @@ class CongruenceClosure extends TheorySolver {
       val c = computeHighestNode(findEqClass(
         nearestCommonAncestor(a, b) match {
           case Some(x) => x
-          case None => throw new Exception("No common ancestor "+ (a,b))
+          case None => throw new Exception("No common ancestor "+ (idToTerm(a),idToTerm(b)))
         }
       ))
       explanation ++= explainAlongPath(node(a), c)
       explanation ++= explainAlongPath(node(b), c)
     }
-    //println("explanation: "+ explanation.mkString("\n", "\n", "\n"))
     explanation.toSet
   }
 
@@ -764,8 +722,7 @@ class CongruenceClosure extends TheorySolver {
         case (Equals(fa@Apply(a1, a2), a: Variable),
               Equals(fb@Apply(b1, b2), b: Variable)) => {
           
-          // Map explanation back
-          // TODO uncommenting this breaks the explain test case
+          // TODO commenting this out breaks the explain test case
           //explanation += Equals(fa, a)
           //explanation += Equals(fb, b)
 

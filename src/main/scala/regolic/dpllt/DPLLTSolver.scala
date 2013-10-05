@@ -423,7 +423,7 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
       println("Removed Literals: " + nbRemovedLiteral + "(" + nbRemovedClauses + " clauses) --- " + nbRemovedLiteral.toDouble/nbRemovedClauses.toDouble + " per clause")
       println("Active Literals: " + (nbLearntLiteralTotal - nbRemovedLiteral) + "(" + (nbLearntClauseTotal - nbRemovedClauses) + ") --- " + (nbLearntLiteralTotal - nbRemovedLiteral).toDouble/(nbLearntClauseTotal-nbRemovedClauses).toDouble + " per clause")
 
-      println("Time spend in:\n")
+      println("Time spent in:\n")
       println("  toplevelloop:         " + topLevelStopWatch.seconds + " sec")
       println("    decide:             " + decideStopWatch.seconds + " sec")
       println("    deduce:             " + deduceStopWatch.seconds + " sec")
@@ -431,11 +431,11 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
       println("      conflictanalysis: " + conflictAnalysisStopWatch.seconds + " sec")
       println("        clausemin:      " + clauseMinimizationStopWatch.seconds + " sec")
       println("        find1uip:       " + find1UIPStopWatch.seconds + " sec")
+      println("  tSolver-setTrue:         " + setTrueStopwatch.seconds + " sec")
+      println("  tSolver-explain:         " + explainStopwatch.seconds + " sec")
+      println("  tSolver-backtrack:         " + tBacktrackStopwatch.seconds + " sec")
+      println("  tSolver-flexible:         " + tSolver.time + " sec")
     }
-    println("  toplevelloop:         " + topLevelStopWatch.seconds + " sec")
-    println("  setTrue:         " + setTrueStopwatch.seconds + " sec")
-    println("  explain:         " + explainStopwatch.seconds + " sec")
-    println("  t-backtrack:         " + tBacktrackStopwatch.seconds + " sec")
 
     status match {
       case Unknown | Conflict => sys.error("unexpected")
@@ -1088,7 +1088,7 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
               //println("UNASSIGNED, clause: "+ clause)
               tEnqueueLiteral(lits(0), clause)
             } else if(isUnsat(lits(0))) {
-              println("Conflict 2: "+ clause)
+              //println("Conflict 2: "+ clause)
               status = Conflict
               qHead == trail.size
               conflict = clause

@@ -29,9 +29,9 @@ trait TheorySolver {
 
   def setTrue(l: Formula): Option[Set[Formula]]
   
-  val iStack: collection.mutable.Stack[Pair[Int, Formula]]
-
   var reason: Formula
+
+  var time: Double
 }
 
 object TheorySolver {
