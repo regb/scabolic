@@ -13,6 +13,8 @@ import regolic.dpllt.Results._
 
 import regolic.sexpr.SExprs._
 
+// Interface similar to the one described in "DPLL(T): Fast Decision Procedures"
+// by Ganzinger, Hagen, Nieuwenhuis, Oliveras, Tinelli
 trait TheorySolver {
 
   val logic: Logic
