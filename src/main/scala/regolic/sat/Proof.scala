@@ -50,7 +50,7 @@ class Proof(inputs: Set[Set[Literal]]) {
   /*
    * This method should be called in the end, when all inferences
    * have been added and the proof finalized.
-   * This produce a compact array of ordored inferences, where
+   * This produces a compact array of ordored inferences, where
    * each premise of an inference is found earlier in the array.
    */
   def linearize(conclusion: Set[Literal]) {
