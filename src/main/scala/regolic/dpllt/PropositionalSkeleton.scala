@@ -1,6 +1,7 @@
 package regolic.dpllt
 
 import regolic.sat.Literal
+import regolic.sat.LiteralType
 import regolic.sat.TLiteral
 import regolic.sat.PropLiteral
 
@@ -11,33 +12,33 @@ import regolic.smt.qfeuf.Flattener
 import regolic.smt.qfeuf.Currifier
 import regolic.parsers.SmtLib2.Trees._
 
-import scala.collection.mutable.Map
 import scala.collection.mutable.ArrayBuffer
 
 class Encoding {
-  val id = Map[Formula, Int]()
+  val id = collection.mutable.Map[Formula, Int]()
   // in cases where there are no transformations to the literals,
   // theory == theoryOrig
   val theory = new ArrayBuffer[Formula]()
   val theoryOrig = new ArrayBuffer[Formula]()
 
-  val funEqs = new ArrayBuffer[Formula]()
+  val funEqs = collection.mutable.Set[Formula]()
 
   def setEquiv(id: Int, f: Formula, fOrig: Formula) {
     // Invariant, id is the amount of calls to setEquiv
-    this.id(f) = id
+    this.id += (f -> id)
     theory += f
     theoryOrig += fOrig
   }
 
-  def get(f: Formula) = {
+  def get(f: Formula): Option[Int] = {
     this.id.get(f)
   }
 }
 
 object PropositionalSkeleton {
 
-  def apply(formula: Formula): (Set[Set[Literal]], Encoding, Int, Int) = {
+  def apply(formula: Formula): (Set[Set[Literal]], Encoding, Int,
+    Map[LiteralType, Int]) = {
     import scala.collection.mutable.ListBuffer
 
     trait LiteralID {
@@ -67,20 +68,26 @@ object PropositionalSkeleton {
         val repr = f match {
           case Equals(_, _) => {
             val flat = Flattener(Currifier(f))
-            val repr = encoding.get(flat.head) match {
-              case Some(repr) => new Literal(repr, TLiteral)
+            val reprID = encoding.get(flat.head) match {
+              case Some(reprID) => reprID
               case None => {
                 val reprID = TLiteralID.next
                 encoding.setEquiv(reprID, flat.head, f) 
-                new Literal(reprID, TLiteral)
+                reprID
               }
             }
             encoding.funEqs ++= flat.tail
-            repr
+            new Literal(reprID, TLiteral)
           }
-          case PropositionalVariable(_) => {
-            val reprID = PropLiteralID.next
-            // TODO varToLiteral map
+          case p@PropositionalVariable(_) => {
+            val reprID = encoding.get(p) match {
+              case Some(reprID) => reprID
+              case None => {
+                val reprID = PropLiteralID.next
+                encoding.id(p) = reprID
+                reprID 
+              }
+            }
             new Literal(reprID, PropLiteral)
           }
           case _ => throw new Exception("This type of literal hasn't been implemented yet: "+ f)
@@ -142,8 +149,13 @@ object PropositionalSkeleton {
           case PropLiteral => TLiteralID.count
         })
       }
+
+    val nbLitsPerType = Map[LiteralType,Int](
+      TLiteral -> TLiteralID.count,
+      PropLiteral -> PropLiteralID.count
+    )
      
-    (constraints.toSet, encoding, TLiteralID.count, PropLiteralID.count)
+    (constraints.toSet, encoding, nbLitsPerType.values.sum, nbLitsPerType)
   }
 
 }

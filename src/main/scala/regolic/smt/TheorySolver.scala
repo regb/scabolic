@@ -13,12 +13,12 @@ import regolic.dpllt.Results._
 
 import regolic.sexpr.SExprs._
 
+import scala.collection.mutable.Stack
+
 // Interface similar to the one described in "DPLL(T): Fast Decision Procedures"
 // by Ganzinger, Hagen, Nieuwenhuis, Oliveras, Tinelli
 trait TheorySolver {
 
-  val logic: Logic
-    
   def initialize(ls: Set[Formula]): Unit
 
   def isTrue(l: Formula): Boolean
@@ -27,18 +27,29 @@ trait TheorySolver {
 
   def backtrackTo(l: Formula): Unit
 
+  def explain(): Set[Formula]
+
   def explain(l: Formula, lPrime: Formula = null): Set[Formula]
 
   def setTrue(l: Formula): Option[Set[Formula]]
   
-  var reason: Formula
-
   var time: Double
 }
 
 object TheorySolver {
 
-  val allSolvers: List[TheorySolver] = List() // TODO wrapper object for congruence closure
+  object SolverFactory {
+    import regolic.parsers.SmtLib2.Trees._
+    def apply(logic: Logic) = {
+      logic match {
+        case QF_UF => Some(new CongruenceClosure)
+        case _ => {
+          println("Logic not supported.")
+          None
+        }
+      }
+    }
+  }
 
   def execute(cmds: List[Command]) {
     var solver: Option[TheorySolver] = None
@@ -48,7 +59,7 @@ object TheorySolver {
 
     for(cmd <- cmds) {
       cmd match {
-        case SetLogic(logic) => solver = getSolver(logic)
+        case SetLogic(logic) => solver = SolverFactory(logic)
         case Pop(n) => {
           asserts = asserts.tail
         }
@@ -59,18 +70,18 @@ object TheorySolver {
           asserts = And(f, asserts.head) :: asserts.tail
         }
         case CheckSat => {
-          val formula = simplify(asserts.foldLeft(True(): Formula)((acc, f) => And(acc, f)))
-          // TODO select correct theory solver
-          val cc = new CongruenceClosure
-          val result = DPLLTSolverWrapper(cc, formula)
+          if(solver != None) {
+            val formula = simplify(asserts.foldLeft(True(): Formula)((acc, f) => And(acc, f)))
+            val result = DPLLTSolverWrapper(solver.get, formula)
 
-          val resultString = result match {
-            case Satisfiable(_) if expectedResult == Some(false) => "sat | should be unsat"
-            case Satisfiable(_) => "sat"
-            case Unsatisfiable if expectedResult == Some(true) => "unsat | should be sat"
-            case Unsatisfiable => "unsat"
-          }
-          println(resultString)
+            val resultString = result match {
+              case Satisfiable(_) if expectedResult == Some(false) => "sat | should be unsat"
+              case Satisfiable(_) => "sat"
+              case Unsatisfiable if expectedResult == Some(true) => "unsat | should be sat"
+              case Unsatisfiable => "unsat"
+            }
+            println(resultString)
+          } else println("Solver not set.")
         }
         case SetInfo(attr) => {
           attr match {
@@ -88,15 +99,11 @@ object TheorySolver {
           }
         }
         case Exit => {
-          // TODO
           sys.exit()
         }
       }
     }
 
   }
-
-
-  def getSolver(logic: Logic): Option[TheorySolver] = allSolvers.find(_.logic == logic)
 
 }

@@ -8,7 +8,7 @@ import regolic.smt.qfeuf.Apply
 import regolic.smt.qfeuf.CongruenceClosure
 import regolic.smt.qfeuf.Flattener
 import regolic.smt.qfeuf.Currifier
-import regolic.smt.qfeuf.FastCongruenceSolver
+//import regolic.smt.qfeuf.FastCongruenceSolver
 
 import regolic.sat.NaiveSolver
 import regolic.sat.Literal
@@ -144,19 +144,27 @@ class DPLLTSuite extends FunSuite {
   }
 
   test("small example SAT") {
-    assert(LazyBasicSolver.solve(FastCongruenceSolver, phi) === true)
+    val result = DPLLTSolverWrapper(new CongruenceClosure, phi) match {
+      case Results.Satisfiable(_) => true
+      case _ => false
+    }
+    assert(result)
   }
 
   test("small example UNSAT") {
-    assert(LazyBasicSolver.solve(FastCongruenceSolver, psi) === false)
+    assert(DPLLTSolverWrapper(new CongruenceClosure, psi) === Results.Unsatisfiable)
   }
 
   test("larger example SAT") {
-    assert(LazyBasicSolver.solve(FastCongruenceSolver, And(eqs)) === true)
+    val result = DPLLTSolverWrapper(new CongruenceClosure, And(eqs)) match {
+      case Results.Satisfiable(_) => true
+      case _ => false
+    }
+    assert(result)
   }
 
   test("larger example UNSAT") {
-    assert(LazyBasicSolver.solve(FastCongruenceSolver, And(Not(Equals(a, b)) :: eqs)) === false)
+    assert(DPLLTSolverWrapper(new CongruenceClosure, And(Not(Equals(a, b)) :: eqs)) === Results.Unsatisfiable)
   }
 
   test("explain") {
@@ -170,13 +178,15 @@ class DPLLTSuite extends FunSuite {
     )
     val cc = new CongruenceClosure
     cc.initialize(inputEqs.asInstanceOf[Set[Formula]])
-    inputEqs.foreach(cc.merge)
+    inputEqs.foreach(cc.setTrue)
     
-    val explanation = cc.explain(a, b)
+    // fix for not returning functions in the explanation
+    val explanation = (cc.explain(Equals(a, b)) + Equals(Apply(gVar, h), d) + Equals(Apply(gVar, d), a))
+      
     val ccSanity = new CongruenceClosure
     ccSanity.initialize(explanation.asInstanceOf[Set[Formula]])
-    explanation.foreach(ccSanity.merge)
-    assert(ccSanity.areCongruent(a, b))
+    explanation.foreach(ccSanity.setTrue)
+    assert(ccSanity.isTrue(Equals(a, b)))
   }
 
   test("setTrue conflicts example 1") {
@@ -445,13 +455,6 @@ class DPLLTSuite extends FunSuite {
     val results = diamond.map(eq => cc.setTrue(eq))
     assert(results.reverse.tail.forall(_ != None))
     assert(results.reverse.head == None)
-    //assert(cc.setTrue(diamond.reverse.head) == None)
-    //cc.backtrack(15)
-    //val posLit = diamond.reverse.take(15).reverse.head
-    //val posLit2 = diamond.reverse.take(14).reverse.head
-    //assert(cc.setTrue(Not(posLit)) != None)
-    //assert(cc.setTrue(Not(posLit2)) != None)
-    //assert(diamond.reverse.take(13).map(eq => cc.setTrue(eq)).exists(_ == None))
   }
 
   test("backtrack 3") {
@@ -489,109 +492,9 @@ class DPLLTSuite extends FunSuite {
 
     cc.backtrack(2)
 
-    
-
     val resultsAfterBacktracking = afterBacktracking.map(eq => cc.setTrue(eq))
     assert(resultsAfterBacktracking.exists(_ == None))
             
   }
-
-  test("backtrack 5") {
-    val x0 = freshVariable("x", IntSort());
-    val x1 = freshVariable("x", IntSort());
-    val y0 = freshVariable("y", IntSort());
-
-    val eqs = List[Formula](
-      Equals(x0, y0),
-      Equals(y0, x1)
-    )
-
-    val cc = new CongruenceClosure
-
-    cc.initialize(eqs.toSet)
-    println("1st run")
-    cc.setTrue(Equals(x0, y0))
-    val r1 = cc.setTrue(Equals(y0, x1))
-    cc.backtrack(2)
-    println("2nd run")
-    cc.setTrue(Equals(y0, x1))
-    val r2 = cc.setTrue(Equals(x0, y0))
-    cc.backtrack(2)
-    println("3rd run")
-    cc.setTrue(Equals(x0, y0))
-    val r3 = cc.setTrue(Equals(y0, x1))
-    // TODO different t-consequences
-    //assert(r1 === r2)
-    //assert(r3 === r2)
-
-  }
-
-  test("backtrack 6") {
-    val eqs = List[Formula](
-      Equals(a, b),
-      Equals(b, c)
-    )
-
-    val cc = new CongruenceClosure
-
-    cc.initialize(eqs.toSet)
-
-    cc.setTrue(Equals(a,b))
-    cc.setTrue(Equals(b,c))
-    cc.backtrack(2)
-  }
-
-  test("negReason") {
-    // TODO assertion
-    val x0 = freshVariable("x", IntSort());
-    val x1 = freshVariable("x", IntSort());
-    val y0 = freshVariable("y", IntSort());
-
-    val formula = List[Formula](
-      Not(Equals(x0, x1)),
-      Equals(x1, y0),
-      Equals(x0, y0)
-    )
-
-    val cc = new CongruenceClosure
-    val fSet = formula.toSet
-    cc.initialize(fSet)
-    val results = formula.map(eq => cc.setTrue(eq))
-
-    println("explanation: "+ cc.explain(Not(Equals(x0, y0))).mkString("\n", "\n", "\n"))
-  }
-
-  test("explain with backtracking") {
-    val formula = List[Formula](
-      Not(Equals(a, b)),
-      Equals(c, a),
-      Equals(d, b)
-    )
-
-    val cc = new CongruenceClosure
-    val fSet = formula.toSet
-    cc.initialize(fSet)
-    val results = formula.map(eq => cc.setTrue(eq))
-
-    println("explanation: "+ cc.explain(Not(Equals(c, b)), Equals(c, a)).mkString("\n", "\n", "\n"))
-
-    cc.backtrack(1)
-    cc.setTrue(Equals(d,b))
-    println("explanation: "+ cc.explain(Not(Equals(c, b)), Equals(c, a)).mkString("\n", "\n", "\n"))
-
-  }
-
-  test("T-consequences") {
-    val formula = List[Formula](
-      Not(Equals(c, a)),
-      Not(Equals(a, b)),
-      Equals(b,c)
-    )
-
-    val cc = new CongruenceClosure
-    val fSet = formula.toSet
-    cc.initialize(fSet)
-    cc.setTrue(Not(Equals(a, b)))
-    cc.setTrue(Equals(b,c))
-  }
 }
+

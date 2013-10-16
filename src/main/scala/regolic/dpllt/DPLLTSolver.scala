@@ -1,6 +1,7 @@
 package regolic.dpllt
 
 import regolic.sat.Literal
+import regolic.sat.TLiteral
 
 import regolic.sat.Solver.Results._
 import regolic.sat.FixedIntStack
@@ -28,12 +29,11 @@ object Results {
 object DPLLTSolverWrapper {
   private def solve(tSolver: regolic.smt.TheorySolver, phi: Formula): Results.Result = {
 
-    val (clauses, encoding, nbTVars, nbPropVars) = PropositionalSkeleton(phi)
-
+    val (clauses, encoding, nbVars, nbLitsPerType) = PropositionalSkeleton(phi)
     // clauses contains literal polarity information, therefore we use it to
     // initialize the T-solver
     tSolver.initialize(clauses.flatMap(cl => {
-        cl.withFilter(lit => (lit.getID < nbTVars)).map(lit => {
+        cl.withFilter(lit => (lit.getID < nbLitsPerType(TLiteral))).map(lit => {
             if(lit.polarity)
               encoding.theory(lit.getID)
             else
@@ -42,39 +42,11 @@ object DPLLTSolverWrapper {
         )
       }
     ) ++ encoding.funEqs.toSet)
-    //tSolver.initialize(encoding.funEqs.toSet)
     encoding.funEqs.foreach(tSolver.setTrue)
 
-    val dplltSolver = new DPLLTSolver(nbPropVars + nbTVars, nbTVars, tSolver, encoding)
+    val dplltSolver = new DPLLTSolver(nbVars, nbLitsPerType(TLiteral), tSolver, encoding)
     clauses.foreach(dplltSolver.addClause)
-    val retVal = dplltSolver.solve()
-
-/*    
-    println("\nACTUAL RUN DONE---NOW SANITY CHECK:\norig result: "+ retVal)
-
-    val iSet = collection.mutable.Stack[Formula]()
-    while(tSolver.iStack.nonEmpty) {
-      iSet.push(tSolver.iStack.pop._2)
-    }
-    val ccSanity = new regolic.smt.qfeuf.CongruenceClosure
-
-    ccSanity.initialize(clauses.flatMap(cl => {
-        cl.withFilter(lit => (lit.getID < nbTVars)).map(lit => {
-            if(lit.polarity)
-              encoding.theory(lit.getID)
-            else
-              Not(encoding.theory(lit.getID))
-          }
-        )
-      }
-    ) ++ encoding.funEqs.toSet)
-    //ccSanity.initialize(encoding.funEqs.toSet)
-    //iSet.foreach(eq => assert(ccSanity.setTrue(eq) != None))
-    iSet.foreach(ccSanity.setTrue)
-*/
-
-    retVal
-  
+    dplltSolver.solve()
   }
   
   def apply(tSolver: regolic.smt.TheorySolver, phi: Formula): Results.Result = {
@@ -224,7 +196,7 @@ object DPLLTSolver {
   class Clause(val lits: Array[Int]) {
     var activity: Double = 0d
     var locked = false
-    def this(listLits: Set[Literal]) = this(listLits.map{lit => 2*lit.getID + (1 - lit.polInt) }.toArray)
+    def this(listLits: Set[Literal]) = this(listLits.map{lit => 2*lit.getID + (1 - lit.polInt)}.toArray)
     
     val size = lits.size
 
@@ -260,7 +232,8 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
   private[this] var nbSolveCalls = 0
          
   private[this] var decisionLevel = 0
-  private[this] var trail: FixedIntStack = new FixedIntStack(nbVars) //store literals, but only one polarity at the same time, so nbVar size is enough
+  //private[this] var trail: FixedIntStack = new FixedIntStack(nbVars) //store literals, but only one polarity at the same time, so nbVar size is enough
+  var trail: FixedIntStack = new FixedIntStack(nbVars) //store literals, but only one polarity at the same time, so nbVar size is enough
   private[this] var qHead = 0
   private[this] var reasons: Array[Clause] = new Array(nbVars)
   private[this] var levels: Array[Int] = Array.fill(nbVars)(-1)
@@ -290,7 +263,7 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
   private[this] val setTrueStopwatch = StopWatch("setTrue")
   private[this] val tBacktrackStopwatch = StopWatch("t-backtrack")
 
-  // 1 reason / var should be sufficient (instead of 1 reason / lit)
+  // TODO 1 reason / var should be sufficient (instead of 1 reason / lit)
   private[this] val tReasons: Array[Formula] = new Array(nbTVars*2)
 
   def resetSolver() {
@@ -320,6 +293,7 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
     clauseMinimizationStopWatch.reset()
     explainStopwatch.reset()
     setTrueStopwatch.reset()
+    tBacktrackStopwatch.reset()
   }
 
   def initClauses(clauses: List[Clause]) {
@@ -329,7 +303,10 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
       if(litsUnique.size == 1) {
         val id = litsUnique.head >> 1
         if(model(id) == -1) {
-          tEnqueueLiteral(litsUnique.head)
+          tEnqueueLiteral(litsUnique.head, cl)
+          if(status == Conflict) {
+            status = Unsatisfiable
+          }
         }
         else if(model(id) == (litsUnique.head & 1))
           status = Unsatisfiable
@@ -402,6 +379,9 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
           if(status == Conflict) {
             backtrackStopWatch.time {
               backtrack()
+              // Break here if unsat, such that there are no more T-deductions
+              if(status == Unsatisfiable)
+                cont = false
             }
           } else {
             cont = false
@@ -465,8 +445,6 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
     find1UIPStopWatch.time {
       do {
         if(p != -1) {
-          //if(p!=confl.lits(0))
-            //println("p: "+ p +", confl: "+ confl)
           assert(p == (confl.lits(0)))
         }
         cnfFormula.incVSIDSClause(confl)
@@ -477,34 +455,21 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
           //assert(isUnsat(lits(i)))
           val id = lits(i) >> 1
           val lvl = levels(id)
-          //println("seen("+ id +"): "+ seen(id))
-          //println("lvl: "+ lvl +" decisionLevel: "+decisionLevel)
           if(!seen(id) && lvl > 0) {
             seen(id) = true
-            //println("reasons("+id+"): "+ reasons(id))
-            //if(lvl == decisionLevel || reasons(id) != null)
             if(lvl == decisionLevel)
               c += 1
             else {
-              //println("adding: "+ lits(i) +", level: "+ lvl)
-              //if(isTheoryLit(lits(i)))
-                //println("  "+ (if((lits(i) & 1) == 0) encoding.theory(id) else Not(encoding.theory(id))))
-
               learntClause ::= lits(i)
             }
           }
           i += 1
         }
 
-        //assert(learntClause.forall(lit => levels(lit >> 1) != decisionLevel))
         do {
           trailIndex -= 1
           p = trail(trailIndex)
         } while(!seen(p>>1))
-
-        //println("p: "+ p +", c: "+ c +", level: "+ levels(p >> 1))
-        //if(isTheoryLit(p))
-          //println("  "+ (if((p & 1) == 0) encoding.theory(p>>1) else Not(encoding.theory(p>>1))))
               
         c = c - 1
         seen(p>>1) = false
@@ -513,9 +478,8 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
         // confl is null when decision literal reached in trail
 
         //if(confl == null && c > 0) {
-        if(false) {
+        if(false) { // necessary when using T-propagation
           println("computing reason in conflictAnalysis")
-        //if(false) {
           val expl = tSolver.explain(
             if((p & 1) == 0) encoding.theory(p>>1) else Not(encoding.theory(p>>1)), // l
             tReasons(p)//if((tReasons(p >> 1) & 1) == 0) encoding.theory(tReasons(p >> 1)>>1) else Not(encoding.theory(tReasons(p >> 1)>>1)) // lPrime
@@ -530,20 +494,10 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
         // TODO set reason?
           //println("explanation of "+ (if((p & 1) == 0) encoding.theory(p>>1) else Not(encoding.theory(p>>1))) + ": "+ expl.mkString("\n", "\n", "\n"))
         }
-        //if(confl != null)
-          //println("reasons: "+ confl.lits.map(l => {
-            //if((l >> 1) < nbTVars)
-              //if((l & 1) == 0) encoding.theory(l >> 1) else Not(encoding.theory(l>>1))
-            //else
-              //if((l & 1) == 0) (l >> 1) else "-"+ (l>>1)
-          //}).mkString("\n", "\n", "\n"))
-       
-        
-
         //if(confl != null) {
-        //  assert(confl.lits(0) >> 1 == p)
-        //  assert(isSat(confl.lits(0)))
-        //  assert(confl.lits.tail.forall(lit => isUnsat(lit)))
+          //assert(confl.lits(0) == p)
+          //assert(isSat(confl.lits(0)))
+          //assert(confl.lits.tail.forall(lit => isUnsat(lit)))
         //}
       } while(c > 0)
 
@@ -744,7 +698,6 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
   private[this] def enqueueLiteral(lit: Int, from: Clause = null): Boolean = {
     val id = lit >> 1
     val pol = (lit & 1) ^ 1
-    //assert(model(id) == -1) // TODO
     var retVal = false
     if(model(id) == -1) {
       model(id) = pol
@@ -760,25 +713,15 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
       levels(id) = decisionLevel
       retVal = true
     } else {
-      // TODO seems like sometimes we enqueue a literal without having
-      // backtracked it
-      if(model(id) != pol)
-        println("id is: "+ id)
       assert(model(id) == pol)
-      //assert(false)
     }
     retVal
   }
 
   def isTheoryLit(lit: Int): Boolean = (lit >> 1) < nbTVars
 
+  var fcnt = 0
   def tEnqueueLiteral(lit: Int, from: Clause = null) {
-    //val tmpString = if((lit >> 1) < nbTVars)
-      //if((lit & 1) == 0) encoding.theory(lit >> 1) else Not(encoding.theory(lit>>1))
-    //else
-      //if((lit & 1) == 0) (lit >> 1) else "-"+ (lit>>1)
-    //println("ENQUEUING "+ tmpString +" @ "+ decisionLevel +" reason clause: "+ from)
-          
     if((lit >> 1) < nbTVars) {
       val tLit = if((lit & 1) == 0) encoding.theory(lit >> 1) else Not(encoding.theory(lit >> 1))
 
@@ -787,15 +730,15 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
         tLit match {
           case Not(l) if tSolver.isTrue(Not(l)) => (lit, Not(l))
           case Not(l) if tSolver.isTrue(l) =>      (lit ^ 1, l)
-          case l if tSolver.isTrue(Not(l)) =>      (lit ^ 1, Not(l))
           case l if tSolver.isTrue(l) =>           (lit, l)
+          case l if tSolver.isTrue(Not(l)) =>      (lit ^ 1, Not(l))
         }
       } else {
         // bcp
         (lit, tLit)
       }
       enqueueLiteral(enqueuedLit, from)
-
+                
       val solverResult = setTrueStopwatch.time{
         tSolver.setTrue(theoryLit)
       }
@@ -823,47 +766,18 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
         case None => {
           status = Conflict
 
-          val id = (enqueuedLit >> 1)
           val expl = explainStopwatch.time {
-              tSolver.explain(
-                tSolver.reason
-              )
+            tSolver.explain()
           }
-          //println("expl: "+ expl.mkString("\n", "\n", "\n"))
-          //println("encoding.id: "+ encoding.id.mkString("\n", "\n", "\n"))
-          var tmp = expl.map(tExplLit => tExplLit match {
+          var explIntRepr = expl.map(tExplLit => tExplLit match {
             case Not(tExplVar) => encoding.id(tExplVar)*2
             case tExplVar => encoding.id(tExplVar)*2 + 1
           })
-          tmp -= (enqueuedLit ^ 1)
-          //.toList
-          //.sortWith((x, y) => levels(x >> 1) > levels(y >> 1)) //reverse sorting if no foldLeft
-          //.filter(x => {println("level: "+ levels(x>>1)); true})
-          /*
-          .foldLeft(List.empty[Int]){
-            case (xs, y) if levels(y>>1) == decisionLevel => xs
-            case (Nil, y) => y :: Nil
-            case (x :: xs, y) => {
-              if(levels(x >> 1) == levels(y >> 1))
-                y :: xs
-              else
-                y :: x :: xs
-            }
-          }
-          */
-
+          explIntRepr -= (enqueuedLit ^ 1)
           conflict = new Clause(
-            enqueuedLit +: tmp.toArray
+            enqueuedLit +: explIntRepr.toArray
           )
           reasons(enqueuedLit >> 1) = conflict
-          
-          //println("Conflict 1: "+ conflict.lits.map(l => {
-            //if((l >> 1) < nbTVars)
-              //if((l & 1) == 0) encoding.theory(l >> 1) else Not(encoding.theory(l>>1))
-            //else
-              //if((l & 1) == 0) (l >> 1) else "-"+ (l>>1)
-          //}).mkString("\n", "\n", "\n"))
-              
         }
       }
     } else {
@@ -873,9 +787,7 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
   }
 
   private[this] def decide() {
-    //println("in decide")
     if(cnfFormula.vsidsQueue.isEmpty) {
-      //println("1 status = SAT")
       status = Satisfiable
     } else {
 
@@ -913,21 +825,15 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
           decisionLevel += 1
           tEnqueueLiteral(2*next | (nbDecisions & 1))
         } else{
-          //println("2 status = SAT")
-          //println("model:")
-          //(0 until nbTVars).foreach{i => {
-              //println(if(model(i) == 1) encoding.theory(i) else Not(encoding.theory(i)))
-            //}
-          //}
           status = Satisfiable
         }
       }
     }
-    //println("end of decide")
   }
 
   private[this] def backtrack() {
-    //println("in backtrack")
+    assert(status == Conflict)
+
     if(decisionLevel == 0)
       status = Unsatisfiable
     else {
@@ -936,23 +842,8 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
       cnfFormula.decayVSIDSClause()
 
       val learntClause = conflictAnalysisStopWatch.time { conflictAnalysis }
-      //println("learntClause: "+ learntClause.lits.map(l => {
-        //val litString = if((l >> 1) < nbTVars)
-          //if((l & 1) == 0) encoding.theory(l >> 1) else Not(encoding.theory(l>>1))
-        //else
-          //if((l & 1) == 0) (l >> 1) else "-"+ (l>>1)
-        //litString +" @ "+ levels(l>>1)
-      //}).mkString("\n", "\n", "\n"))
-      
 
-      var lits = learntClause.lits
-      //lits.sortWith((x,y) => levels(x >> 1) > levels(y >> 1))
-      //var j = 1
-      //while(j < lits.size && levels(lits(j) >> 1) == levels(lits(0) >> 1))
-        //j+=1
-      //val backtrackLevel = if(j == lits.size) 0 else levels(lits(j) >> 1)
-
-
+      val lits = learntClause.lits
       val backtrackLevel = if(lits.size == 1) 0 else {
         var m = levels(lits(1) >> 1)
         var i = 2
@@ -968,7 +859,6 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
         }
         m
       }
-      //println("backtrackLevel: "+ backtrackLevel)
 
       status = Unknown
       if(nbConflicts == nextRestart) {
@@ -985,26 +875,16 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
         cnfFormula.augmentMaxLearnt()
       } else {
         assert(decisionLevel > backtrackLevel)
-        //println("no restart")
         backtrackTo(backtrackLevel)
         val lit = learntClause.lits(0)
         //assert(isUnassigned(lit))
         //assert(learntClause.lits.tail.forall(isUnsat))
-        //if(learntClause.lits.size == 1)
-          //tEnqueueLiteral(lit)
-        //else
-          tEnqueueLiteral(lit, learntClause) //only on non restart
-        //if(status == Conflict) {
-          //println("conflict after enqueuing negated literal")
-          ////println("conflict: "+ conflict)
-        //}
-        //println("status after enqueuing backtracked literal in opposite polarity: "+ status)
+        tEnqueueLiteral(lit, learntClause) //only on non restart
         //note that if the unitClause is of size 1, there will be an auto-reset to backtrack level 0 so this is correct as well
       }
       if(learntClause.size > 1) //we only learn if it is not unit, if it is unit, then it is processed via the unitClauses and its consequences is added at level 0 which is never forgot
         cnfFormula.learn(learntClause)
     }
-    //println("end of backtrack")
   }
 
 
@@ -1043,8 +923,6 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
   }
 
   private[this] def deduce() {
-    //println("in deduce")
-
     while(qHead < trail.size && status != Conflict) {
 
       val forcedLit = trail(qHead)
@@ -1085,12 +963,10 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
           } else {
             if(isUnassigned(lits(0))) {
               nbPropagations += 1
-              //println("UNASSIGNED, clause: "+ clause)
               tEnqueueLiteral(lits(0), clause)
             } else if(isUnsat(lits(0))) {
-              //println("Conflict 2: "+ clause)
               status = Conflict
-              qHead == trail.size
+              qHead = trail.size
               conflict = clause
               assert(conflict.lits.forall(lit => isUnsat(lit)))
             }
@@ -1099,8 +975,6 @@ class DPLLTSolver(nbVars: Int, nbTVars: Int, tSolver: TheorySolver, encoding: En
       }
 
     }
-
-    //println("end of deduce: "+ status)
   }
 
   //some debugging assertions that can be introduced in the code to check for correctness
