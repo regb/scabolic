@@ -15,23 +15,23 @@ import scala.collection.mutable.ArrayBuffer
 import regolic.StopWatch
 
 /*
- * Algorithm as described in "Fast congruence closure and extensions" by
- * Nieuwenhuis and Oliveras
+ * Algorithm described in "Fast congruence closure and extensions"
+ * by Robert Nieuwenhuis and Albert Oliveras
  */
 class CongruenceClosure extends TheorySolver {
 
-  class Node(var next: Node, var data: Tuple3[Timestamp,Int,Formula])
+  class Node(var next: Node, var data: (Timestamp, Int, Formula))
 
   // TODO iterator
   class LinkedList {
     var first: Node = null
-    def +=(data: Tuple3[Timestamp, Int, Formula]) {
+    def +=(data: (Timestamp, Int, Formula)) {
       val node = new Node(null, data)
       node.next = first
       first = node
     }
 
-    def exists(pred: Tuple3[Timestamp,Int,Formula] => Boolean): Boolean = {
+    def exists(pred: Tuple3[Timestamp, Int, Formula] => Boolean): Boolean = {
       var node = first
       while(node != null) {
         if(pred(node.data))
@@ -41,7 +41,7 @@ class CongruenceClosure extends TheorySolver {
       return false
     }
     
-    def find(pred: Tuple3[Timestamp,Int,Formula] => Boolean): Tuple3[Timestamp,Int,Formula] = {
+    def find(pred: Tuple3[Timestamp, Int, Formula] => Boolean): (Timestamp, Int, Formula) = {
       var node = first
       while(node != null) {
         if(pred(node.data))
@@ -103,16 +103,16 @@ class CongruenceClosure extends TheorySolver {
 
   private[this] var trigger: Formula = null
 
-  private[this] val undoReprChangeStack = new HashMap[Formula, Stack[Tuple3[Int, Int, Int]]] {
+  private[this] val undoReprChangeStack = new HashMap[Formula, Stack[(Int, Int, Int)]] {
     override def default(k: Formula) = {
-      val v = Stack[Tuple3[Int, Int, Int]]()
+      val v = Stack[(Int, Int, Int)]()
       this += (k -> v)
       v
     }
   }
-  private[this] val undoUseListStack = new HashMap[Formula, Stack[Tuple3[Formula, Int, Int]]] {
+  private[this] val undoUseListStack = new HashMap[Formula, Stack[(Formula, Int, Int)]] {
     override def default(k: Formula) = {
-      val v = Stack[Tuple3[Formula, Int, Int]]()
+      val v = Stack[(Formula, Int, Int)]()
       this += (k -> v)
       v
     }
@@ -452,12 +452,12 @@ class CongruenceClosure extends TheorySolver {
           val c1Id = termToId(c1); val c2Id = termToId(c2)
           val lookedUp = lookup.getOrElse((repr(c1Id), repr(c2Id)), null)
           if(lookedUp != null && lookedUp._1.isValid) {
-            undoUseListStack(trigger).push(Tuple3(f1, oldreprA, -1))
+            undoUseListStack(trigger).push((f1, oldreprA, -1))
             pendingMerges.enqueue((f1, lookedUp._2))
           } else {
             lookup += ((repr(c1Id), repr(c2Id)) -> (currentTimestamp, f1))
 
-            undoUseListStack(trigger).push(Tuple3(f1, oldreprA, repr(b)))
+            undoUseListStack(trigger).push((f1, oldreprA, repr(b)))
             useList(repr(b)).append(f1)
           }
         }

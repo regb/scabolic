@@ -107,25 +107,6 @@ class DPLLTSuite extends FunSuite {
     assert(propositionalSkeletonTest(psi))
   }
 
-  test("Currifier") {
-    def noFunctionOtherThanApply(f: Term): Boolean = {
-      f match {
-        case Apply(t1, t2) => noFunctionOtherThanApply(t1) && noFunctionOtherThanApply(t2)
-        case Variable(_, _) => true
-        case _ => false
-      }
-    }
-    val fun = freshFunctionSymbol("fun", List(IntSort(), IntSort()), IntSort())
-
-    assert(
-      Currifier(
-        Equals(FunctionApplication(fun, List(a, b)), d)
-      ) match {
-        case Equals(t1, t2) => noFunctionOtherThanApply(t1) && noFunctionOtherThanApply(t2)
-      }
-    )
-  }
-
   test("Flattener") {
     def noNestedFunctions(eq: PredicateApplication): Boolean = {
       eq match {

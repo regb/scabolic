@@ -20,15 +20,21 @@ object Currifier {
     }
 
     t match {
-      case Apply(_, _) => t
-      case (_: Variable) => t
-      case _ => {
-        val FunctionApplication(fun, args) = t
-        makeFuns((Variable(fun.name, fun.returnSort) :: args).reverse)
+      case a@Apply(_, _) => a
+      case v@Variable(_, _) => v
+      case FunctionApplication(funSym@FunctionSymbol(name, paramSorts, returnSort), args) => {
+        //val newSort = FunctionSort(TupleSort(paramSorts), returnSort)
+        //val newSymbol = FunctionSymbol
+        //Apply(
+        makeFuns((Variable(name, returnSort) :: args).reverse)
       }
     }
   }
 
-  def apply(eq: PredicateApplication): PredicateApplication = eq match {case Equals(s, t) => Equals(curry(s), curry(t))}
+  def apply(t: Term): Term = curry(t)
+
+  def apply(eq: PredicateApplication): PredicateApplication = eq match {
+    case Equals(s, t) => Equals(curry(s), curry(t))
+  }
 }
 
