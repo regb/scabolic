@@ -8,13 +8,8 @@ import org.scalatest.FunSuite
 
 class FastCongruenceClosureSuite extends FunSuite {
 
-  //test if the term contains a function of arity more than 1 which is not Apply
-  private def containsNonApplyFunctions(t: Term): Boolean = t match {
-    case Apply(t1, t2) => containsNonApplyFunctions(t1) || containsNonApplyFunctions(t2)
-    case Variable(_, _) => false
-    case FunctionApplication(_, Nil) => false
-    case _ => true
-  }
+  import FastCongruenceClosure._
+
   private val sort = Sort("A", List())
   private val f1Sym = FunctionSymbol("f1", List(sort), sort)
   private val f2Sym = FunctionSymbol("f2", List(sort, sort), sort)
@@ -34,24 +29,18 @@ class FastCongruenceClosureSuite extends FunSuite {
   private val b = FunctionApplication(bSym, List())
   private val c = FunctionApplication(cSym, List())
 
-  private def substituteApply(t: Term): Term = {
-    mapPostorder(t, f => f, {
-      case Apply(FunctionApplication(FunctionSymbol(name, params, FunctionSort(from, to)), args), arg) => {
-        val newSymbol = FunctionSymbol(name, params ::: List(from), to)
-        FunctionApplication(newSymbol, args ::: List(arg))
-      }
-      case t => t
-    })
-  }
-        
-  test("basic setTrue") {
-    val cc1 = new CongruenceClosure
-    cc1.initialize(Set(Not(Equals(a, a))))
-    assert(cc1.setTrue(Not(Equals(a, a))) === None)
-
-    val cc2 = new CongruenceClosure
-    cc2.initialize(Set(Equals(a, a)))
-    assert(cc2.setTrue(Equals(a, a)) != None)
+  test("basic merge") {
+    val cc1 = new FastCongruenceClosure
+    cc1.initialize(3)
+    assert(!cc1.areCongruent(Constant(0), Constant(1)))
+    assert(!cc1.areCongruent(Constant(1), Constant(2)))
+    assert(!cc1.areCongruent(Constant(0), Constant(2)))
+    cc1.merge(0, 1)
+    assert(cc1.areCongruent(Constant(0), Constant(1)))
+    cc1.merge(1, 2)
+    assert(cc1.areCongruent(Constant(1), Constant(2)))
+    assert(cc1.areCongruent(Constant(0), Constant(2)))
+    assert(cc1.areCongruent(Constant(2), Constant(0)))
   }
 
 }
