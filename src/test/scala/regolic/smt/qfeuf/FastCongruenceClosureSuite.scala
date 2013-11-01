@@ -41,6 +41,72 @@ class FastCongruenceClosureSuite extends FunSuite {
     assert(cc1.areCongruent(Constant(1), Constant(2)))
     assert(cc1.areCongruent(Constant(0), Constant(2)))
     assert(cc1.areCongruent(Constant(2), Constant(0)))
+
+    val cc2 = new FastCongruenceClosure
+    cc2.initialize(5)
+    assert(!cc2.areCongruent(Constant(0), Constant(1)))
+    assert(!cc2.areCongruent(Constant(1), Constant(2)))
+    assert(!cc2.areCongruent(Constant(0), Constant(2)))
+    assert(!cc2.areCongruent(Constant(2), Constant(4)))
+    cc2.merge(0, 1)
+    assert(cc2.areCongruent(Constant(0), Constant(1)))
+    cc2.merge(3, 2)
+    assert(!cc2.areCongruent(Constant(1), Constant(2)))
+    assert(!cc2.areCongruent(Constant(0), Constant(2)))
+    assert(!cc2.areCongruent(Constant(2), Constant(4)))
+    assert(cc2.areCongruent(Constant(2), Constant(3)))
+
+    cc2.merge(0, 4)
+    assert(cc2.areCongruent(Constant(0), Constant(4)))
+    assert(cc2.areCongruent(Constant(1), Constant(4)))
+    assert(!cc2.areCongruent(Constant(0), Constant(2)))
+    assert(!cc2.areCongruent(Constant(2), Constant(4)))
+
+    cc2.merge(3, 4)
+    assert(cc2.areCongruent(Constant(0), Constant(4)))
+    assert(cc2.areCongruent(Constant(1), Constant(4)))
+    assert(cc2.areCongruent(Constant(0), Constant(2)))
+    assert(cc2.areCongruent(Constant(2), Constant(4)))
+    assert(cc2.areCongruent(Constant(3), Constant(1)))
+    assert(cc2.areCongruent(Constant(3), Constant(4)))
+  }
+
+  test("merge with apply") {
+    val cc1 = new FastCongruenceClosure
+    cc1.initialize(4)
+    cc1.merge(0, 1, 2) //g(a) = b
+    assert(!cc1.areCongruent(Constant(0), Constant(1)))
+    assert(!cc1.areCongruent(Constant(0), Constant(2)))
+    assert(cc1.areCongruent(Apply(Constant(0), Constant(1)), Constant(2))) //assert g(a) = b
+    cc1.merge(2, 3) // b = c
+    assert(cc1.areCongruent(Apply(Constant(0), Constant(1)), Constant(3))) //assert g(a) = c
+    assert(!cc1.areCongruent(Constant(0), Constant(1)))
+    assert(!cc1.areCongruent(Constant(0), Constant(2)))
+    assert(!cc1.areCongruent(Constant(0), Constant(3)))
+    assert(!cc1.areCongruent(Constant(1), Constant(2)))
+    assert(!cc1.areCongruent(Constant(1), Constant(3)))
+    cc1.merge(0, 1, 3) //g(a) = c
+    assert(!cc1.areCongruent(Constant(0), Constant(1)))
+    assert(!cc1.areCongruent(Constant(0), Constant(2)))
+    assert(!cc1.areCongruent(Constant(0), Constant(3)))
+    assert(!cc1.areCongruent(Constant(1), Constant(2)))
+    assert(!cc1.areCongruent(Constant(1), Constant(3)))
+
+    val cc2 = new FastCongruenceClosure
+    cc2.initialize(4) //f, a, b, c
+    cc2.merge(0, 1, 2) //f(a) = b
+    assert(!cc2.areCongruent(Constant(2), Constant(3))) // b != c
+    cc2.merge(0, 1, 3) //f(a) = c
+    assert(cc2.areCongruent(Constant(2), Constant(3))) // b = c
+
+    val cc3 = new FastCongruenceClosure
+    cc3.initialize(5) //f, a, b, c, d
+    cc3.merge(0, 1, 2) //f(a) = b
+    cc3.merge(0, 2, 3) //f(f(a)) = c
+    cc3.merge(0, 3, 1) //f(f(f(a))) = a
+    assert(cc3.areCongruent(Apply(Constant(0), Apply(Constant(0), Apply(Constant(0), Constant(1)))), Constant(1)))
+    assert(!cc3.areCongruent(Apply(Constant(0), Apply(Constant(0), Constant(1))), Constant(1)))
+
   }
 
 }
