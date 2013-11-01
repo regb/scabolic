@@ -1,6 +1,7 @@
 package regolic.smt.qfeuf
 
 import regolic.asts.core.Trees._
+import regolic.asts.core.Manip._
 import regolic.asts.fol.Trees._
 
 /*
@@ -14,8 +15,23 @@ object Flattener {
   
   private val terms = collection.mutable.Map[FunctionApplication, Pair[List[PredicateApplication], Variable]]()
 
-  private def extract(f: FunctionApplication, acc: List[PredicateApplication] =
-    Nil): Pair[List[PredicateApplication], Variable] = {
+
+  def transform(term: Term): (Term, Map[String, FunctionApplication]) = {
+    var eqs: Map[String, FunctionApplication] = Map()
+
+    val newTerm = mapPostorder(term, (f: Formula) => f, (t: Term) => t match {
+      case app@FunctionApplication(fun, arg::args) => {
+        val fv = freshVariable(fun.name, fun.returnSort)
+        eqs += (fv.name -> app)
+        fv
+      }
+      case t => t
+    })
+
+    (newTerm, eqs)
+  }
+
+  private def extract(f: FunctionApplication, acc: List[PredicateApplication] = Nil): (List[PredicateApplication], Variable) = {
     if(terms.contains(f)) {
       terms(f)
     } else {

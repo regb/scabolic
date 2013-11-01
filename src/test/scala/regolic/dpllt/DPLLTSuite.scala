@@ -107,23 +107,6 @@ class DPLLTSuite extends FunSuite {
     assert(propositionalSkeletonTest(psi))
   }
 
-  test("Flattener") {
-    def noNestedFunctions(eq: PredicateApplication): Boolean = {
-      eq match {
-        case Equals(Variable(_, _), Variable(_, _)) => true
-        case Equals(Apply(Variable(_, _), Variable(_, _)), Variable(_, _)) => true
-        case _ => false
-      }
-    }
-    assert(
-      Flattener(
-        Equals(
-          Apply(Apply(Apply(gVar, a), Apply(h, b)), b), b
-        )
-      ).forall(noNestedFunctions)
-    )
-  }
-
   test("small example SAT") {
     val result = DPLLTSolverWrapper(new CongruenceClosure, phi) match {
       case Results.Satisfiable(_) => true
