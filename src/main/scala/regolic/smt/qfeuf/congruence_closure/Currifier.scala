@@ -11,22 +11,23 @@ import regolic.asts.fol.Trees._
 object Currifier {
 
   private def curry(t: Term): Term = {
-    def makeFuns(terms: List[Term]): Term = {
-      terms match {
-        case x :: Nil => x
-        case x :: xs => Apply(makeFuns(xs), curry(x))
-        case _ => throw new Exception("Impossible case when matching terms "+ terms)
-      }
-    }
+    //def makeFuns(terms: List[Term]): Term = {
+    //  terms match {
+    //    case x :: Nil => x
+    //    case x :: xs => Apply(makeFuns(xs), curry(x))
+    //    case _ => throw new Exception("Impossible case when matching terms "+ terms)
+    //  }
+    //}
 
     t match {
       case a@Apply(_, _) => a
       case v@Variable(_, _) => v
-      case FunctionApplication(funSym@FunctionSymbol(name, paramSorts, returnSort), args) => {
-        //val newSort = FunctionSort(TupleSort(paramSorts), returnSort)
-        //val newSymbol = FunctionSymbol
-        //Apply(
-        makeFuns((Variable(name, returnSort) :: args).reverse)
+      case c@FunctionApplication(_, Nil) => c
+      case FunctionApplication(funSym@FunctionSymbol(name, paramSorts, returnSort), x::xs) => {
+        val newSort = paramSorts.foldRight(returnSort)((s, acc) => FunctionSort(s, acc))
+        val newSymbol = FunctionSymbol(name, List(), newSort)
+        val newFun = FunctionApplication(newSymbol, List())
+        xs.foldLeft(Apply(newFun, curry(x)): Term)((t, arg) => Apply(t, curry(arg)))
       }
     }
   }
@@ -37,4 +38,3 @@ object Currifier {
     case Equals(s, t) => Equals(curry(s), curry(t))
   }
 }
-

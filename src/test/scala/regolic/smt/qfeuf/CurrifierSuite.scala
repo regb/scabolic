@@ -2,6 +2,7 @@ package regolic.smt.qfeuf
 
 import regolic.asts.fol.Trees._
 import regolic.asts.core.Trees._
+import regolic.asts.core.Manip._
 
 import org.scalatest.FunSuite
 
@@ -33,6 +34,17 @@ class CurrifierSuite extends FunSuite {
   private val b = FunctionApplication(bSym, List())
   private val c = FunctionApplication(cSym, List())
 
+  private def substituteApply(t: Term): Term = {
+    mapPostorder(t, f => f, {
+      case Apply(FunctionApplication(FunctionSymbol(name, params, FunctionSort(from, to)), args), arg) => {
+        val newSymbol = FunctionSymbol(name, params ::: List(from), to)
+        FunctionApplication(newSymbol, args ::: List(arg))
+      }
+      case t => t
+    })
+  }
+        
+
   test("basic currifier remove all functions") {
     val t0 = a
     val ct0 = Currifier(t0)
@@ -49,6 +61,9 @@ class CurrifierSuite extends FunSuite {
     assert(containsNonApplyFunctions(t2))
     assert(!containsNonApplyFunctions(ct2))
 
+  }
+
+  test("basic nested currifier remove all functions") {
     val t3 = f2(f1(b), c)
     val ct3 = Currifier(t3)
     assert(containsNonApplyFunctions(t3))
@@ -58,13 +73,6 @@ class CurrifierSuite extends FunSuite {
     val ct4 = Currifier(t4)
     assert(containsNonApplyFunctions(t4))
     assert(!containsNonApplyFunctions(ct4))
-  }
-
-  test("basic currifier correct transformation") {
-    //val t1 = f1(a)
-    //val ct1 = Currifier(t1)
-    //assert(ct1 === a
-
   }
 
   test("higher arity currifier remove all functions") {
@@ -82,6 +90,32 @@ class CurrifierSuite extends FunSuite {
     val ct3 = Currifier(t3)
     assert(containsNonApplyFunctions(t3))
     assert(!containsNonApplyFunctions(ct3))
+  }
+
+  test("currifier correct transformation") {
+    val t1 = a
+    val ct1 = Currifier(t1)
+    assert(ct1 === a)
+
+    val t2 = f1(a)
+    val ct2 = Currifier(t2)
+    assert(substituteApply(ct2) === t2)
+    
+    val t3 = f2(a, b)
+    val ct3 = Currifier(t3)
+    assert(substituteApply(ct3) === t3)
+
+    val t4 = f2(f1(b), c)
+    val ct4 = Currifier(t4)
+    assert(substituteApply(ct4) === t4)
+
+    val t5 = f3(a, b, c)
+    val ct5 = Currifier(t5)
+    assert(substituteApply(ct5) === t5)
+
+    val t6 = f3(f2(x, f2(a, b)), f2(a, f1(b)), f1(f1(c)))
+    val ct6 = Currifier(t6)
+    assert(substituteApply(ct6) === t6)
   }
 
 }
