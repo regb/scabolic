@@ -189,18 +189,6 @@ class DPLLTSuite extends FunSuite {
     assert(cc2.setTrue(Equals(c,d)) === None)
   }
 
-  test("setTrue a != a") {
-    val cc1 = new CongruenceClosure
-    cc1.initialize(Set(Not(Equals(a,a))))
-    assert(cc1.setTrue(Not(Equals(a,a))) === None)
-  }
-
-  test("setTrue a = a") {
-    val cc1 = new CongruenceClosure
-    cc1.initialize(Set(Equals(a,a)))
-    assert(cc1.setTrue(Equals(a,a)) != None)
-  }
-
   test("backtrack 1") {
     // (a=b) AND (d=e OR a!=c) AND (b=c)
     val cc1 = new CongruenceClosure

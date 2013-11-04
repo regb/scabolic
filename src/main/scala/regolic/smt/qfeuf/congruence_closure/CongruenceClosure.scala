@@ -298,6 +298,30 @@ class CongruenceClosure extends TheorySolver {
     }
   }
 
+  //merge a term (at most one level nested) and a constant
+  //def merge(t: Term, c: FunctionApplication): Option[Set[Formula]] = {
+  //  require(c.args.isEmpty)
+  //  eq match {
+  //    case Equals(a: Variable, b: Variable) => {
+  //      pendingMerges.enqueue((eq, null))
+  //      propagate()
+  //    }
+  //    case Equals(Apply(a1, a2), a: Variable) => {
+  //      val a1Id = termToId(a1); val a2Id = termToId(a2)
+  //      val lookedUp = lookup.getOrElse((repr(a1Id), repr(a2Id)), null)
+  //      if(lookedUp != null && lookedUp._1.isValid) {
+  //        pendingMerges.enqueue((eq, lookedUp._2))
+  //        propagate()
+  //      } else {
+  //        lookup += ((repr(a1Id), repr(a2Id)) -> (currentTimestamp, eq))
+  //        useList(repr(a1Id)).append(eq)
+  //        useList(repr(a2Id)).append(eq)
+  //        Some(Set.empty[Formula]) // no new unions, no T-consequences
+  //      }
+  //    }
+  //  }
+  //}
+
   private def merge(eq: Formula): Option[Set[Formula]] = {
     eq match {
       case Equals(a: Variable, b: Variable) => {
