@@ -1,7 +1,7 @@
-package regolic.smt.qfeuf 
+package regolic
+package smt
+package qfeuf 
 
-import regolic.smt.Solver
-import regolic.smt.TheorySolver
 import regolic.asts.core.Trees._
 import regolic.asts.fol.Trees._
 
@@ -11,8 +11,6 @@ import scala.collection.mutable.Map
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.ListBuffer
 import scala.collection.mutable.ArrayBuffer
-
-import regolic.StopWatch
 
 /*
  * Algorithm described in "Fast congruence closure and extensions"
@@ -26,16 +24,10 @@ class FastCongruenceClosure {
 
   import FastCongruenceClosure._
 
-  type InputEquation = Either[(Int, Int), (Int, Int, Int)]
-  type MergePair = Either[
-                     Tuple2[Int, Int],
-                     Tuple2[(Int, Int, Int), (Int, Int, Int)]
-                   ]
-
   private[this] var nbConstants = 0
 
   private[this] val pendingMerges: Queue[MergePair] = Queue()
-  private[this] var repr: Array[Int] = null
+  var repr: Array[Int] = null
   private[this] val lookup: Map[(Int, Int), (Int, Int, Int)] = Map()
   private[this] var useList: Array[ListBuffer[(Int, Int, Int)]] = null
   private[this] var classList: Array[ListBuffer[Int]] = null
@@ -126,6 +118,11 @@ class FastCongruenceClosure {
     }
   }
   
+  def areCongruent(ie: InputEquation): Boolean = ie match {
+    case Left((a, b)) => areCongruent(a, b)
+    case Right((a,b,c)) => areCongruent(Apply(Constant(a), Constant(b)), Constant(c))
+  }
+  def areCongruent(a: Int, b: Int): Boolean = areCongruent(Constant(a), Constant(b))
   def areCongruent(t1: ApplyConstantTerms, t2: ApplyConstantTerms): Boolean = {
     normalize(t1) == normalize(t2)
   }
@@ -181,8 +178,14 @@ class FastCongruenceClosure {
   //  retVal
   //}
   
-  //explain must return a subset of input equations (that were given through merge) that
-  //explains why a = b. Requires that a=b
+  /*
+   * explain must return a subset of input equations (that were given through merge) that
+   * explains why a = b. Requires that a=b
+   *
+   * There can be, in general, many different explanations. We do not guarantee any
+   * particular explanation, other than the fact that the explanation consists of a
+   * subset of the input equations passed through merge operations.
+   */
   def explain(a: Int, b: Int): Set[InputEquation] = {
     var acc: Set[InputEquation] = Set()
     def add(pair: MergePair) = if(pair != null) pair match {
@@ -337,7 +340,164 @@ class FastCongruenceClosure {
 }
 
 object FastCongruenceClosure {
+
   sealed trait ApplyConstantTerms
   case class Constant(c: Int) extends ApplyConstantTerms
   case class Apply(t1: ApplyConstantTerms, t2: ApplyConstantTerms) extends ApplyConstantTerms
+
+  type InputEquation = Either[(Int, Int), (Int, Int, Int)]
+  type MergePair = Either[
+                     Tuple2[Int, Int],
+                     Tuple2[(Int, Int, Int), (Int, Int, Int)]
+                   ]
+
+}
+
+
+class MySolver {
+
+  import FastCongruenceClosure._
+
+  case object InconsistencyException extends Exception
+
+  private[this] val cc = new FastCongruenceClosure
+  private[this] val iStack = new Stack[Literal]
+
+  private[this] var diseqs: List[(Int, Int)] = List()
+  private[this] var posLits: Array[List[(Int, Int)]] = null
+  private[this] var negLits: Array[List[(Int, Int)]] = null
+
+  def initialize(lits: Set[Literal]): Unit = {
+    val nbConstants = lits.map{ 
+      case Literal(Left((a,b)), _, _, _) => a.max(b)
+      case Literal(Right((a,b,c)), _, _, _) => a.max(b).max(c)
+    }.max + 1
+    cc.initialize(nbConstants)
+    posLits = Array.fill(nbConstants)(List())
+    negLits = Array.fill(nbConstants)(List())
+    lits.map(lit => lit match {
+      case Literal(Left(eq@(a, b)), _, pol, _) => {
+        if(pol) {
+          posLits(a) ::= eq
+          posLits(b) ::= eq
+        } else {
+          negLits(a) ::= eq
+          negLits(b) ::= eq
+        }
+      }
+      case _ => ()
+    })
+  }
+
+  def setTrue(lit: Literal): Set[Literal] = {
+    val Literal(ie, _, pol, _) = lit
+    iStack.push(lit)
+    if(pol) {
+      cc.merge(ie)
+      diseqs.foreach(diseq =>
+        if(cc.areCongruent(diseq._1, diseq._2))
+          throw InconsistencyException
+      )
+    } else {
+      //assuming disequalities are only between constants, due to flattener
+      val Left((a, b)) = ie
+      if(cc.areCongruent(a, b))
+        throw InconsistencyException
+      diseqs ::= ((a, b))
+    }
+    Set()
+  }
+
+  def isTrue(lit: Literal): Boolean = {
+    val Literal(ie, _, pol, _) = lit
+    if(pol) {
+      cc.areCongruent(ie)
+    } else {
+      val Left((a, b)) = ie
+      val repA = cc.repr(a)
+      val repB = cc.repr(b)
+      diseqs.exists{ case (c, d) => 
+        cc.repr(c) == repA && cc.repr(d) == repB ||
+        cc.repr(d) == repA && cc.repr(c) == repB
+      }
+    }
+  }
+
+  //def backtrack(n: Int): Unit
+
+  //def explain(l: Literal): Set[Literal]
+
+  //def backtrackTo(l: Literal): Unit
+
+  //def explain(): Set[Formula]
+
+  //def explain(l: Formula, lPrime: Formula = null): Set[Formula]
+  
+}
+
+case class Literal(eq: FastCongruenceClosure.InputEquation, override val id: Int, pol: Boolean, pred: PredicateApplication) 
+  extends smt.Literal(pred, id, pol)
+
+class PreProcessing {
+
+  def apply(cnf: Set[Set[Formula]]): Set[Set[smt.Literal]] = {
+
+    var namesToConstants: Map[String, Int] = {
+      var constantId = -1
+      new HashMap[String, Int] {
+        override def apply(name: String): Int = this.get(name) match {
+          case Some(id) => id
+          case None => {
+            constantId += 1
+            this(name) = constantId
+            constantId
+          }
+        }
+      }
+    }
+
+    var extraDefs: List[FastCongruenceClosure.InputEquation] = List()
+
+    def addName(p: (String, FunctionApplication)): Unit = p match {
+      case (a, Apply(FunctionApplication(FunctionSymbol(a1, _, _), _), FunctionApplication(FunctionSymbol(a2, _, _), _))) =>
+        extraDefs ::= Right((namesToConstants(a1), namesToConstants(a2), namesToConstants(a)))
+      case (a, FunctionApplication(FunctionSymbol(b, _, _), _)) =>
+        extraDefs ::= Left((namesToConstants(a), namesToConstants(b)))
+    }
+
+    val processed: List[List[smt.Literal]] = cnf.toList.map(clause => clause.toList.map(lit => lit match {
+      case eq@Equals(t1, t2) => {
+        val ct1 = Currifier(t1)
+        val ct2 = Currifier(t2)
+        val (Variable(name1, _), names1) = Flattener.transform(ct1)
+        val (Variable(name2, _), names2) = Flattener.transform(ct2)
+        names1.foreach(p => addName(p))
+        names2.foreach(p => addName(p))
+        Literal(
+          Left((namesToConstants(name1), namesToConstants(name2))),
+          0,
+          true,
+          eq
+        )
+
+      }
+      case Not(eq@Equals(t1, t2)) => {
+        val ct1 = Currifier(t1)
+        val ct2 = Currifier(t2)
+        val (Variable(name1, _), names1) = Flattener.transform(ct1)
+        val (Variable(name2, _), names2) = Flattener.transform(ct2)
+        names1.foreach(p => addName(p))
+        names2.foreach(p => addName(p))
+        Literal(
+          Left((namesToConstants(name1), namesToConstants(name2))),
+          0,
+          false,
+          eq
+        )
+      }
+    }))
+
+    processed.map(clause => clause.toSet).toSet ++ extraDefs.map(ie => Set[smt.Literal](Literal(ie, 0, true, null))).toSet
+
+  }
 }

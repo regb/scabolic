@@ -14,9 +14,15 @@ class FastCongruenceClosureSuite extends FunSuite {
   private val f1Sym = FunctionSymbol("f1", List(sort), sort)
   private val f2Sym = FunctionSymbol("f2", List(sort, sort), sort)
   private val f3Sym = FunctionSymbol("f3", List(sort, sort, sort), sort)
+  private val g1Sym = FunctionSymbol("g1", List(sort), sort)
+  private val g2Sym = FunctionSymbol("g2", List(sort, sort), sort)
+  private val g3Sym = FunctionSymbol("g3", List(sort, sort, sort), sort)
   private def f1(t: Term): Term = FunctionApplication(f1Sym, List(t))
   private def f2(t1: Term, t2: Term): Term = FunctionApplication(f2Sym, List(t1, t2))
   private def f3(t1: Term, t2: Term, t3: Term): Term = FunctionApplication(f3Sym, List(t1, t2, t3))
+  private def g1(t: Term): Term = FunctionApplication(g1Sym, List(t))
+  private def g2(t1: Term, t2: Term): Term = FunctionApplication(g2Sym, List(t1, t2))
+  private def g3(t1: Term, t2: Term, t3: Term): Term = FunctionApplication(g3Sym, List(t1, t2, t3))
 
   private val x = Variable("v", sort)
   private val y = Variable("v", sort)
@@ -183,6 +189,57 @@ class FastCongruenceClosureSuite extends FunSuite {
     assert(ex2.contains(Right((0, 1, 3))))
     assert(ex2.contains(Right((0, 2, 4))))
 
+  }
+
+  test("positive setTrue") {
+    val lit1 = Literal(Left(0, 1), 0, true, null)
+    val lit2 = Literal(Left(1, 2), 0, true, null)
+    val lit3 = Literal(Left(0, 2), 0, true, null)
+
+    val cc1 = new MySolver
+    cc1.initialize(Set(lit1, lit2, lit3))
+    assert(!cc1.isTrue(lit1))
+    cc1.setTrue(lit1)
+    assert(cc1.isTrue(lit1))
+    assert(!cc1.isTrue(lit2))
+    cc1.setTrue(lit2)
+    assert(cc1.isTrue(lit1))
+    assert(cc1.isTrue(lit2))
+    assert(cc1.isTrue(lit3))
+  }
+
+  test("negative setTrue") {
+    val lit1 = Literal(Left(0, 1), 0, true, null)
+    val lit2 = Literal(Left(1, 2), 0, true, null)
+    val lit3 = Literal(Left(0, 2), 0, true, null)
+    val lit4 = Literal(Left(0, 1), 0, false, null)
+    val lit5 = Literal(Left(1, 2), 0, false, null)
+    val lit6 = Literal(Left(0, 2), 0, false, null)
+
+    val cc1 = new MySolver
+    cc1.initialize(Set(lit1, lit2, lit3, lit4, lit5, lit6))
+    cc1.setTrue(lit1)
+    assert(cc1.isTrue(lit1))
+    assert(!cc1.isTrue(lit2))
+    assert(!cc1.isTrue(lit4))
+    cc1.setTrue(lit2)
+    assert(cc1.isTrue(lit1))
+    assert(cc1.isTrue(lit2))
+    assert(cc1.isTrue(lit3))
+    assert(!cc1.isTrue(lit4))
+    assert(!cc1.isTrue(lit5))
+    assert(!cc1.isTrue(lit6))
+
+    val cc2 = new MySolver
+    cc2.initialize(Set(lit1, lit2, lit3, lit4, lit5, lit6))
+    cc2.setTrue(lit4)
+    assert(cc2.isTrue(lit4))
+    assert(!cc2.isTrue(lit1))
+    cc2.setTrue(lit2)
+    assert(cc2.isTrue(lit2))
+    assert(cc2.isTrue(lit4))
+    assert(cc2.isTrue(lit6))
+    assert(!cc2.isTrue(lit3))
   }
 
 }
