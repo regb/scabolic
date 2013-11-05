@@ -242,4 +242,31 @@ class FastCongruenceClosureSuite extends FunSuite {
     assert(!cc2.isTrue(lit3))
   }
 
+  test("advanced setTrue") {
+    val lit1 = Literal(Left(0, 1), 0, true, null)
+    val lit2 = Literal(Left(2, 3), 0, true, null)
+    val lit3 = Literal(Left(0, 3), 0, false, null)
+    val lit4 = Literal(Left(1, 2), 0, false, null)
+
+    val cc1 = new MySolver
+    cc1.initialize(Set(lit1, lit2, lit3, lit4))
+    cc1.setTrue(lit1)
+    cc1.setTrue(lit2)
+    assert(!cc1.isTrue(lit4))
+    assert(!cc1.isTrue(lit3))
+    cc1.setTrue(lit3)
+    assert(cc1.isTrue(lit4))
+
+    val cc2 = new MySolver
+    cc2.initialize(Set(lit1, lit2, lit3, lit4))
+    cc2.setTrue(lit3)
+    assert(cc2.isTrue(lit3))
+    assert(!cc2.isTrue(lit1))
+    assert(!cc2.isTrue(lit2))
+    cc2.setTrue(lit1)
+    cc2.setTrue(lit2)
+    assert(cc2.isTrue(lit3))
+    assert(cc2.isTrue(lit4))
+  }
+
 }
