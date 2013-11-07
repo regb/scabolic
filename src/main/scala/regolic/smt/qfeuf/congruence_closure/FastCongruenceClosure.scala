@@ -24,21 +24,32 @@ class FastCongruenceClosure {
 
   import FastCongruenceClosure._
 
+  case object InconsistencyException extends Exception
+
+  private[this] val iStack = new Stack[Literal]
+
+  private[this] var diseqs: Array[List[Int]] = null
+  private[this] var posLits: Array[List[(Int, Int)]] = null
+  private[this] var negLits: Array[List[(Int, Int)]] = null
+
   private[this] var nbConstants = 0
 
   private[this] val pendingMerges: Queue[MergePair] = Queue()
-  var repr: Array[Int] = null
+  private[this] var repr: Array[Int] = null
   private[this] val lookup: Map[(Int, Int), (Int, Int, Int)] = Map()
   private[this] var useList: Array[ListBuffer[(Int, Int, Int)]] = null
   private[this] var classList: Array[ListBuffer[Int]] = null
 
   //for each constant, the parent constant in the proof node, or -1 if root
   private[this] var proofForest: Array[Int] = null
+  //the label is for the edge outgoing from the corresponding node
   private[this] var proofLabels: Array[MergePair] = null
 
-  //initialize the state with the total number of constants
-  //constants will then be identified by integer between 0 and 1
-  def initialize(nbConstants: Int): Unit = {
+  def initialize(lits: Set[Literal]): Unit = {
+    val nbConstants = lits.map{ 
+      case Literal(Left((a,b)), _, _, _) => a.max(b)
+      case Literal(Right((a,b,c)), _, _, _) => a.max(b).max(c)
+    }.max + 1
     this.nbConstants = nbConstants
     repr = (0 until nbConstants).toArray
     classList = (0 until nbConstants).map(c => {
@@ -49,18 +60,50 @@ class FastCongruenceClosure {
     useList = Array.fill(nbConstants)(new ListBuffer)
     proofForest = Array.fill(nbConstants)(-1)
     proofLabels = new Array(nbConstants)
+    posLits = Array.fill(nbConstants)(List())
+    negLits = Array.fill(nbConstants)(List())
+    diseqs = Array.fill(nbConstants)(List())
+    lits.map(lit => lit match {
+      case Literal(Left(eq@(a, b)), _, pol, _) => {
+        if(pol) {
+          posLits(a) ::= eq
+          posLits(b) ::= eq
+        } else {
+          negLits(a) ::= eq
+          negLits(b) ::= eq
+        }
+      }
+      case _ => ()
+    })
   }
 
-  def merge(eq: InputEquation): Unit = eq match {
+
+  def setTrue(lit: Literal): Set[Literal] = {
+    val Literal(ie, _, pol, _) = lit
+    iStack.push(lit)
+    if(pol) {
+      merge(ie)
+    } else {
+      //assuming disequalities are only between constants, due to flattener
+      val Left((a, b)) = ie
+      if(areCongruent(a, b))
+        throw InconsistencyException
+      diseqs(repr(a)) ::= b
+      diseqs(repr(b)) ::= a
+      Set()
+    }
+  }
+
+  def merge(eq: InputEquation): Set[Literal] = eq match {
     case Left((a, b)) => merge(a, b)
     case Right((a1, a2, a)) => merge(a1, a2, a)
   }
 
-  def merge(a: Int, b: Int): Unit = {
+  def merge(a: Int, b: Int): Set[Literal] = {
     pendingMerges.enqueue(Left((a, b)))
     propagate()
   }
-  def merge(a1: Int, a2: Int, a: Int): Unit = {
+  def merge(a1: Int, a2: Int, a: Int): Set[Literal] = {
     val a1Rep = repr(a1)
     val a2Rep = repr(a2)
     lookup.get((a1Rep, a2Rep)) match {
@@ -72,37 +115,63 @@ class FastCongruenceClosure {
         lookup += ((a1Rep, a2Rep) -> (a1, a2, a))
         useList(a1Rep).append((a1, a2, a))
         useList(a2Rep).append((a1, a2, a))
+        Set() // no new unions, no T-consequences
       }
     }
   }
 
-  private def propagate(): Unit = {
+  //return list of consequences
+  private def propagate(): Set[Literal] = {
+    val tConsequences = ListBuffer[Literal]()
     while(pendingMerges.nonEmpty) {
       val e: MergePair = pendingMerges.dequeue()
       
-      val (aTmp, bTmp) = e match {
-        case Left((a, b)) => (a, b)
-        case Right(((_, _, a), (_, _, b))) => (a, b)
-      }
-      val (a, b) = 
+      val (a, b) = {
+        val (aTmp, bTmp) = e match {
+          case Left((a, b)) => (a, b)
+          case Right(((_, _, a), (_, _, b))) => (a, b)
+        }
         if(classList(repr(aTmp)).size > classList(repr(bTmp)).size)
           (bTmp, aTmp)
         else 
           (aTmp, bTmp)
+      }
 
       val aRep = repr(a)
       val bRep = repr(b)
 
-      if(aRep != bRep) {
-        val oldReprA = aRep
+      if(aRep != bRep) { //aRep will be replaced by bRep
+        if(diseqs(aRep).exists(c => c == bRep))
+          throw InconsistencyException
+
+        for(c <- classList(aRep)) {
+          for((c1, c2) <- posLits(c)) {
+            if((repr(c1) == aRep && repr(c2) == bRep) || //TODO: posLits(x) should have (x, y), x always on the left
+               (repr(c2) == bRep && repr(c2) == aRep))
+              tConsequences += Literal(Left((c1, c2)), 0, true, null)
+          }
+          //for((c1, c2) <- negLits(c)) {
+          //  if(repr(c1) == bRep || repr(c2) == bRep)
+          //  if(diseqs
+          //}
+        }
+
+        diseqs(aRep).foreach(c => {
+          diseqs(bRep) ::= c
+          //should remove aRep from the diseqs list of c as well
+          //aRep is only present in the diseqs list of the elements in its own list
+          diseqs(c).filterNot(_ == aRep)
+        })
+        diseqs(aRep) = Nil
+
         proofInsertEdge(a, b, e)
-        classList(oldReprA).foreach(c => {
+        classList(aRep).foreach(c => {
           repr(c) = bRep
           classList(bRep).append(c)
         })
-        classList(oldReprA).clear()
+        classList(aRep).clear()
 
-        useList(oldReprA).foreach{case f1@(c1, c2, c) => {
+        useList(aRep).foreach{case f1@(c1, c2, c) => {
           lookup.get((repr(c1), repr(c2))) match {
             case Some((d1, d2, d)) => {
               pendingMerges.enqueue(Right(((c1, c2, c), (d1, d2, d))))
@@ -113,9 +182,10 @@ class FastCongruenceClosure {
             }
           }
         }}
-        useList(oldReprA).clear()
+        useList(aRep).clear()
       }
     }
+    tConsequences.toSet
   }
   
   def areCongruent(ie: InputEquation): Boolean = ie match {
@@ -337,6 +407,19 @@ class FastCongruenceClosure {
   //  explanation
   //}
 
+
+  def isTrue(lit: Literal): Boolean = {
+    val Literal(ie, _, pol, _) = lit
+    if(pol) {
+      areCongruent(ie)
+    } else {
+      val Left((a, b)) = ie
+      val repA = repr(a)
+      val repB = repr(b)
+      diseqs(repA).indexOf(repB) != -1 ||
+      diseqs(repB).indexOf(repA) != -1
+    }
+  }
 }
 
 object FastCongruenceClosure {
@@ -351,88 +434,6 @@ object FastCongruenceClosure {
                      Tuple2[(Int, Int, Int), (Int, Int, Int)]
                    ]
 
-}
-
-
-class MySolver {
-
-  import FastCongruenceClosure._
-
-  case object InconsistencyException extends Exception
-
-  private[this] val cc = new FastCongruenceClosure
-  private[this] val iStack = new Stack[Literal]
-
-  private[this] var diseqs: List[(Int, Int)] = List()
-  private[this] var posLits: Array[List[(Int, Int)]] = null
-  private[this] var negLits: Array[List[(Int, Int)]] = null
-
-  def initialize(lits: Set[Literal]): Unit = {
-    val nbConstants = lits.map{ 
-      case Literal(Left((a,b)), _, _, _) => a.max(b)
-      case Literal(Right((a,b,c)), _, _, _) => a.max(b).max(c)
-    }.max + 1
-    cc.initialize(nbConstants)
-    posLits = Array.fill(nbConstants)(List())
-    negLits = Array.fill(nbConstants)(List())
-    lits.map(lit => lit match {
-      case Literal(Left(eq@(a, b)), _, pol, _) => {
-        if(pol) {
-          posLits(a) ::= eq
-          posLits(b) ::= eq
-        } else {
-          negLits(a) ::= eq
-          negLits(b) ::= eq
-        }
-      }
-      case _ => ()
-    })
-  }
-
-  def setTrue(lit: Literal): Set[Literal] = {
-    val Literal(ie, _, pol, _) = lit
-    iStack.push(lit)
-    if(pol) {
-      cc.merge(ie)
-      diseqs.foreach(diseq =>
-        if(cc.areCongruent(diseq._1, diseq._2))
-          throw InconsistencyException
-      )
-    } else {
-      //assuming disequalities are only between constants, due to flattener
-      val Left((a, b)) = ie
-      if(cc.areCongruent(a, b))
-        throw InconsistencyException
-      diseqs ::= ((a, b))
-    }
-    Set()
-  }
-
-  def isTrue(lit: Literal): Boolean = {
-    val Literal(ie, _, pol, _) = lit
-    if(pol) {
-      cc.areCongruent(ie)
-    } else {
-      val Left((a, b)) = ie
-      val repA = cc.repr(a)
-      val repB = cc.repr(b)
-      diseqs.exists{ case (c, d) => 
-        cc.repr(c) == repA && cc.repr(d) == repB ||
-        cc.repr(d) == repA && cc.repr(c) == repB
-      }
-    }
-  }
-
-  //def backtrack(n: Int): Unit
-
-  //def explain(l: Literal): Set[Literal]
-
-  //def backtrackTo(l: Literal): Unit
-
-  //def explain(): Set[Formula]
-
-  //def explain(l: Formula, lPrime: Formula = null): Set[Formula]
-  
 }
 
 case class Literal(eq: FastCongruenceClosure.InputEquation, override val id: Int, pol: Boolean, pred: PredicateApplication) 
