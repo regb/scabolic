@@ -242,6 +242,47 @@ class FastCongruenceClosureSuite extends FunSuite {
     assert(!cc2.isTrue(lit3))
   }
 
+  test("setTrue InconsistencyException") {
+    val lit1 = Literal(Left(0, 1), 0, true, null)
+    val lit2 = Literal(Left(1, 2), 0, true, null)
+    val lit3 = Literal(Left(0, 2), 0, false, null)
+
+    val cc1 = new FastCongruenceClosure
+    cc1.initialize(3, Set(lit1, lit2, lit3))
+    cc1.setTrue(lit3)
+    cc1.setTrue(lit1)
+    intercept[InconsistencyException]{cc1.setTrue(lit2)}
+
+    val cc2 = new FastCongruenceClosure
+    cc2.initialize(3, Set(lit1, lit2, lit3))
+    cc2.setTrue(lit1)
+    cc2.setTrue(lit3)
+    intercept[InconsistencyException]{cc2.setTrue(lit2)}
+
+    val cc3 = new FastCongruenceClosure
+    cc3.initialize(3, Set(lit1, lit2, lit3))
+    cc3.setTrue(lit1)
+    cc3.setTrue(lit2)
+    intercept[InconsistencyException]{cc3.setTrue(lit3)}
+
+    val lit4 = Literal(Left(2, 3), 0, true, null)
+    val lit5 = Literal(Left(0, 1), 0, false, null)
+
+    val cc4 = new FastCongruenceClosure
+    cc4.initialize(4, Set(lit1, lit2, lit3, lit4, lit5))
+    cc4.merge(4, 2, 0) //f(c) = a
+    cc4.merge(4, 3, 1) //f(d) = b
+    cc4.setTrue(lit4)
+    intercept[InconsistencyException]{cc4.setTrue(lit5)}
+    
+    val cc5 = new FastCongruenceClosure
+    cc5.initialize(4, Set(lit1, lit2, lit3, lit4, lit5))
+    cc5.merge(4, 2, 0) //f(c) = a
+    cc5.merge(4, 3, 1) //f(d) = b
+    cc5.setTrue(lit5)
+    intercept[InconsistencyException]{cc5.setTrue(lit4)}
+  }
+
   test("advanced setTrue") {
     val lit1 = Literal(Left(0, 1), 0, true, null)
     val lit2 = Literal(Left(2, 3), 0, true, null)
