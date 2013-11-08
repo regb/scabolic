@@ -377,7 +377,7 @@ class CongruenceClosure extends TheorySolver {
 
         var i = 0
         val clOldreprA = classList(oldreprA)
-        while(i < clOldreprA.size) {
+        while(i < clOldreprA.size) { //TODO: missing tConsequences from negList ?
           val c = clOldreprA(i)
 
           var pLits = posLitList(c)
@@ -404,7 +404,7 @@ class CongruenceClosure extends TheorySolver {
 
         var p: Node = diseq(oldreprA).first
         var q: Node = null
-        while(p != null) {
+        while(p != null) { //TODO: when is oldrepA removed from other diseq list ?
           p.data match {
             case (t,v,reason1) if t.isValid => {
               // v hasn't changed its repr, because repr(v) must be different

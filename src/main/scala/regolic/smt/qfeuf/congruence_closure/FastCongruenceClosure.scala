@@ -45,11 +45,18 @@ class FastCongruenceClosure {
   //the label is for the edge outgoing from the corresponding node
   private[this] var proofLabels: Array[MergePair] = null
 
-  def initialize(lits: Set[Literal]): Unit = {
-    val nbConstants = lits.map{ 
-      case Literal(Left((a,b)), _, _, _) => a.max(b)
-      case Literal(Right((a,b,c)), _, _, _) => a.max(b).max(c)
-    }.max + 1
+  /*
+   * initialize with nbConstants N (then constant are identified from 0 to N-1)
+   *
+   * The lits set is optional and should be used as an optimization for the solver.
+   * For example, theory consequences after a merge will be drawned from those literals.
+   * But if the set is empty, it will not affect completeness or soundness.
+   */
+  def initialize(nbConstants: Int, lits: Set[Literal] = Set()): Unit = {
+    //val nbConstants = lits.map{ 
+    //  case Literal(Left((a,b)), _, _, _) => a.max(b)
+    //  case Literal(Right((a,b,c)), _, _, _) => a.max(b).max(c)
+    //}.max + 1
     this.nbConstants = nbConstants
     repr = (0 until nbConstants).toArray
     classList = (0 until nbConstants).map(c => {
