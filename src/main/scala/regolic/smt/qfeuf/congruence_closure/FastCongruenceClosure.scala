@@ -24,8 +24,6 @@ class FastCongruenceClosure {
 
   import FastCongruenceClosure._
 
-  case object InconsistencyException extends Exception
-
   private[this] val iStack = new Stack[Literal]
 
   private[this] var diseqs: Array[List[Int]] = null
@@ -51,6 +49,8 @@ class FastCongruenceClosure {
    * The lits set is optional and should be used as an optimization for the solver.
    * For example, theory consequences after a merge will be drawned from those literals.
    * But if the set is empty, it will not affect completeness or soundness.
+   *
+   * TODO: should the theory propagation be complete for the given lits set ?
    */
   def initialize(nbConstants: Int, lits: Set[Literal] = Set()): Unit = {
     //val nbConstants = lits.map{ 
@@ -84,20 +84,33 @@ class FastCongruenceClosure {
     })
   }
 
-
   def setTrue(lit: Literal): Set[Literal] = {
     val Literal(ie, _, pol, _) = lit
     iStack.push(lit)
     if(pol) {
-      merge(ie)
+      merge(ie).filterNot(_ == lit)
     } else {
       //assuming disequalities are only between constants, due to flattener
       val Left((a, b)) = ie
       if(areCongruent(a, b))
-        throw InconsistencyException
-      diseqs(repr(a)) ::= b
-      diseqs(repr(b)) ::= a
-      Set()
+        throw new InconsistencyException
+      val aRep = repr(a)
+      val bRep = repr(b)
+      diseqs(aRep) ::= bRep
+      diseqs(bRep) ::= aRep
+
+      // Computing the T-consequences
+      val (cla, clb) = (classList(aRep), classList(bRep))
+      val cl = if(cla.size < clb.size) cla else clb
+      val tConsequences = ListBuffer[Literal]()
+      for(c <- cl) {
+        for((c1, c2) <- negLits(c)) {
+          if((repr(c1) == aRep && repr(c2) == bRep) ||
+             (repr(c1) == bRep && repr(c2) == aRep))
+            tConsequences += Literal(Left((c1, c2)), 0, false, null)
+        }
+      }
+      tConsequences.toSet.filterNot(_ == lit)
     }
   }
 
@@ -127,7 +140,7 @@ class FastCongruenceClosure {
     }
   }
 
-  //return list of consequences
+  //return set of consequences
   private def propagate(): Set[Literal] = {
     val tConsequences = ListBuffer[Literal]()
     while(pendingMerges.nonEmpty) {
@@ -149,18 +162,34 @@ class FastCongruenceClosure {
 
       if(aRep != bRep) { //aRep will be replaced by bRep
         if(diseqs(aRep).exists(c => c == bRep))
-          throw InconsistencyException
+          throw new InconsistencyException
 
         for(c <- classList(aRep)) {
           for((c1, c2) <- posLits(c)) {
             if((repr(c1) == aRep && repr(c2) == bRep) || //TODO: posLits(x) should have (x, y), x always on the left
-               (repr(c2) == bRep && repr(c2) == aRep))
+               (repr(c1) == bRep && repr(c2) == aRep))
               tConsequences += Literal(Left((c1, c2)), 0, true, null)
           }
-          //for((c1, c2) <- negLits(c)) {
-          //  if(repr(c1) == bRep || repr(c2) == bRep)
-          //  if(diseqs
-          //}
+          for((c1, c2) <- negLits(c)) {
+            if(repr(c1) == aRep) {
+              if(diseqs(bRep).contains(repr(c2)))
+                tConsequences += Literal(Left((c1, c2)), 0, false, null)
+            } else if(repr(c2) == aRep) {
+              if(diseqs(bRep).contains(repr(c1)))
+                tConsequences += Literal(Left((c1, c2)), 0, false, null)
+            }
+          }
+        }
+        for(c <- classList(bRep)) {
+          for((c1, c2) <- negLits(c)) {
+            if(repr(c1) == bRep) {
+              if(diseqs(aRep).contains(repr(c2)))
+                tConsequences += Literal(Left((c1, c2)), 0, false, null)
+            } else if(repr(c2) == bRep) {
+              if(diseqs(aRep).contains(repr(c1)))
+                tConsequences += Literal(Left((c1, c2)), 0, false, null)
+            }
+          }
         }
 
         diseqs(aRep).foreach(c => {
@@ -427,9 +456,33 @@ class FastCongruenceClosure {
       diseqs(repB).indexOf(repA) != -1
     }
   }
+
+  def classListInvariant: Unit = {
+    val seen = Array.fill(nbConstants)(false)
+    classList.zipWithIndex.foreach{ case (list, a) => {
+      list.foreach(b => {
+        assert(!seen(b))
+        seen(b) = true
+      })
+    }}
+    assert(seen.forall(b => b))
+  }
+
+  //diseqs only store disequalities between representative
+  def diseqsInvariant: Unit = {
+    diseqs.zipWithIndex.foreach{ case (list, a) => {
+      if(!list.isEmpty) {
+        assert(repr(a) == a)
+        assert(list.forall(b => repr(b) == b))
+      }
+    }}
+  }
+
 }
 
 object FastCongruenceClosure {
+
+  class InconsistencyException extends Exception
 
   sealed trait ApplyConstantTerms
   case class Constant(c: Int) extends ApplyConstantTerms
@@ -508,4 +561,5 @@ class PreProcessing {
     processed.map(clause => clause.toSet).toSet ++ extraDefs.map(ie => Set[smt.Literal](Literal(ie, 0, true, null))).toSet
 
   }
+
 }
