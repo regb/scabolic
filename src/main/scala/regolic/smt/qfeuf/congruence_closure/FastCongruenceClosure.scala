@@ -85,9 +85,11 @@ class FastCongruenceClosure {
   }
 
   def setTrue(lit: Literal): Set[Literal] = {
+    //invariant()
+
     val Literal(ie, _, pol, _) = lit
     iStack.push(lit)
-    if(pol) {
+    val res = if(pol) {
       merge(ie).filterNot(_ == lit)
     } else {
       //assuming disequalities are only between constants, due to flattener
@@ -112,7 +114,10 @@ class FastCongruenceClosure {
       }
       tConsequences.toSet.filterNot(_ == lit)
     }
+    invariant()
+    res
   }
+
 
   def merge(eq: InputEquation): Set[Literal] = eq match {
     case Left((a, b)) => merge(a, b)
@@ -194,9 +199,9 @@ class FastCongruenceClosure {
 
         diseqs(aRep).foreach(c => {
           diseqs(bRep) ::= c
-          //should remove aRep from the diseqs list of c as well
+          //should remove aRep from the diseqs list of c as well and replaced by bRep
           //aRep is only present in the diseqs list of the elements in its own list
-          diseqs(c).filterNot(_ == aRep)
+          diseqs(c) = diseqs(c).map(d => if(d == aRep) bRep else d)
         })
         diseqs(aRep) = Nil
 
@@ -457,7 +462,7 @@ class FastCongruenceClosure {
     }
   }
 
-  def classListInvariant: Unit = {
+  def classListInvariant(): Unit = {
     val seen = Array.fill(nbConstants)(false)
     classList.zipWithIndex.foreach{ case (list, a) => {
       list.foreach(b => {
@@ -469,13 +474,18 @@ class FastCongruenceClosure {
   }
 
   //diseqs only store disequalities between representative
-  def diseqsInvariant: Unit = {
+  def diseqsInvariant(): Unit = {
     diseqs.zipWithIndex.foreach{ case (list, a) => {
       if(!list.isEmpty) {
         assert(repr(a) == a)
         assert(list.forall(b => repr(b) == b))
       }
     }}
+  }
+
+  def invariant(): Unit = {
+    classListInvariant()
+    diseqsInvariant()
   }
 
 }

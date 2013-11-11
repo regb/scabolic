@@ -269,14 +269,14 @@ class FastCongruenceClosureSuite extends FunSuite {
     val lit5 = Literal(Left(0, 1), 0, false, null)
 
     val cc4 = new FastCongruenceClosure
-    cc4.initialize(4, Set(lit1, lit2, lit3, lit4, lit5))
+    cc4.initialize(5, Set(lit1, lit2, lit3, lit4, lit5))
     cc4.merge(4, 2, 0) //f(c) = a
     cc4.merge(4, 3, 1) //f(d) = b
     cc4.setTrue(lit4)
     intercept[InconsistencyException]{cc4.setTrue(lit5)}
     
     val cc5 = new FastCongruenceClosure
-    cc5.initialize(4, Set(lit1, lit2, lit3, lit4, lit5))
+    cc5.initialize(5, Set(lit1, lit2, lit3, lit4, lit5))
     cc5.merge(4, 2, 0) //f(c) = a
     cc5.merge(4, 3, 1) //f(d) = b
     cc5.setTrue(lit5)
