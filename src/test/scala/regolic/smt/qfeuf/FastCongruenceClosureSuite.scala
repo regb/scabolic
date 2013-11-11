@@ -614,29 +614,34 @@ class FastCongruenceClosureSuite extends FunSuite {
     cc4.setTrue(lit2)
     assert(cc4.isTrue(lit3))
 
-    //val cc1 = new CongruenceClosure
-    //cc1.initialize(Set(Equals(Apply(gVar,e),b), Equals(d,a),
-    //  Not(Equals(h,c)), Equals(Apply(gVar,h),b),
-    //  Equals(Apply(gVar,h),c), Equals(Apply(gVar,e),h)))
-    //assert(cc1.setTrue(Equals(Apply(gVar,e),b)) != None)
-    //assert(cc1.setTrue(Equals(Apply(gVar,e),h)) != None)
-    //assert(cc1.setTrue(Equals(Apply(gVar,h),b)) != None)
-    //assert(cc1.setTrue(Equals(Apply(gVar,h),c)) != None)
-    //assert(cc1.setTrue(Not(Equals(h,c))) === None)
-    //cc1.backtrack(1)
-    //assert(cc1.setTrue(Equals(d,a)) != None)
+    val cc5 = new FastCongruenceClosure
+    cc5.initialize(2, Set(lit1))
+    assert(!cc5.isTrue(lit1))
+    cc5.setTrue(lit1)
+    assert(cc5.isTrue(lit1))
+    cc5.backtrack(1)
+    assert(!cc5.isTrue(lit1))
+
   }
 
-  //test("backtrack 3") {
-  //  val eq = Equals(a,b)
-  //  val cc = new CongruenceClosure
-  //  cc.initialize(Set[Formula](eq))
-  //  assert(cc.isTrue(eq) === false)
-  //  cc.setTrue(eq)
-  //  assert(cc.isTrue(eq) === true)
-  //  cc.backtrack(1)
-  //  assert(cc.isTrue(eq) === false)
-  //}
+  test("backtrack with apply") {
+    val lit1 = Literal(Left(0, 1), 0, true, null)
+    val lit2 = Literal(Left(1, 2), 0, true, null)
+    val lit3 = Literal(Left(2, 3), 0, true, null)
+    val lit4 = Literal(Left(0, 3), 0, true, null) //a = d
+    val lit9 = Literal(Left(5, 2), 0, false, null) //f != c
+    val cc5 = new FastCongruenceClosure
+    cc5.initialize(7)
+    cc5.merge(6, 4, 1) //g(e) = b
+    cc5.merge(6, 4, 5) //g(e) = f
+    cc5.merge(6, 5, 1) //g(f) = b
+    cc5.merge(6, 5, 2) //g(f) = c
+    intercept[InconsistencyException]{ cc5.setTrue(lit9) }
+    cc5.backtrack(1)
+    cc5.setTrue(lit4)
+    assert(cc5.isTrue(lit4))
+    assert(!cc5.isTrue(lit9))
+  }
 
   //test("backtrack 4") {
   //  val x0 = freshVariable("x", IntSort());

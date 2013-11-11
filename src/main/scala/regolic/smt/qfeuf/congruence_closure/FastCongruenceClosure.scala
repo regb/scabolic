@@ -46,13 +46,7 @@ class FastCongruenceClosure {
 
   //stacks of changes to the data structures, sync with iStack
   private[this] val undoReprChangesStack = new Stack[Stack[(Int, Int, Int)]]
-  private[this] val undoUseListStack = new HashMap[Formula, Stack[(Formula, Int, Int)]] {
-    override def default(k: Formula) = {
-      val v = Stack[(Formula, Int, Int)]()
-      this += (k -> v)
-      v
-    }
-  }
+  private[this] val undoDiseqsStack = new Stack[Array[List[Int]]]
   private[this] val undoEdgesStack = new HashMap[Formula, Stack[Pair[Int, Int]]] {
     override def default(k: Formula) = {
       val v = Stack[Pair[Int, Int]]()
@@ -109,6 +103,7 @@ class FastCongruenceClosure {
     val Literal(ie, _, pol, _) = lit
     iStack.push(lit)
     undoReprChangesStack.push(new Stack)
+    undoDiseqsStack.push(diseqs.clone)
     val res = if(pol) {
       merge(ie).filterNot(_ == lit)
     } else {
@@ -475,6 +470,8 @@ class FastCongruenceClosure {
           classList(newRepr) -= elem
           classList(oldRepr).append(elem)
         }
+
+        diseqs = undoDiseqsStack.pop
       }}
     }
     invariant()
