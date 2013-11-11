@@ -458,7 +458,41 @@ class FastCongruenceClosureSuite extends FunSuite {
     assert(!expl3.contains(lit6)) //explanation should not contains lit6
   }
 
-  test("explanation with apply") {
+  test("explanation with apply basic") {
+
+    val lit1 = Literal(Left(0, 1), 0, true, null)
+    val lit2 = Literal(Left(2, 3), 0, true, null)
+    val lit3 = Literal(Left(1, 2), 0, true, null)
+    val lit4 = Literal(Left(0, 3), 0, true, null)
+    val lit5 = Literal(Right(4, 0, 2), 0, true, null)
+    val lit6 = Literal(Right(4, 1, 3), 0, true, null)
+    val cc1 = new FastCongruenceClosure
+    cc1.initialize(5, Set(lit1, lit2, lit3, lit4, lit5, lit6))
+    cc1.merge(4, 0, 2) //TODO: should be passed via setTrue maybe ?
+    cc1.merge(4, 1, 3)
+    cc1.setTrue(lit1)
+    val expl1 = cc1.explanation(lit2)
+    assert(expl1.size === 3)
+    assert(expl1.contains(lit1))
+    assert(expl1.contains(lit5))
+    assert(expl1.contains(lit6))
+
+    val lit7 = Literal(Left(0,5), 0, true, null)
+    val cc2 = new FastCongruenceClosure
+    cc2.initialize(6, Set(lit1, lit2, lit3, lit4, lit5, lit6, lit7))
+    cc2.merge(4, 0, 2)
+    cc2.merge(4, 1, 3)
+    cc2.setTrue(lit7)
+    cc2.setTrue(lit1)
+    val expl2 = cc2.explanation(lit2)
+    assert(expl2.size === 3)
+    assert(expl2.contains(lit1))
+    assert(expl2.contains(lit5))
+    assert(expl2.contains(lit6))
+
+  }
+
+  test("explanation with apply advanced") {
     val lit1 = Literal(Left(2, 3), 0, true, null) //c = d
     val lit2 = Literal(Left(4, 2), 0, true, null) //e = c
     val lit3 = Literal(Left(4, 1), 0, true, null) //e = b
@@ -486,8 +520,8 @@ class FastCongruenceClosureSuite extends FunSuite {
   }
 
   test("explanation of negative setTrue") {
-    val lit1 = Literal(Left(1, 2), 0, true, null)
-    val lit2 = Literal(Left(0, 1), 0, false, null)
+    val lit1 = Literal(Left(0, 1), 0, true, null)
+    val lit2 = Literal(Left(1, 2), 0, false, null)
     val lit3 = Literal(Left(0, 2), 0, false, null)
     val cc1 = new FastCongruenceClosure
     cc1.initialize(3, Set(lit1, lit2, lit3))
@@ -497,5 +531,32 @@ class FastCongruenceClosureSuite extends FunSuite {
     assert(expl1.size === 2)
     assert(expl1.contains(lit1))
     assert(expl1.contains(lit2))
+
+    val lit4 = Literal(Left(2, 3), 0, true, null)
+    val lit5 = Literal(Left(0, 3), 0, false, null)
+    val cc2 = new FastCongruenceClosure
+    cc2.initialize(4, Set(lit1, lit2, lit3, lit4, lit5))
+    cc2.setTrue(lit1)
+    cc2.setTrue(lit4)
+    cc2.setTrue(lit2)
+    val expl2 = cc2.explanation(lit5)
+    assert(expl2.size === 3)
+    assert(expl2.contains(lit1))
+    assert(expl2.contains(lit4))
+    assert(expl2.contains(lit2))
+
+    val lit6 = Literal(Left(0, 4), 0, true, null)
+    val cc3 = new FastCongruenceClosure
+    cc3.initialize(5, Set(lit1, lit2, lit3, lit4, lit5, lit6))
+    cc3.setTrue(lit1)
+    cc3.setTrue(lit6) //add irrelevant literal in explanation
+    cc3.setTrue(lit4)
+    cc3.setTrue(lit2)
+    val expl3 = cc3.explanation(lit5)
+    assert(expl3.size === 3)
+    assert(expl3.contains(lit1))
+    assert(expl3.contains(lit4))
+    assert(expl3.contains(lit2))
+    assert(!expl3.contains(lit6)) //explanation should not contains lit6
   }
 }

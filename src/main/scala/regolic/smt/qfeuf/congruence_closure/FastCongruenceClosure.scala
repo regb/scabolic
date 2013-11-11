@@ -29,12 +29,13 @@ class FastCongruenceClosure {
   private[this] var diseqs: Array[List[Int]] = null
   private[this] var posLits: Array[List[(Int, Int)]] = null
   private[this] var negLits: Array[List[(Int, Int)]] = null
+  private[this] var diseqCauses: Map[(Int, Int), (Int, Int)] = new HashMap()
 
   private[this] var nbConstants = 0
 
   private[this] val pendingMerges: Queue[MergePair] = Queue()
   private[this] var repr: Array[Int] = null
-  private[this] val lookup: Map[(Int, Int), (Int, Int, Int)] = Map()
+  private[this] val lookup: Map[(Int, Int), (Int, Int, Int)] = new HashMap()
   private[this] var useList: Array[ListBuffer[(Int, Int, Int)]] = null
   private[this] var classList: Array[ListBuffer[Int]] = null
 
@@ -108,8 +109,10 @@ class FastCongruenceClosure {
       for(c <- cl) {
         for((c1, c2) <- negLits(c)) {
           if((repr(c1) == aRep && repr(c2) == bRep) ||
-             (repr(c1) == bRep && repr(c2) == aRep))
+             (repr(c1) == bRep && repr(c2) == aRep)) {
+            diseqCauses((c1, c2)) = ((a, b))
             tConsequences += Literal(Left((c1, c2)), 0, false, null)
+          }
         }
       }
       tConsequences.toSet.filterNot(_ == lit)
@@ -177,22 +180,31 @@ class FastCongruenceClosure {
           }
           for((c1, c2) <- negLits(c)) {
             if(repr(c1) == aRep) {
-              if(diseqs(bRep).contains(repr(c2)))
+              if(diseqs(bRep).contains(repr(c2))) {
+                //TODO: (same for the other diseqCauses) the order of (a, b) may not correspond to the literal order and may fail to return the exact same literal (commutativity)
+                diseqCauses((c1, c2)) = ((a, b))
                 tConsequences += Literal(Left((c1, c2)), 0, false, null)
+              }
             } else if(repr(c2) == aRep) {
-              if(diseqs(bRep).contains(repr(c1)))
+              if(diseqs(bRep).contains(repr(c1))) {
+                diseqCauses((c1, c2)) = ((a, b))
                 tConsequences += Literal(Left((c1, c2)), 0, false, null)
+              }
             }
           }
         }
         for(c <- classList(bRep)) {
           for((c1, c2) <- negLits(c)) {
             if(repr(c1) == bRep) {
-              if(diseqs(aRep).contains(repr(c2)))
+              if(diseqs(aRep).contains(repr(c2))) {
+                diseqCauses((c1, c2)) = ((a, b))
                 tConsequences += Literal(Left((c1, c2)), 0, false, null)
+              }
             } else if(repr(c2) == bRep) {
-              if(diseqs(aRep).contains(repr(c1)))
+              if(diseqs(aRep).contains(repr(c1))) {
+                diseqCauses((c1, c2)) = ((a, b))
                 tConsequences += Literal(Left((c1, c2)), 0, false, null)
+              }
             }
           }
         }
@@ -337,6 +349,8 @@ class FastCongruenceClosure {
   }
 
   def explanation(l: Literal): Set[Literal] = {
+    //TODO: is it necessary to backtrack to l' (such that setTrue(l') propagates l)
+    //      and then restore ?
     val Literal(eq, _, pol, _) = l
     if(pol) {
       val Left((a, b)) = eq
@@ -344,67 +358,22 @@ class FastCongruenceClosure {
         case Left((a, b)) => Literal(Left((a,b)), 0, true, null)
         case Right((a, b, c)) => Literal(Right((a,b,c)), 0, true, null)
       }
-    } else null
+    } else {
+      val Left((d1, e1)) = eq
+      val (d2, e2) = diseqCauses((d1, e1)) //d2 != e2 is the cause of d1 != e1
+
+      // Checking for 1 congruence is enough. If d1 congruent e2 as well, that
+      // would mean that d1 = d2 AND d1 = e2 AND d2 != e2, which is
+      // inconsistent
+      val rec = if(areCongruent(d1, d2)) {
+        (explain(d1, d2) union explain(e1, e2))
+      } else {
+        (explain(d1, e2) union explain(e1, d2))
+      }
+
+      rec.map(i => Literal(i, 0, true, null)) + Literal(Left(d2, e2), 0, false, null)
+    }
   }
-
-  // l is t-consequence of setTrue(lPrime)
-  //def explain(l: Formula, lPrime: Formula = null): Set[Formula] = {
-  //  val restoreIStack = Stack[Pair[Int, Formula]]()
-  //  if(lPrime != null) {
-  //    // undo all merges after lPrime was pushed onto the iStack
-  //    var j = 0
-  //    while(iStack(j)._2 != lPrime) {
-  //      restoreIStack.push(iStack(j))
-
-  //      j += 1
-  //      if(j == iStack.size)
-  //        throw new Exception("lPrime was not pushed to iStack")
-  //    }
-  //    backtrack(j)
-  //  }
-
-  //  // actual explain computation
-  //  val retVal = l match{
-  //    case Equals((e1: Variable), (d1: Variable)) => {
-  //      explain(termToId(e1), termToId(d1))
-  //    }
-  //    case Not(Equals((d1: Variable), (e1: Variable))) => {
-  //      // TODO can the causes for an inequality be stored better?
-  //      val cause = diseq(repr(termToId(d1))).find{
-  //        case (t,elem,_) => t.isValid && repr(elem) == repr(termToId(e1))
-  //      }._3
-
-  //      val Not(Equals((d2: Variable), (e2: Variable))) = cause
-
-  //      // Checking for 1 congruence is enough. If d1 congruent e2 as well, that
-  //      // would mean that d1 = d2 AND d1 = e2 AND d2 != e2, which is
-  //      // inconsistent
-  //      val d1Id = termToId(d1); val d2Id = termToId(d2)
-  //      val e1Id = termToId(e1); val e2Id = termToId(e2)
-  //      if(areCongruent(d1,d2)) {
-  //        (explain(d1Id, d2Id) union explain(e1Id, e2Id)) + cause
-  //      } else {
-  //        (explain(d1Id, e2Id) union explain(e1Id, d2Id)) + cause
-  //      }
-  //    }
-  //    case _ => throw new Exception("explain called on unsupported formula type "+ l)
-  //  }
-
-  //  if(lPrime != null) {
-  //    // restore state after computing the explanation
-  //    while(!restoreIStack.isEmpty) {
-  //      val top = restoreIStack.pop
-  //      ctr = top._1 - 1
-
-  //      val validTimestamp = new Timestamp(iStack.size + 1, ctr + 1)
-  //      invalidTimestamps -= validTimestamp
-
-  //      setTrue(top._2)
-  //    }
-  //  }
-
-  //  retVal
-  //}
 
   //private def explain(c1: Int, c2: Int): Set[Formula] = {
   //  var id = -1
