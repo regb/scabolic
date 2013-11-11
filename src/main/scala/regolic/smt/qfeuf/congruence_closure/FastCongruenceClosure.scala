@@ -336,7 +336,18 @@ class FastCongruenceClosure {
     acc
   }
 
-  //// l is t-consequence of setTrue(lPrime)
+  def explanation(l: Literal): Set[Literal] = {
+    val Literal(eq, _, pol, _) = l
+    if(pol) {
+      val Left((a, b)) = eq
+      explain(a, b).map{
+        case Left((a, b)) => Literal(Left((a,b)), 0, true, null)
+        case Right((a, b, c)) => Literal(Right((a,b,c)), 0, true, null)
+      }
+    } else null
+  }
+
+  // l is t-consequence of setTrue(lPrime)
   //def explain(l: Formula, lPrime: Formula = null): Set[Formula] = {
   //  val restoreIStack = Stack[Pair[Int, Formula]]()
   //  if(lPrime != null) {
@@ -378,7 +389,6 @@ class FastCongruenceClosure {
   //    }
   //    case _ => throw new Exception("explain called on unsupported formula type "+ l)
   //  }
-
 
   //  if(lPrime != null) {
   //    // restore state after computing the explanation

@@ -130,28 +130,6 @@ class DPLLTSuite extends FunSuite {
   test("larger example UNSAT") {
     assert(DPLLTSolverWrapper(new CongruenceClosure, And(Not(Equals(a, b)) :: eqs)) === Results.Unsatisfiable)
   }
-
-  test("explain") {
-    val inputEqs = Set(
-      Equals(Apply(gVar, h), d),
-      Equals(c, d),
-      Equals(Apply(gVar, d), a),
-      Equals(e, c),
-      Equals(e, b),
-      Equals(b, h)
-    )
-    val cc = new CongruenceClosure
-    cc.initialize(inputEqs.asInstanceOf[Set[Formula]])
-    inputEqs.foreach(cc.setTrue)
-    
-    // fix for not returning functions in the explanation
-    val explanation = (cc.explain(Equals(a, b)) + Equals(Apply(gVar, h), d) + Equals(Apply(gVar, d), a))
-      
-    val ccSanity = new CongruenceClosure
-    ccSanity.initialize(explanation.asInstanceOf[Set[Formula]])
-    explanation.foreach(ccSanity.setTrue)
-    assert(ccSanity.isTrue(Equals(a, b)))
-  }
   test("backtrack 1") {
     // (a=b) AND (d=e OR a!=c) AND (b=c)
     val cc1 = new CongruenceClosure
