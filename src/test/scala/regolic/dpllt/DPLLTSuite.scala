@@ -130,31 +130,6 @@ class DPLLTSuite extends FunSuite {
   test("larger example UNSAT") {
     assert(DPLLTSolverWrapper(new CongruenceClosure, And(Not(Equals(a, b)) :: eqs)) === Results.Unsatisfiable)
   }
-  test("backtrack 1") {
-    // (a=b) AND (d=e OR a!=c) AND (b=c)
-    val cc1 = new CongruenceClosure
-    cc1.initialize(Set(Equals(a,b), Equals(d,e), Equals(a,c), Not(Equals(b,c))))
-    assert(cc1.setTrue(Equals(a,b)) != None)
-    assert(cc1.setTrue(Not(Equals(a,c))) != None)
-    assert(cc1.setTrue(Equals(b,c)) === None)
-    cc1.backtrack(2)
-    assert(cc1.setTrue(Equals(d,e)) != None)
-    assert(cc1.setTrue(Equals(b,c)) != None)
-  }
-
-  test("backtrack 2") {
-    val cc1 = new CongruenceClosure
-    cc1.initialize(Set(Equals(Apply(gVar,e),b), Equals(d,a),
-      Not(Equals(h,c)), Equals(Apply(gVar,h),b),
-      Equals(Apply(gVar,h),c), Equals(Apply(gVar,e),h)))
-    assert(cc1.setTrue(Equals(Apply(gVar,e),b)) != None)
-    assert(cc1.setTrue(Equals(Apply(gVar,e),h)) != None)
-    assert(cc1.setTrue(Equals(Apply(gVar,h),b)) != None)
-    assert(cc1.setTrue(Equals(Apply(gVar,h),c)) != None)
-    assert(cc1.setTrue(Not(Equals(h,c))) === None)
-    cc1.backtrack(1)
-    assert(cc1.setTrue(Equals(d,a)) != None)
-  }
 
   // (assert (= (f (f x)) x))
   // (assert (= (f x) y))
@@ -350,44 +325,5 @@ class DPLLTSuite extends FunSuite {
     assert(results.reverse.head == None)
   }
 
-  test("backtrack 3") {
-    val eq = Equals(a,b)
-    val cc = new CongruenceClosure
-    cc.initialize(Set[Formula](eq))
-    assert(cc.isTrue(eq) === false)
-    cc.setTrue(eq)
-    assert(cc.isTrue(eq) === true)
-    cc.backtrack(1)
-    assert(cc.isTrue(eq) === false)
-  }
-
-  test("backtrack 4") {
-    val x0 = freshVariable("x", IntSort());
-    val x1 = freshVariable("x", IntSort());
-    val y0 = freshVariable("y", IntSort());
-
-    val diamond = List[Formula](
-      Not(Equals(x0, x1)),
-      Equals(x0, y0),
-      Equals(y0, x1)
-    )
-
-    val afterBacktracking = List[Formula](
-      Equals(x0, x1)
-    )
-
-    val cc = new CongruenceClosure
-    val dSet = diamond.toSet
-    cc.initialize(dSet)
-    val results = diamond.map(eq => cc.setTrue(eq))
-    assert(results.reverse.tail.forall(_ != None))
-    assert(results.reverse.head == None)
-
-    cc.backtrack(2)
-
-    val resultsAfterBacktracking = afterBacktracking.map(eq => cc.setTrue(eq))
-    assert(resultsAfterBacktracking.exists(_ == None))
-            
-  }
 }
 

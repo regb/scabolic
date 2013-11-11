@@ -44,6 +44,23 @@ class FastCongruenceClosure {
   //the label is for the edge outgoing from the corresponding node
   private[this] var proofLabels: Array[MergePair] = null
 
+  //stacks of changes to the data structures, sync with iStack
+  private[this] val undoReprChangesStack = new Stack[Stack[(Int, Int, Int)]]
+  private[this] val undoUseListStack = new HashMap[Formula, Stack[(Formula, Int, Int)]] {
+    override def default(k: Formula) = {
+      val v = Stack[(Formula, Int, Int)]()
+      this += (k -> v)
+      v
+    }
+  }
+  private[this] val undoEdgesStack = new HashMap[Formula, Stack[Pair[Int, Int]]] {
+    override def default(k: Formula) = {
+      val v = Stack[Pair[Int, Int]]()
+      this += (k -> v)
+      v
+    }
+  }
+
   /*
    * initialize with nbConstants N (then constant are identified from 0 to N-1)
    *
@@ -83,6 +100,7 @@ class FastCongruenceClosure {
       }
       case _ => ()
     })
+    undoReprChangesStack.push(new Stack()) //TODO: this is a hack to support stacking change from merge without setTrue
   }
 
   def setTrue(lit: Literal): Set[Literal] = {
@@ -90,6 +108,7 @@ class FastCongruenceClosure {
 
     val Literal(ie, _, pol, _) = lit
     iStack.push(lit)
+    undoReprChangesStack.push(new Stack)
     val res = if(pol) {
       merge(ie).filterNot(_ == lit)
     } else {
@@ -219,6 +238,7 @@ class FastCongruenceClosure {
 
         proofInsertEdge(a, b, e)
         classList(aRep).foreach(c => {
+          undoReprChangesStack.top.push((c, aRep, bRep))
           repr(c) = bRep
           classList(bRep).append(c)
         })
@@ -440,6 +460,29 @@ class FastCongruenceClosure {
       diseqs(repB).indexOf(repA) != -1
     }
   }
+  
+  def backtrack(n: Int): Unit = {
+    if(n > iStack.size)
+      throw new Exception("Can't pop "+ n +" literals from I-stack.")
+    else {
+      1 to n foreach { _ => {
+        iStack.pop
+
+        val reprChanges = undoReprChangesStack.pop
+        while(!reprChanges.isEmpty) {
+          val (elem, oldRepr, newRepr) = reprChanges.pop
+          repr(elem) = oldRepr
+          classList(newRepr) -= elem
+          classList(oldRepr).append(elem)
+        }
+      }}
+    }
+    invariant()
+  }
+
+  def undoInvariant(): Unit = {
+    assert(undoReprChangesStack.size == iStack.size + 1)
+  }
 
   def classListInvariant(): Unit = {
     val seen = Array.fill(nbConstants)(false)
@@ -465,6 +508,7 @@ class FastCongruenceClosure {
   def invariant(): Unit = {
     classListInvariant()
     diseqsInvariant()
+    undoInvariant()
   }
 
 }

@@ -559,4 +559,111 @@ class FastCongruenceClosureSuite extends FunSuite {
     assert(expl3.contains(lit2))
     assert(!expl3.contains(lit6)) //explanation should not contains lit6
   }
+
+  test("backtrack basic") {
+    val lit1 = Literal(Left(0, 1), 0, true, null)
+    val lit2 = Literal(Left(1, 2), 0, true, null)
+    val lit3 = Literal(Left(0, 2), 0, true, null)
+    val lit4 = Literal(Left(0, 1), 0, false, null)
+    val lit5 = Literal(Left(0, 2), 0, false, null)
+
+    val cc1 = new FastCongruenceClosure
+    cc1.initialize(3, Set(lit1, lit2, lit3, lit4, lit5))
+    cc1.setTrue(lit1)
+    cc1.backtrack(1)
+    cc1.setTrue(lit4)
+    val csq1 = cc1.setTrue(lit2)
+    assert(csq1.size === 1)
+    assert(csq1.contains(lit5))
+    assert(cc1.isTrue(lit5))
+    assert(cc1.isTrue(lit4))
+    assert(!cc1.isTrue(lit1))
+
+    val cc2 = new FastCongruenceClosure
+    cc2.initialize(3, Set(lit1, lit2, lit3, lit4, lit5))
+    cc2.setTrue(lit1)
+    cc2.setTrue(lit2)
+    cc2.backtrack(2)
+    cc2.setTrue(lit4)
+    val csq2 = cc2.setTrue(lit2)
+    assert(csq2.size === 1)
+    assert(csq2.contains(lit5))
+    assert(cc2.isTrue(lit5))
+    assert(!cc2.isTrue(lit1))
+    assert(cc2.isTrue(lit2))
+
+    val lit6 = Literal(Left(2, 3), 0, true, null)
+    val lit7 = Literal(Left(1, 3), 0, false, null)
+    val cc3 = new FastCongruenceClosure
+    cc3.initialize(4, Set(lit1, lit2, lit3, lit4, lit5, lit6, lit7))
+    cc3.setTrue(lit1)
+    cc3.setTrue(lit6)
+    cc3.setTrue(lit2)
+    cc3.backtrack(1)
+    cc3.setTrue(lit5)
+    cc3.isTrue(lit7)
+
+    val lit8 = Literal(Left(3, 4), 0, true, null)
+    val cc4 = new FastCongruenceClosure
+    cc4.initialize(5, Set(lit1, lit2, lit3, lit4, lit5, lit6, lit7, lit8))
+    cc4.setTrue(lit1)
+    cc4.setTrue(lit5)
+    intercept[InconsistencyException]{ cc4.setTrue(lit2) }
+    cc4.backtrack(2)
+    cc4.setTrue(lit8)
+    cc4.setTrue(lit2)
+    assert(cc4.isTrue(lit3))
+
+    //val cc1 = new CongruenceClosure
+    //cc1.initialize(Set(Equals(Apply(gVar,e),b), Equals(d,a),
+    //  Not(Equals(h,c)), Equals(Apply(gVar,h),b),
+    //  Equals(Apply(gVar,h),c), Equals(Apply(gVar,e),h)))
+    //assert(cc1.setTrue(Equals(Apply(gVar,e),b)) != None)
+    //assert(cc1.setTrue(Equals(Apply(gVar,e),h)) != None)
+    //assert(cc1.setTrue(Equals(Apply(gVar,h),b)) != None)
+    //assert(cc1.setTrue(Equals(Apply(gVar,h),c)) != None)
+    //assert(cc1.setTrue(Not(Equals(h,c))) === None)
+    //cc1.backtrack(1)
+    //assert(cc1.setTrue(Equals(d,a)) != None)
+  }
+
+  //test("backtrack 3") {
+  //  val eq = Equals(a,b)
+  //  val cc = new CongruenceClosure
+  //  cc.initialize(Set[Formula](eq))
+  //  assert(cc.isTrue(eq) === false)
+  //  cc.setTrue(eq)
+  //  assert(cc.isTrue(eq) === true)
+  //  cc.backtrack(1)
+  //  assert(cc.isTrue(eq) === false)
+  //}
+
+  //test("backtrack 4") {
+  //  val x0 = freshVariable("x", IntSort());
+  //  val x1 = freshVariable("x", IntSort());
+  //  val y0 = freshVariable("y", IntSort());
+
+  //  val diamond = List[Formula](
+  //    Not(Equals(x0, x1)),
+  //    Equals(x0, y0),
+  //    Equals(y0, x1)
+  //  )
+
+  //  val afterBacktracking = List[Formula](
+  //    Equals(x0, x1)
+  //  )
+
+  //  val cc = new CongruenceClosure
+  //  val dSet = diamond.toSet
+  //  cc.initialize(dSet)
+  //  val results = diamond.map(eq => cc.setTrue(eq))
+  //  assert(results.reverse.tail.forall(_ != None))
+  //  assert(results.reverse.head == None)
+
+  //  cc.backtrack(2)
+
+  //  val resultsAfterBacktracking = afterBacktracking.map(eq => cc.setTrue(eq))
+  //  assert(resultsAfterBacktracking.exists(_ == None))
+  //          
+  //}
 }
