@@ -49,13 +49,7 @@ class FastCongruenceClosure {
   private[this] val undoDiseqsStack = new Stack[Array[List[Int]]]
   private[this] val undoLookupStack = new Stack[Map[(Int, Int), (Int, Int, Int)]]
   private[this] val undoUseListStack = new Stack[Array[ListBuffer[(Int, Int, Int)]]]
-  private[this] val undoEdgesStack = new HashMap[Formula, Stack[Pair[Int, Int]]] {
-    override def default(k: Formula) = {
-      val v = Stack[Pair[Int, Int]]()
-      this += (k -> v)
-      v
-    }
-  }
+  private[this] val undoEdgesStack = new Stack[Stack[(Int, Int)]]
 
   /*
    * initialize with nbConstants N (then constant are identified from 0 to N-1)
@@ -98,6 +92,7 @@ class FastCongruenceClosure {
     })
     undoReprChangesStack.push(new Stack()) //TODO: this is a hack to support stacking change from merge without setTrue
     //undoUseListStack.push(new Stack()) //TODO: this is a hack to support stacking change from merge without setTrue
+    undoEdgesStack.push(new Stack()) //TODO: this is a hack to support stacking change from merge without setTrue
     invariant()
   }
 
@@ -105,6 +100,7 @@ class FastCongruenceClosure {
     val Literal(ie, _, pol, _) = lit
     iStack.push(lit)
     undoReprChangesStack.push(new Stack)
+    undoEdgesStack.push(new Stack)
     undoDiseqsStack.push(diseqs.clone)
     undoLookupStack.push(lookup.clone)
     undoUseListStack.push(useList.map(buf => buf.clone))
@@ -284,7 +280,8 @@ class FastCongruenceClosure {
     }
   }
 
-  private def proofReverseEdges(from: Int): Unit = {
+  //reverse all edges on the path from <from> to the root, and return the root
+  private def proofReverseEdges(from: Int): Int = {
     var previous = -1
     var previousLabel: MergePair = null
     var current = from
@@ -297,21 +294,24 @@ class FastCongruenceClosure {
       current = next
       previousLabel = currentLabel
     }
+    previous
   }
   
-  private def proofInsertEdge(from: Int, to: Int, e: MergePair) = {
-    proofReverseEdges(from)
+  private def proofInsertEdge(from: Int, to: Int, e: MergePair): Unit = {
+    val previousRoot = proofReverseEdges(from)
     proofForest(from) = to
     proofLabels(from) = e
+
+    undoEdgesStack.top.push((from, previousRoot))
   }
 
   // removes the edge from to from.parent and reverses the edges in order to
   // restore the state before the edge was inserted (mind the order of edge insertions)
-  //private def removeEdge(from: Int, reversedTo: Int) {
-  //  // not clearing edge label is fine as parent is null anyhow
-  //  proofForest(from) = -1
-  //  reverseEdges(reversedTo)
-  //}
+  private def proofRemoveEdge(from: Int, reversedTo: Int): Unit = {
+    //not clearing edge label is fine as parent is null anyhow
+    proofForest(from) = -1
+    proofReverseEdges(reversedTo)
+  }
   
   //private def makeEdge(from: Int, to: Int, label: Pair[Formula, Formula]): Int =  {
   //  val retVal = reverseEdges(from)
@@ -474,6 +474,13 @@ class FastCongruenceClosure {
           classList(newRepr) -= elem
           classList(oldRepr).append(elem)
         }
+
+        val edgeChanges = undoEdgesStack.pop
+        while(!edgeChanges.isEmpty) {
+          val (from, reversedTo) = edgeChanges.pop
+          proofRemoveEdge(from, reversedTo)
+        }
+
 
         //val useListChanges = undoUseListStack.pop
         //while(!useListChanges.isEmpty) {

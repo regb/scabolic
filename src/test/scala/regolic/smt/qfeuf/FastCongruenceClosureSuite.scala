@@ -724,6 +724,7 @@ class FastCongruenceClosureSuite extends FunSuite {
     assert(cc5.isTrue(lit4))
     assert(!cc5.isTrue(lit9))
 
+    //this testcase attempts to force lookup to take a not being removed by backtracking
     val lit12 = Literal(Left(4, 0), 0, true, null)
     val cc6 = new FastCongruenceClosure
     cc6.initialize(7)
@@ -739,6 +740,78 @@ class FastCongruenceClosureSuite extends FunSuite {
     assert(cc6.isTrue(lit5))
     assert(!cc6.isTrue(lit1))
     assert(!cc6.isTrue(lit3))
+  }
+
+  test("backtracking with explanation") {
+    val lit1 = Literal(Left(1, 2), 0, true, null)
+    val lit2 = Literal(Left(0, 1), 0, true, null)
+    val lit3 = Literal(Left(0, 2), 0, true, null)
+    val cc1 = new FastCongruenceClosure
+    cc1.initialize(3, Set(lit1, lit2, lit3))
+    cc1.setTrue(lit1)
+    cc1.setTrue(lit2)
+    cc1.backtrack(1)
+    cc1.setTrue(lit2)
+    val expl1 = cc1.explanation(lit3)
+    assert(expl1.size === 2)
+    assert(expl1.contains(lit1))
+    assert(expl1.contains(lit2))
+
+    val lit4 = Literal(Left(2, 3), 0, true, null)
+    val lit5 = Literal(Left(0, 3), 0, true, null)
+    val cc2 = new FastCongruenceClosure
+    cc2.initialize(4, Set(lit1, lit2, lit3, lit4, lit5))
+    cc2.setTrue(lit2)
+    cc2.setTrue(lit4)
+    cc2.setTrue(lit1)
+    cc2.backtrack(1)
+    cc2.setTrue(lit1)
+    val expl2 = cc2.explanation(lit5)
+    assert(expl2.size === 3)
+    assert(expl2.contains(lit2))
+    assert(expl2.contains(lit4))
+    assert(expl2.contains(lit1))
+
+    val lit6 = Literal(Left(0, 4), 0, true, null)
+    val cc3 = new FastCongruenceClosure
+    cc3.initialize(5, Set(lit1, lit2, lit3, lit4, lit5, lit6))
+    cc3.setTrue(lit2)
+    cc3.setTrue(lit6) //add irrelevant literal in explanation
+    cc3.setTrue(lit4)
+    cc3.setTrue(lit1)
+    cc3.backtrack(1)
+    cc3.setTrue(lit1)
+    val expl3 = cc3.explanation(lit5)
+    assert(expl3.size === 3)
+    assert(expl3.contains(lit2))
+    assert(expl3.contains(lit4))
+    assert(expl3.contains(lit1))
+    assert(!expl3.contains(lit6)) //explanation should not contains lit6
+    cc3.backtrack(4)
+    cc3.setTrue(lit2)
+    cc3.setTrue(lit4)
+    cc3.setTrue(lit1)
+    val expl4 = cc3.explanation(lit5)
+    assert(expl4.size === 3)
+    assert(expl4.contains(lit2))
+    assert(expl4.contains(lit4))
+    assert(expl4.contains(lit1))
+    assert(!expl4.contains(lit6)) //explanation should not contains lit6
+
+    val lit7 = Literal(Left(1, 3), 0, true, null)
+    val cc4 = new FastCongruenceClosure
+    cc4.initialize(4, Set(lit1, lit2, lit3, lit4, lit7))
+    cc4.setTrue(lit1)
+    cc4.setTrue(lit2)
+    assert(cc4.isTrue(lit3))
+    cc4.backtrack(1)
+    cc4.setTrue(lit4)
+    assert(cc4.isTrue(lit7))
+    assert(!cc4.isTrue(lit3))
+    val expl5 = cc4.explanation(lit7)
+    assert(expl5.size === 2)
+    assert(expl5.contains(lit1))
+    assert(expl5.contains(lit4))
   }
 
 }
