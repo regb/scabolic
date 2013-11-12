@@ -47,6 +47,8 @@ class FastCongruenceClosure {
   //stacks of changes to the data structures, sync with iStack
   private[this] val undoReprChangesStack = new Stack[Stack[(Int, Int, Int)]]
   private[this] val undoDiseqsStack = new Stack[Array[List[Int]]]
+  private[this] val undoLookupStack = new Stack[Map[(Int, Int), (Int, Int, Int)]]
+  private[this] val undoUseListStack = new Stack[Array[ListBuffer[(Int, Int, Int)]]]
   private[this] val undoEdgesStack = new HashMap[Formula, Stack[Pair[Int, Int]]] {
     override def default(k: Formula) = {
       val v = Stack[Pair[Int, Int]]()
@@ -95,15 +97,17 @@ class FastCongruenceClosure {
       case _ => ()
     })
     undoReprChangesStack.push(new Stack()) //TODO: this is a hack to support stacking change from merge without setTrue
+    //undoUseListStack.push(new Stack()) //TODO: this is a hack to support stacking change from merge without setTrue
+    invariant()
   }
 
   def setTrue(lit: Literal): Set[Literal] = {
-    //invariant()
-
     val Literal(ie, _, pol, _) = lit
     iStack.push(lit)
     undoReprChangesStack.push(new Stack)
     undoDiseqsStack.push(diseqs.clone)
+    undoLookupStack.push(lookup.clone)
+    undoUseListStack.push(useList.map(buf => buf.clone))
     val res = if(pol) {
       merge(ie).filterNot(_ == lit)
     } else {
@@ -455,7 +459,7 @@ class FastCongruenceClosure {
       diseqs(repB).indexOf(repA) != -1
     }
   }
-  
+
   def backtrack(n: Int): Unit = {
     if(n > iStack.size)
       throw new Exception("Can't pop "+ n +" literals from I-stack.")
@@ -471,7 +475,19 @@ class FastCongruenceClosure {
           classList(oldRepr).append(elem)
         }
 
+        //val useListChanges = undoUseListStack.pop
+        //while(!useListChanges.isEmpty) {
+        //  val (f, oldRepr, newRepr) = undoUseListStack(l).pop
+        //  useList(oldRepr).prepend(f)
+        //  if(newRepr != -1) {
+        //    val index = useList(newRepr).indexWhere(_ == f)
+        //    useList(newRepr).remove(index)
+        //  }
+        //}
+        useList = undoUseListStack.pop
+  
         diseqs = undoDiseqsStack.pop
+        //lookup = undoLookupStack.pop
       }}
     }
     invariant()
@@ -479,11 +495,25 @@ class FastCongruenceClosure {
 
   def undoInvariant(): Unit = {
     assert(undoReprChangesStack.size == iStack.size + 1)
+    assert(undoDiseqsStack.size == iStack.size)
+    assert(undoUseListStack.size == iStack.size)
+  }
+
+  def useListInvariant(): Unit = {
+    useList.zipWithIndex.foreach{ case (list, a) => {
+      if(!list.isEmpty)
+        assert(repr(a) == a)
+      list.foreach{case (c1, c2, c) => {
+        assert(repr(c1) == a || repr(c2) == a)
+      }}
+    }}
   }
 
   def classListInvariant(): Unit = {
     val seen = Array.fill(nbConstants)(false)
     classList.zipWithIndex.foreach{ case (list, a) => {
+      if(!list.isEmpty)
+        assert(repr(a) == a)
       list.foreach(b => {
         assert(!seen(b))
         seen(b) = true
@@ -504,8 +534,10 @@ class FastCongruenceClosure {
 
   def invariant(): Unit = {
     classListInvariant()
+    useListInvariant()
     diseqsInvariant()
     undoInvariant()
+    assert(pendingMerges.isEmpty)
   }
 
 }

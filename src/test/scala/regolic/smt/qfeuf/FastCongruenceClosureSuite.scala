@@ -112,6 +112,26 @@ class FastCongruenceClosureSuite extends FunSuite {
     cc3.merge(0, 3, 1) //f(f(f(a))) = a
     assert(cc3.areCongruent(Apply(Constant(0), Apply(Constant(0), Apply(Constant(0), Constant(1)))), Constant(1)))
     assert(!cc3.areCongruent(Apply(Constant(0), Apply(Constant(0), Constant(1))), Constant(1)))
+
+    val cc4 = new FastCongruenceClosure
+    cc4.initialize(8)
+    cc4.merge(6, 0, 2)
+    cc4.merge(6, 1, 3)
+    cc4.merge(7, 3, 5)
+    cc4.merge(7, 4, 0)
+    cc4.merge(0, 1)
+    cc4.merge(4, 2)
+    assert(cc4.areCongruent(Constant(0), Constant(5)))
+
+    val cc5 = new FastCongruenceClosure
+    cc5.initialize(8)
+    cc5.merge(6, 0, 2)
+    cc5.merge(6, 1, 3)
+    cc5.merge(7, 3, 5)
+    cc5.merge(7, 4, 0)
+    cc5.merge(4, 2)
+    cc5.merge(0, 1)
+    assert(cc5.areCongruent(Constant(0), Constant(5)))
   }
 
   test("simple explain") {
@@ -622,6 +642,7 @@ class FastCongruenceClosureSuite extends FunSuite {
     cc5.backtrack(1)
     assert(!cc5.isTrue(lit1))
 
+
   }
 
   test("backtrack with apply") {
@@ -629,7 +650,68 @@ class FastCongruenceClosureSuite extends FunSuite {
     val lit2 = Literal(Left(1, 2), 0, true, null)
     val lit3 = Literal(Left(2, 3), 0, true, null)
     val lit4 = Literal(Left(0, 3), 0, true, null) //a = d
+    val lit5 = Literal(Left(1, 4), 0, true, null)
+    val lit6 = Literal(Left(0, 4), 0, true, null)
+    val lit7 = Literal(Left(0, 2), 0, false, null)
+    val lit8 = Literal(Left(0, 2), 0, true, null)
     val lit9 = Literal(Left(5, 2), 0, false, null) //f != c
+    val lit10 = Literal(Left(4, 2), 0, true, null)
+    val lit11 = Literal(Left(5, 0), 0, true, null)
+
+    val cc1 = new FastCongruenceClosure
+    cc1.initialize(7, Set(lit1, lit2, lit3, lit4, lit5, lit9))
+    cc1.merge(6, 0, 2)
+    cc1.merge(6, 1, 3)
+    cc1.setTrue(lit1)
+    assert(cc1.isTrue(lit3))
+    cc1.backtrack(1)
+    assert(!cc1.isTrue(lit3))
+    cc1.setTrue(lit1)
+    assert(cc1.isTrue(lit3))
+
+    val cc2 = new FastCongruenceClosure
+    cc2.initialize(7, Set(lit1, lit2, lit3, lit4, lit5, lit6, lit9))
+    cc2.merge(6, 0, 2)
+    cc2.merge(6, 1, 3)
+    cc2.setTrue(lit1)
+    assert(cc2.isTrue(lit3))
+    cc2.backtrack(1)
+    assert(!cc2.isTrue(lit3))
+    cc2.setTrue(lit5)
+    assert(!cc2.isTrue(lit3))
+    cc2.setTrue(lit6)
+    assert(cc2.isTrue(lit1))
+    assert(cc2.isTrue(lit3))
+    cc2.backtrack(2)
+    cc2.setTrue(lit6)
+    cc2.setTrue(lit5)
+    assert(cc2.isTrue(lit1))
+    assert(cc2.isTrue(lit3))
+
+    val cc3 = new FastCongruenceClosure
+    cc3.initialize(3)
+    cc3.setTrue(lit7)
+    cc3.setTrue(lit1)
+    intercept[InconsistencyException]{ cc3.setTrue(lit2) }
+    cc3.backtrack(2)
+    intercept[InconsistencyException]{ cc3.setTrue(lit8) }
+
+    val cc4 = new FastCongruenceClosure
+    cc4.initialize(8)
+    cc4.merge(6, 0, 2)
+    cc4.merge(6, 1, 3)
+    cc4.merge(7, 3, 5)
+    cc4.merge(7, 4, 0)
+    cc4.setTrue(lit1)
+    assert(cc4.isTrue(lit3))
+    cc4.setTrue(lit10)
+    assert(cc4.isTrue(lit11))
+    cc4.backtrack(2)
+    cc4.setTrue(lit10)
+    assert(!cc4.isTrue(lit11))
+    cc4.setTrue(lit1)
+    assert(cc4.isTrue(lit11))
+
     val cc5 = new FastCongruenceClosure
     cc5.initialize(7)
     cc5.merge(6, 4, 1) //g(e) = b
@@ -643,32 +725,4 @@ class FastCongruenceClosureSuite extends FunSuite {
     assert(!cc5.isTrue(lit9))
   }
 
-  //test("backtrack 4") {
-  //  val x0 = freshVariable("x", IntSort());
-  //  val x1 = freshVariable("x", IntSort());
-  //  val y0 = freshVariable("y", IntSort());
-
-  //  val diamond = List[Formula](
-  //    Not(Equals(x0, x1)),
-  //    Equals(x0, y0),
-  //    Equals(y0, x1)
-  //  )
-
-  //  val afterBacktracking = List[Formula](
-  //    Equals(x0, x1)
-  //  )
-
-  //  val cc = new CongruenceClosure
-  //  val dSet = diamond.toSet
-  //  cc.initialize(dSet)
-  //  val results = diamond.map(eq => cc.setTrue(eq))
-  //  assert(results.reverse.tail.forall(_ != None))
-  //  assert(results.reverse.head == None)
-
-  //  cc.backtrack(2)
-
-  //  val resultsAfterBacktracking = afterBacktracking.map(eq => cc.setTrue(eq))
-  //  assert(resultsAfterBacktracking.exists(_ == None))
-  //          
-  //}
 }
