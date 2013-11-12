@@ -35,7 +35,7 @@ class FastCongruenceClosure {
 
   private[this] val pendingMerges: Queue[MergePair] = Queue()
   private[this] var repr: Array[Int] = null
-  private[this] val lookup: Map[(Int, Int), (Int, Int, Int)] = new HashMap()
+  private[this] var lookup: Map[(Int, Int), (Int, Int, Int)] = new HashMap()
   private[this] var useList: Array[ListBuffer[(Int, Int, Int)]] = null
   private[this] var classList: Array[ListBuffer[Int]] = null
 
@@ -487,7 +487,7 @@ class FastCongruenceClosure {
         useList = undoUseListStack.pop
   
         diseqs = undoDiseqsStack.pop
-        //lookup = undoLookupStack.pop
+        lookup = undoLookupStack.pop
       }}
     }
     invariant()

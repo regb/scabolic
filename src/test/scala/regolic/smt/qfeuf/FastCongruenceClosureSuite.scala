@@ -723,6 +723,22 @@ class FastCongruenceClosureSuite extends FunSuite {
     cc5.setTrue(lit4)
     assert(cc5.isTrue(lit4))
     assert(!cc5.isTrue(lit9))
+
+    val lit12 = Literal(Left(4, 0), 0, true, null)
+    val cc6 = new FastCongruenceClosure
+    cc6.initialize(7)
+    cc6.merge(6, 0, 2) //f(a) = c
+    cc6.merge(6, 1, 3) //f(b) = d
+    cc6.setTrue(lit6) //a = e
+    assert(cc6.isTrue(lit6))
+    assert(!cc6.isTrue(lit1))
+    assert(!cc6.isTrue(lit3))
+    cc6.backtrack(1)
+    assert(!cc6.isTrue(lit6))
+    cc6.setTrue(lit5) //b = e
+    assert(cc6.isTrue(lit5))
+    assert(!cc6.isTrue(lit1))
+    assert(!cc6.isTrue(lit3))
   }
 
 }
