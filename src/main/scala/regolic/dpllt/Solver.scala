@@ -81,7 +81,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
   private[this] var conflict: Clause = null
   private[this] var assumptions: Array[Int] = null
 
-  private[this] var literals: Array[Literal] = null
+  private[this] var literals: Array[Literal] = new Array(2*nbVars)
 
   private[this] val conflictAnalysisStopWatch = StopWatch("backtrack.conflictanalysis")
   private[this] val find1UIPStopWatch = StopWatch("backtrack.conflictanalysis.find1uip")
@@ -142,6 +142,8 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
 
   def addClause(lits: Set[Literal]) = {
     incrementallyAddedClauses ::= new Clause(lits)
+    for(lit <- lits)
+      literals(lit.id + lit.polInt) = lit
   }
 
   def solve(assumps: Array[Literal] = Array.empty[Literal]): Results.Result = {

@@ -1,6 +1,8 @@
 package regolic
 package dpllt
 
+class PropositionalLiteral(id: Int,  pol: Boolean) extends Literal(id, pol)
+
 class PropositionalSolver extends TheorySolver {
 
   def initialize(ls: Set[Literal]): Unit = {}
