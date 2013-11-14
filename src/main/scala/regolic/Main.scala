@@ -61,8 +61,6 @@ object Main {
   import Solver.Results._
 
   def satSolver(f: File) = {
-
-
     val is = new java.io.FileInputStream(f)
     val (satInstance, nbVars) = regolic.parsers.Dimacs.cnf(is)
     val s = new Solver(nbVars)
@@ -88,6 +86,28 @@ object Main {
         val inputFile = trueArgs(0)
         val start = System.currentTimeMillis
         satSolver(new java.io.File(inputFile))
+        val end = System.currentTimeMillis
+        val elapsed = end - start
+        if(time)
+          println(elapsed/1000d)
+        sys.exit(0)
+      } else if(cmd == "sat-dpllt") {
+        val inputFile = trueArgs(0)
+        val start = System.currentTimeMillis
+        val is = new java.io.FileInputStream(new java.io.File(inputFile))
+        val (satInstance, nbVars) = regolic.parsers.Dimacs.cnf(is)
+        val s = new dpllt.Solver(nbVars, new dpllt.PropositionalSolver)
+        satInstance.foreach(clause => {
+          val lits: Set[dpllt.Literal] = 
+            clause.map(l => new dpllt.PropositionalLiteral(l.getID, l.polarity): dpllt.Literal)
+          s.addClause(lits)
+        })
+        val res = s.solve()
+        res match {
+          case dpllt.Solver.Results.Satisfiable(_) => println("sat")
+          case dpllt.Solver.Results.Unsatisfiable => println("unsat")
+          case dpllt.Solver.Results.Unknown => println("unknown")
+        }
         val end = System.currentTimeMillis
         val elapsed = end - start
         if(time)
