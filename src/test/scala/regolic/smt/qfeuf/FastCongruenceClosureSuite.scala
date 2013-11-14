@@ -814,4 +814,6 @@ class FastCongruenceClosureSuite extends FunSuite {
     assert(expl5.contains(lit4))
   }
 
+  //TODO: test redundant setTrue (multiple same, or implied ones), with backtracking and explain
+
 }
