@@ -1,4 +1,5 @@
-package regolic.dpllt
+package regolic
+package dpllt.refactor
 
 import regolic.sat.Literal
 import regolic.sat.LiteralType
@@ -37,8 +38,7 @@ class Encoding {
 
 object PropositionalSkeleton {
 
-  def apply(formula: Formula): (Set[Set[Literal]], Encoding, Int,
-    Map[LiteralType, Int]) = {
+  def apply(formula: Formula): (Set[Set[Literal]], Encoding, Int, Map[LiteralType, Int]) = {
     import scala.collection.mutable.ListBuffer
 
     trait LiteralID {

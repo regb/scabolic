@@ -8,8 +8,8 @@ import regolic.parsers.SmtLib2.Trees._
 
 import regolic.smt.qfeuf.CongruenceClosure
 
-import regolic.dpllt.DPLLTSolverWrapper
-import regolic.dpllt.Results._
+import regolic.dpllt.refactor.DPLLTSolverWrapper
+import regolic.dpllt.refactor.Results._
 
 import regolic.sexpr.SExprs._
 
