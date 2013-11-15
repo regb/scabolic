@@ -33,6 +33,9 @@ Then you can use CafeSat as follows:
 By default (actually, this cannot be changed so far), the INPUT is assumed to
 be in Dimacs CNF format.
 
+The [Scala'13 paper](http://dx.doi.org/10.1145/2489837.2489839) gives a short overview
+of CafeSat.
+
 ##Scala API
 
 Scabolic exports a mini API usable from Scala programs. The API is not stable
