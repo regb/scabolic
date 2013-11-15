@@ -20,7 +20,7 @@ import scala.collection.mutable.ArrayBuffer
  * this way. The solver assume the constants are numbered from 0 to N, with N+1
  * different constatns.
  */
-class FastCongruenceClosure {
+class FastCongruenceClosure { //extends TheorySolver {
 
   import FastCongruenceClosure._
 

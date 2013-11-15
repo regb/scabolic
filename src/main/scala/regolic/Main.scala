@@ -117,9 +117,10 @@ object Main {
         val inputFile = trueArgs(0)
         val is = new java.io.FileReader(inputFile)
         val smtInstance = regolic.parsers.SmtLib2(is)
+        smtlib.Eval.execute(smtInstance)
         //println(smtInstance)
         //regolic.smt.Solver.execute(smtInstance)
-        regolic.smt.TheorySolver.execute(smtInstance)
+        //regolic.smt.TheorySolver.execute(smtInstance)
       } else if(cmd == "satlib") {
         val dir = trueArgs(0)
         val dirFile = new java.io.File(dir)

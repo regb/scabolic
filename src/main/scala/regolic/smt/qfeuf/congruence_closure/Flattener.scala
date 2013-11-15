@@ -31,6 +31,25 @@ object Flattener {
     (newTerm, eqs)
   }
 
+  def transform(formula: Formula): (Formula, Map[String, FunctionApplication]) = {
+    var eqs: Map[String, FunctionApplication] = Map()
+    var names: Map[FunctionApplication, String] = Map()
+
+    val newFormula = mapPostorder(formula, (f: Formula) => f, (t: Term) => t match {
+      case app@FunctionApplication(fun, arg::args) => names.get(app) match {
+        case None =>
+          val fv = freshVariable(fun.name, fun.returnSort)
+          eqs += (fv.name -> app)
+          names += (app -> fv.name)
+          fv
+        case Some(n) => Variable(n, fun.returnSort)
+      }
+      case t => t
+    })
+
+    (newFormula, eqs)
+  }
+
   private def extract(f: FunctionApplication, acc: List[PredicateApplication] = Nil): (List[PredicateApplication], Variable) = {
     if(terms.contains(f)) {
       terms(f)
