@@ -509,8 +509,10 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
     levels(id) = decisionLevel
 
     val tLit = literals(lit)
-    val tConsequences = setTrueStopwatch.time{ tSolver.setTrue(tLit) }
-    tConsequences.foreach(l => enqueueLiteral(l.id*2 + (1 - l.polInt))) //TODO: correct polarity ?
+    if(tLit.isInstanceOf[smt.qfeuf.Literal]) {
+      val tConsequences = setTrueStopwatch.time{ tSolver.setTrue(tLit) }
+      //tConsequences.foreach(l => enqueueLiteral(l.id*2 + (1 - l.polInt))) //TODO: correct polarity ?
+    }
   }
 
   private[this] def decide() {
@@ -635,7 +637,8 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
       reasonClause.locked = false
       reasons(id) = null
     }
-    tSolver.backtrack(1)
+    if(literals(id).isInstanceOf[smt.qfeuf.Literal])
+      tSolver.backtrack(1)
   }
 
   private[this] def deduce(): Unit = {

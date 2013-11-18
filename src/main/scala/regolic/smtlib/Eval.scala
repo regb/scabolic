@@ -72,9 +72,6 @@ object Eval {
               }
             }
             def builder(p: PredicateApplication, id: Int, pol: Boolean): smt.qfeuf.Literal = {
-              val Equals(fa, fb) = p
-              println(fa.getClass)
-              println(fb.getClass)
               val Equals(FunctionApplication(a, Nil), FunctionApplication(b, Nil)) = p
               val aId = constantsToId(a.name)
               val bId = constantsToId(b.name)
