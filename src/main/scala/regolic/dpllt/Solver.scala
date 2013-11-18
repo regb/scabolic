@@ -35,6 +35,7 @@ object Solver {
   private case object Timeout extends Status
 }
 
+//TODO: nbVars should be nbLits
 class Solver(nbVars: Int, tSolver: TheorySolver) {
 
   import Solver._

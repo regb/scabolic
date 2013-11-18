@@ -15,6 +15,7 @@ class Literal(private val id: Int, private var offset: Int, val polInt: Int, val
 
   lazy val pos = new Literal(this.id, this.offset, 1, this.actualType) // TODO this is polluting
 
+  //TODO: neg returns this ?
   def neg = this
 
   // getId must be extended when there are more LiteralType

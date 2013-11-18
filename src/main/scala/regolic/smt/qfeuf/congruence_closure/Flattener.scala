@@ -23,7 +23,7 @@ object Flattener {
       case app@FunctionApplication(fun, arg::args) => {
         val fv = freshVariable(fun.name, fun.returnSort)
         eqs += (fv.name -> app)
-        fv
+        FunctionApplication(FunctionSymbol(fv.name, Nil, fv.sort), Nil)
       }
       case t => t
     })
@@ -41,7 +41,7 @@ object Flattener {
           val fv = freshVariable(fun.name, fun.returnSort)
           eqs += (fv.name -> app)
           names += (app -> fv.name)
-          fv
+          FunctionApplication(FunctionSymbol(fv.name, Nil, fv.sort), Nil)
         case Some(n) => Variable(n, fun.returnSort)
       }
       case t => t

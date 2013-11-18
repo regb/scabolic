@@ -20,7 +20,7 @@ import scala.collection.mutable.ArrayBuffer
  * this way. The solver assume the constants are numbered from 0 to N, with N+1
  * different constatns.
  */
-class FastCongruenceClosure { //extends TheorySolver {
+class FastCongruenceClosure extends dpllt.TheorySolver {
 
   import FastCongruenceClosure._
 
@@ -51,6 +51,14 @@ class FastCongruenceClosure { //extends TheorySolver {
   private[this] val undoUseListStack = new Stack[Array[ListBuffer[(Int, Int, Int)]]]
   private[this] val undoEdgesStack = new Stack[Stack[(Int, Int)]]
 
+  def initialize(lits: Set[dpllt.Literal]): Unit = {
+    val nbConstants = lits.map{ 
+      case Literal(Left((a,b)), _, _, _) => a.max(b)
+      case Literal(Right((a,b,c)), _, _, _) => a.max(b).max(c)
+      case _ => 0
+    }.max + 1
+    initialize(nbConstants, lits) 
+  }
   /*
    * initialize with nbConstants N (then constant are identified from 0 to N-1)
    *
@@ -60,11 +68,7 @@ class FastCongruenceClosure { //extends TheorySolver {
    *
    * TODO: should the theory propagation be complete for the given lits set ?
    */
-  def initialize(nbConstants: Int, lits: Set[Literal] = Set()): Unit = {
-    //val nbConstants = lits.map{ 
-    //  case Literal(Left((a,b)), _, _, _) => a.max(b)
-    //  case Literal(Right((a,b,c)), _, _, _) => a.max(b).max(c)
-    //}.max + 1
+  def initialize(nbConstants: Int, lits: Set[dpllt.Literal] = Set()): Unit = {
     this.nbConstants = nbConstants
     repr = (0 until nbConstants).toArray
     classList = (0 until nbConstants).map(c => {
@@ -96,9 +100,9 @@ class FastCongruenceClosure { //extends TheorySolver {
     invariant()
   }
 
-  def setTrue(lit: Literal): Set[Literal] = {
-    val Literal(ie, _, pol, _) = lit
-    iStack.push(lit)
+  def setTrue(lit: dpllt.Literal): Set[dpllt.Literal] = {
+    val l@Literal(ie, _, pol, _) = lit
+    iStack.push(l)
     undoReprChangesStack.push(new Stack)
     undoEdgesStack.push(new Stack)
     undoDiseqsStack.push(diseqs.clone)
@@ -119,7 +123,7 @@ class FastCongruenceClosure { //extends TheorySolver {
       // Computing the T-consequences
       val (cla, clb) = (classList(aRep), classList(bRep))
       val cl = if(cla.size < clb.size) cla else clb
-      val tConsequences = ListBuffer[Literal]()
+      val tConsequences = ListBuffer[dpllt.Literal]()
       for(c <- cl) {
         for((c1, c2) <- negLits(c)) {
           if((repr(c1) == aRep && repr(c2) == bRep) ||
@@ -136,16 +140,16 @@ class FastCongruenceClosure { //extends TheorySolver {
   }
 
 
-  def merge(eq: InputEquation): Set[Literal] = eq match {
+  def merge(eq: InputEquation): Set[dpllt.Literal] = eq match {
     case Left((a, b)) => merge(a, b)
     case Right((a1, a2, a)) => merge(a1, a2, a)
   }
 
-  def merge(a: Int, b: Int): Set[Literal] = {
+  def merge(a: Int, b: Int): Set[dpllt.Literal] = {
     pendingMerges.enqueue(Left((a, b)))
     propagate()
   }
-  def merge(a1: Int, a2: Int, a: Int): Set[Literal] = {
+  def merge(a1: Int, a2: Int, a: Int): Set[dpllt.Literal] = {
     val a1Rep = repr(a1)
     val a2Rep = repr(a2)
     lookup.get((a1Rep, a2Rep)) match {
@@ -163,7 +167,7 @@ class FastCongruenceClosure { //extends TheorySolver {
   }
 
   //return set of consequences
-  private def propagate(): Set[Literal] = {
+  private def propagate(): Set[dpllt.Literal] = {
     val tConsequences = ListBuffer[Literal]()
     while(pendingMerges.nonEmpty) {
       val e: MergePair = pendingMerges.dequeue()
@@ -367,7 +371,7 @@ class FastCongruenceClosure { //extends TheorySolver {
     acc
   }
 
-  def explanation(l: Literal): Set[Literal] = {
+  def explanation(l: dpllt.Literal): Set[dpllt.Literal] = {
     //TODO: is it necessary to backtrack to l' (such that setTrue(l') propagates l)
     //      and then restore ?
     val Literal(eq, _, pol, _) = l
@@ -390,7 +394,7 @@ class FastCongruenceClosure { //extends TheorySolver {
         (explain(d1, e2) union explain(e1, d2))
       }
 
-      rec.map(i => Literal(i, 0, true, null)) + Literal(Left(d2, e2), 0, false, null)
+      rec.map(i => Literal(i, 0, true, null): dpllt.Literal) + Literal(Left(d2, e2), 0, false, null)
     }
   }
 
@@ -447,7 +451,7 @@ class FastCongruenceClosure { //extends TheorySolver {
   //}
 
 
-  def isTrue(lit: Literal): Boolean = {
+  def isTrue(lit: dpllt.Literal): Boolean = {
     val Literal(ie, _, pol, _) = lit
     if(pol) {
       areCongruent(ie)
@@ -565,70 +569,82 @@ object FastCongruenceClosure {
 
 }
 
-case class Literal(eq: FastCongruenceClosure.InputEquation, override val id: Int, pol: Boolean, pred: PredicateApplication) 
-  extends smt.Literal(pred, id, pol)
+case class Literal(eq: FastCongruenceClosure.InputEquation, 
+                   val id: Int, 
+                   pol: Boolean, 
+                   pred: PredicateApplication) extends dpllt.Literal {
+  val polInt = if(pol) 1 else 0
 
-class PreProcessing {
+  def pos = Literal(eq, id, true, pred)
+  def neg = Literal(eq, id, false, pred)
 
-  def apply(cnf: Set[Set[Formula]]): Set[Set[smt.Literal]] = {
-
-    var namesToConstants: Map[String, Int] = {
-      var constantId = -1
-      new HashMap[String, Int] {
-        override def apply(name: String): Int = this.get(name) match {
-          case Some(id) => id
-          case None => {
-            constantId += 1
-            this(name) = constantId
-            constantId
-          }
-        }
-      }
-    }
-
-    var extraDefs: List[FastCongruenceClosure.InputEquation] = List()
-
-    def addName(p: (String, FunctionApplication)): Unit = p match {
-      case (a, Apply(FunctionApplication(FunctionSymbol(a1, _, _), _), FunctionApplication(FunctionSymbol(a2, _, _), _))) =>
-        extraDefs ::= Right((namesToConstants(a1), namesToConstants(a2), namesToConstants(a)))
-      case (a, FunctionApplication(FunctionSymbol(b, _, _), _)) =>
-        extraDefs ::= Left((namesToConstants(a), namesToConstants(b)))
-    }
-
-    val processed: List[List[smt.Literal]] = cnf.toList.map(clause => clause.toList.map(lit => lit match {
-      case eq@Equals(t1, t2) => {
-        val ct1 = Currifier(t1)
-        val ct2 = Currifier(t2)
-        val (Variable(name1, _), names1) = Flattener.transform(ct1)
-        val (Variable(name2, _), names2) = Flattener.transform(ct2)
-        names1.foreach(p => addName(p))
-        names2.foreach(p => addName(p))
-        Literal(
-          Left((namesToConstants(name1), namesToConstants(name2))),
-          0,
-          true,
-          eq
-        )
-
-      }
-      case Not(eq@Equals(t1, t2)) => {
-        val ct1 = Currifier(t1)
-        val ct2 = Currifier(t2)
-        val (Variable(name1, _), names1) = Flattener.transform(ct1)
-        val (Variable(name2, _), names2) = Flattener.transform(ct2)
-        names1.foreach(p => addName(p))
-        names2.foreach(p => addName(p))
-        Literal(
-          Left((namesToConstants(name1), namesToConstants(name2))),
-          0,
-          false,
-          eq
-        )
-      }
-    }))
-
-    processed.map(clause => clause.toSet).toSet ++ extraDefs.map(ie => Set[smt.Literal](Literal(ie, 0, true, null))).toSet
-
+  override def toString: String = eq match {
+    case Left((a, b)) => "c_" + a + " = c_" + b
+    case Right((a, b, c)) => "f_" + a + "(c_" + b + ") = c_" + c
   }
-
 }
+
+//class PreProcessing {
+//
+//  def apply(cnf: Set[Set[Formula]]): Set[Set[smt.Literal]] = {
+//
+//    var namesToConstants: Map[String, Int] = {
+//      var constantId = -1
+//      new HashMap[String, Int] {
+//        override def apply(name: String): Int = this.get(name) match {
+//          case Some(id) => id
+//          case None => {
+//            constantId += 1
+//            this(name) = constantId
+//            constantId
+//          }
+//        }
+//      }
+//    }
+//
+//    var extraDefs: List[FastCongruenceClosure.InputEquation] = List()
+//
+//    def addName(p: (String, FunctionApplication)): Unit = p match {
+//      case (a, Apply(FunctionApplication(FunctionSymbol(a1, _, _), _), FunctionApplication(FunctionSymbol(a2, _, _), _))) =>
+//        extraDefs ::= Right((namesToConstants(a1), namesToConstants(a2), namesToConstants(a)))
+//      case (a, FunctionApplication(FunctionSymbol(b, _, _), _)) =>
+//        extraDefs ::= Left((namesToConstants(a), namesToConstants(b)))
+//    }
+//
+//    val processed: List[List[smt.Literal]] = cnf.toList.map(clause => clause.toList.map(lit => lit match {
+//      case eq@Equals(t1, t2) => {
+//        val ct1 = Currifier(t1)
+//        val ct2 = Currifier(t2)
+//        val (Variable(name1, _), names1) = Flattener.transform(ct1)
+//        val (Variable(name2, _), names2) = Flattener.transform(ct2)
+//        names1.foreach(p => addName(p))
+//        names2.foreach(p => addName(p))
+//        Literal(
+//          Left((namesToConstants(name1), namesToConstants(name2))),
+//          0,
+//          true,
+//          eq
+//        )
+//
+//      }
+//      case Not(eq@Equals(t1, t2)) => {
+//        val ct1 = Currifier(t1)
+//        val ct2 = Currifier(t2)
+//        val (Variable(name1, _), names1) = Flattener.transform(ct1)
+//        val (Variable(name2, _), names2) = Flattener.transform(ct2)
+//        names1.foreach(p => addName(p))
+//        names2.foreach(p => addName(p))
+//        Literal(
+//          Left((namesToConstants(name1), namesToConstants(name2))),
+//          0,
+//          false,
+//          eq
+//        )
+//      }
+//    }))
+//
+//    processed.map(clause => clause.toSet).toSet ++ extraDefs.map(ie => Set[smt.Literal](Literal(ie, 0, true, null))).toSet
+//
+//  }
+//
+//}

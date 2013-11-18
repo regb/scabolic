@@ -53,19 +53,65 @@ object Eval {
             val formula: Formula = simplify(asserts.foldLeft(True(): Formula)((acc, f) => And(acc, f)))
             val currified: Formula = mapPreorder(formula, f => f, t => Currifier(t))
             val (flattened, eqs) = Flattener.transform(currified)
+            val withoutVars: Formula = mapPreorder(flattened, f => f, { case Variable(v, s) => FunctionApplication(FunctionSymbol(v, Nil, s), Nil) case t => t })
             println("flatten: " + flattened)
             println("eqs: " + eqs)
 
-            //val result = DPLLTSolverWrapper(solver.get, formula)
+            //TODO: this hashmap seems to be a recuring pattern
+            val constantsToId = {
+              var constantId = -1
+              new scala.collection.mutable.HashMap[String, Int] {
+                override def apply(cst: String): Int = get(cst) match {
+                  case Some(id) => id
+                  case None => {
+                    constantId += 1
+                    this(cst) = constantId
+                    constantId
+                  }
+                }
+              }
+            }
+            def builder(p: PredicateApplication, id: Int, pol: Boolean): smt.qfeuf.Literal = {
+              val Equals(fa, fb) = p
+              println(fa.getClass)
+              println(fb.getClass)
+              val Equals(FunctionApplication(a, Nil), FunctionApplication(b, Nil)) = p
+              val aId = constantsToId(a.name)
+              val bId = constantsToId(b.name)
+              smt.qfeuf.Literal(Left(aId, bId), id, pol, p)
+            }
+            val toMerge: List[(Int, Int, Int)] = eqs.map{ 
+              case (cst, FunctionApplication(apply, a::b::Nil)) => {
+                val aName = a match {
+                  case Variable(n, _) => n
+                  case FunctionApplication(s, Nil) => s.name
+                }
+                val bName = b match {
+                  case Variable(n, _) => n
+                  case FunctionApplication(s, Nil) => s.name
+                }
+                (constantsToId(aName), constantsToId(bName), constantsToId(cst))
+              }
+            }.toList
 
+            val (cnf, nbLits, _) = dpllt.PropositionalSkeleton(withoutVars, builder)
 
-            //val resultString = result match {
-            //  case Satisfiable(_) if expectedResult == Some(false) => "sat | should be unsat"
-            //  case Satisfiable(_) => "sat"
-            //  case Unsatisfiable if expectedResult == Some(true) => "unsat | should be sat"
-            //  case Unsatisfiable => "unsat"
-            //}
-            //println(resultString)
+            val cc = new smt.qfeuf.FastCongruenceClosure
+            cc.initialize(cnf.flatten)
+            toMerge.foreach{ case (a1, a2, a) => cc.merge(a1, a2, a) }
+
+            val solver = new dpllt.Solver(nbLits, cc)
+            cnf.foreach(clause => solver.addClause(clause))
+
+            val result = solver.solve()
+
+            val resultString = result match {
+              case Satisfiable(_) if expectedResult == Some(false) => "sat | should be unsat"
+              case Satisfiable(_) => "sat"
+              case Unsatisfiable if expectedResult == Some(true) => "unsat | should be sat"
+              case Unsatisfiable => "unsat"
+            }
+            println(resultString)
           } else println("Solver not set.")
         }
         case SetInfo(attr) => {

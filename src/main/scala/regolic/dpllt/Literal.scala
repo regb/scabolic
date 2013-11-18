@@ -5,14 +5,20 @@ package dpllt
  * id is unique per predicate, different literals with same predicate but different polarity
  * will have the same id
  */
-abstract class Literal(val id: Int, val polInt: Int) {
-  require(id >= 0)
-  require(polInt == 0 || polInt == 1)
+abstract class Literal {
 
-  def this(id: Int, polarity: Boolean) = this(id, if(polarity) 1 else 0)
+  val id: Int 
 
-  def polarity = polInt == 1
+  val polInt: Int
+
+  def polarity: Boolean = polInt == 1
 
   override def toString: String = (if(!polarity) "-" else "") + "v" + id
+
+  //returns the positive literal (always true)
+  def pos: Literal
+
+  //returns the negative literal (always false)
+  def neg: Literal
 
 }
