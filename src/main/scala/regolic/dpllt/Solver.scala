@@ -145,6 +145,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
     incrementallyAddedClauses ::= new Clause(lits)
     for(lit <- lits)
       literals(lit.id + lit.polInt) = lit
+    println(literals.mkString("literals: {", ",", "}"))
   }
 
   def solve(assumps: Array[Literal] = Array.empty[Literal]): Results.Result = {
@@ -354,7 +355,9 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
     }
 
     learntClause ::= (p ^ 1)  //don't forget to add p in the clause !
-    new Clause(learntClause.toArray)
+    val res = new Clause(learntClause.toArray)
+    println("learnt: " + res.lits.map(literals(_)).mkString("[", ",", "]"))
+    res
   }
 
   def litToVar(lit: Int): Int = lit >> 1
@@ -508,11 +511,11 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
     }
     levels(id) = decisionLevel
 
-    val tLit = literals(lit)
-    if(tLit.isInstanceOf[smt.qfeuf.Literal]) {
-      val tConsequences = setTrueStopwatch.time{ tSolver.setTrue(tLit) }
-      //tConsequences.foreach(l => enqueueLiteral(l.id*2 + (1 - l.polInt))) //TODO: correct polarity ?
-    }
+    //val tLit = literals(lit)
+    //if(tLit.isInstanceOf[smt.qfeuf.Literal]) {
+    //  val tConsequences = setTrueStopwatch.time{ tSolver.setTrue(tLit) }
+    //  //tConsequences.foreach(l => enqueueLiteral(l.id*2 + (1 - l.polInt))) //TODO: correct polarity ?
+    //}
   }
 
   private[this] def decide() {
@@ -614,6 +617,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
 
 
   private[this] def backtrackTo(lvl: Int): Unit = {
+    println("backtrack to: " + lvl)
     while(decisionLevel > lvl && !trail.isEmpty) {
       val head = trail.pop()
       decisionLevel = levels(head >> 1)
@@ -637,7 +641,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
       reasonClause.locked = false
       reasons(id) = null
     }
-    if(literals(id).isInstanceOf[smt.qfeuf.Literal])
+    if(literals(lit).isInstanceOf[smt.qfeuf.Literal])
       tSolver.backtrack(1)
   }
 
@@ -646,10 +650,44 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
     while(qHead < trail.size) {
 
       val forcedLit = trail(qHead)
+
       //negatedLit is the literals that are made false and need updating of watchers
       val negatedLit = forcedLit ^ 1
       assert(isAssigned(negatedLit))
       qHead += 1
+
+      //apply the forced literal in the theory solver
+      val tLit = literals(forcedLit)
+      if(tLit.isInstanceOf[smt.qfeuf.Literal]) {
+        try {
+          val tConsequences = setTrueStopwatch.time{ tSolver.setTrue(tLit) }
+        } catch {
+          case (e: Exception) => {
+            status = Conflict
+            while(qHead < trail.size) {
+              try {
+                tSolver.setTrue(literals(trail(qHead))) //just fill the tsolver
+              } catch {
+                case (e: Exception) => ()
+              }
+              qHead += 1
+            }
+            assert(qHead == trail.size)
+            if(reasons(forcedLit>>1) == null) {//decision variable
+              val trailArray = (for(i <- 0 until trail.size) yield trail(i)).toArray
+              conflict = new Clause(forcedLit +: trailArray.filter(el => reasons(el>>1) == null))
+            } else {
+              conflict = reasons(forcedLit>>1)
+            }
+            //val explanation = tSolver.explanation(0w
+            //conflict = new Clause(
+            //  forcedLit +: explIntRepr.toArray
+            //)
+          }
+        }
+        //tConsequences.foreach(l => enqueueLiteral(l.id*2 + (1 - l.polInt))) //TODO: correct polarity ?
+      }
+
 
       val ws: Vector[Clause] = watched(negatedLit)
       var i = 0
