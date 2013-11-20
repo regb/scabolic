@@ -187,8 +187,10 @@ class FastCongruenceClosure extends dpllt.TheorySolver {
       val bRep = repr(b)
 
       if(aRep != bRep) { //aRep will be replaced by bRep
-        if(diseqs(aRep).exists(c => c == bRep))
+        if(diseqs(aRep).exists(c => c == bRep)) {
+          pendingMerges.clear()
           throw new InconsistencyException
+        }
 
         for(c <- classList(aRep)) {
           for((c1, c2) <- posLits(c)) {
