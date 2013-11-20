@@ -33,70 +33,72 @@ object PropositionalSkeleton {
     var varToLiteral = new HashMap[Formula, Literal]()
 
     //for each subformula, create a new representation and add the constraints while returning the representation
-    //the representative is always the positive literal
+    //the representative is a literal (positive or negative) that is equivalent to the formula
     def rec(form: Formula): Literal = form match {
-      case (p: PredicateApplication) => {
-        val repr = p match {
-          case Equals(_, _) => varToLiteral.get(p) match {
-            case Some(repr) => repr
-            case None => {
-              val repr = builder(p, LiteralId.next, true)
-              varToLiteral(p) = repr
-              repr
-            }
-          }
-          case p@PropositionalVariable(_) => varToLiteral.get(p) match {
-            case Some(repr) => repr
-            case None => {
-              val repr = new PropositionalLiteral(LiteralId.next, true)
-              varToLiteral(p) = repr
-              repr
-            }
-          }
-          case _ => throw new Exception("This type of literal hasn't been implemented yet: "+ p)
+      case p@Equals(_, _) => varToLiteral.get(p) match {
+        case Some(repr) => repr
+        case None => {
+          val repr = builder(p, LiteralId.next, true)
+          varToLiteral(p) = repr
+          repr
         }
-        repr
+      }
+      case p@Not(eq@Equals(_, _)) => varToLiteral.get(p) match {
+        case Some(repr) => repr
+        case None => {
+          val repr = builder(eq, LiteralId.next, false)
+          varToLiteral(p) = repr
+          repr
+        }
+      }
+      case p@PropositionalVariable(_) => varToLiteral.get(p) match {
+        case Some(repr) => repr
+        case None => {
+          val repr = new PropositionalLiteral(LiteralId.next, true)
+          varToLiteral(p) = repr
+          repr
+        }
       }
       case Not(f) => {
         val fRepr = rec(f)
         val repr = new PropositionalLiteral(LiteralId.next, true)
         constraints += Set(repr.neg, fRepr.neg)
-        constraints += Set(repr.pos, fRepr.pos)
+        constraints += Set(repr.pos, fRepr)
         repr
       }
       case And(fs) => {
         val repr = new PropositionalLiteral(LiteralId.next, true)
         val fsRepr = fs.map(f => rec(f))
         for(fRepr <- fsRepr)
-          constraints += Set(repr.neg, fRepr.pos)
-        constraints += (repr.pos :: fsRepr.map(fRepr => fRepr.neg)).toSet
+          constraints += Set(repr.neg, fRepr)
+        constraints += (repr :: fsRepr.map(fRepr => fRepr.neg)).toSet
         repr
       }
       case Or(fs) => {
         val repr = new PropositionalLiteral(LiteralId.next, true)
         val fsRepr = fs.map(f => rec(f))
         for(fRepr <- fsRepr)
-          constraints += Set(repr.pos, fRepr.neg)
-        constraints += (repr.neg :: fsRepr.map(fRepr => fRepr.pos)).toSet
+          constraints += Set(repr, fRepr.neg)
+        constraints += (repr.neg :: fsRepr).toSet
         repr
       }
       case Implies(f1, f2) => {
         val repr = new PropositionalLiteral(LiteralId.next, true)
         val f1Repr = rec(f1)
         val f2Repr = rec(f2)
-        constraints += Set(repr.neg, f1Repr.neg, f2Repr.pos)
-        constraints += Set(repr.pos, f1Repr.pos)
-        constraints += Set(repr.pos, f2Repr.neg)
+        constraints += Set(repr.neg, f1Repr.neg, f2Repr)
+        constraints += Set(repr, f1Repr)
+        constraints += Set(repr, f2Repr.neg)
         repr
       }
       case Iff(f1, f2) => {
         val repr = new PropositionalLiteral(LiteralId.next, true)
         val f1Repr = rec(f1)
         val f2Repr = rec(f2)
-        constraints += Set(repr.neg, f1Repr.neg, f2Repr.pos)
-        constraints += Set(repr.neg, f1Repr.pos, f2Repr.neg)
-        constraints += Set(repr.pos, f1Repr.neg, f2Repr.neg)
-        constraints += Set(repr.pos, f1Repr.pos, f2Repr.pos)
+        constraints += Set(repr.neg, f1Repr.neg, f2Repr)
+        constraints += Set(repr.neg, f1Repr, f2Repr.neg)
+        constraints += Set(repr, f1Repr.neg, f2Repr.neg)
+        constraints += Set(repr, f1Repr, f2Repr)
         repr
       }
       case _ => sys.error("Unhandled case in ConjunctiveNormalForm: " + form)

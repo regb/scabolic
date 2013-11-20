@@ -94,7 +94,7 @@ object PropositionalSkeleton {
         }
         repr
       }
-      case Not(f) => {
+      case Not(f) => { //TODO: special handling of Not(Equals) ?
         val fRepr = rec(f)
         val repr = new Literal(PropLiteralID.next, PropLiteral)
         constraints += Set(repr.neg, fRepr.neg)

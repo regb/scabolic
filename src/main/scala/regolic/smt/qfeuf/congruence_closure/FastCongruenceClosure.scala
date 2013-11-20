@@ -576,11 +576,13 @@ case class Literal(eq: FastCongruenceClosure.InputEquation,
   val polInt = if(pol) 1 else 0
 
   def pos = Literal(eq, id, true, pred)
-  def neg = Literal(eq, id, false, pred)
+  def neg = Literal(eq, id, if(pol) false else true, pred)
 
   override def toString: String = eq match {
-    case Left((a, b)) => "c_" + a + " = c_" + b
-    case Right((a, b, c)) => "f_" + a + "(c_" + b + ") = c_" + c
+    case Left((a, b)) if pol => "c_" + a + " = c_" + b
+    case Left((a, b)) => "c_" + a + " != c_" + b
+    case Right((a, b, c)) if pol => "f_" + a + "(c_" + b + ") = c_" + c
+    case Right((a, b, c)) => "f_" + a + "(c_" + b + ") != c_" + c
   }
 }
 

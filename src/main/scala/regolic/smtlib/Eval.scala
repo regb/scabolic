@@ -91,7 +91,11 @@ object Eval {
               }
             }.toList
 
-            val (cnf, nbLits, _) = dpllt.PropositionalSkeleton(withoutVars, builder)
+            val (cnf, nbLits, mapping) = dpllt.PropositionalSkeleton(withoutVars, builder)
+
+            println("Apply: " + toMerge.mkString("[", "\n", "]"))
+            println("CNF: " + cnf.mkString("[", "\n", "]"))
+            println("Mapping: " + mapping.mkString("{", "\n", "}"))
 
             val cc = new smt.qfeuf.FastCongruenceClosure
             cc.initialize(cnf.flatten)

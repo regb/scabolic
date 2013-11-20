@@ -18,7 +18,7 @@ abstract class Literal {
   //returns the positive literal (always true)
   def pos: Literal
 
-  //returns the negative literal (always false)
+  //returns the negation of the literal
   def neg: Literal
 
 }

@@ -5,7 +5,7 @@ class PropositionalLiteral(val id: Int, val polInt: Int) extends Literal {
   require(polInt == 1 | polInt == 0)
   def this(id: Int, pol: Boolean) = this(id, if(pol) 1 else 0)
 
-  def neg = new PropositionalLiteral(id, 0)
+  def neg = new PropositionalLiteral(id, 1-polInt)
   def pos = new PropositionalLiteral(id, 1)
 
   override def toString: String = (if(polarity) "" else "-") + "b_" + id
