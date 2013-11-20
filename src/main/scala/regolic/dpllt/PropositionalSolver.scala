@@ -1,7 +1,7 @@
 package regolic
 package dpllt
 
-class PropositionalLiteral(val id: Int, val polInt: Int) extends Literal {
+case class PropositionalLiteral(id: Int, polInt: Int) extends Literal {
   require(polInt == 1 | polInt == 0)
   def this(id: Int, pol: Boolean) = this(id, if(pol) 1 else 0)
 

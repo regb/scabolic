@@ -93,6 +93,9 @@ object Eval {
 
             val (cnf, nbLits, mapping) = dpllt.PropositionalSkeleton(withoutVars, builder)
 
+            println(printers.SmtLib2.conjunction(toMerge.toSet.map((t: (Int, Int, Int)) => new smt.qfeuf.Literal(Right(t), 0, true, null))))
+            println(printers.SmtLib2.cnf(cnf))
+
             println("Apply: " + toMerge.mkString("[", "\n", "]"))
             println("CNF: " + cnf.mkString("[", "\n", "]"))
             println("Mapping: " + mapping.mkString("{", "\n", "}"))
