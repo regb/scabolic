@@ -667,7 +667,8 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
             status = Conflict
             while(qHead < trail.size) {
               try {
-                tSolver.setTrue(literals(trail(qHead))) //just fill the tsolver
+                if(literals(trail(qHead)).isInstanceOf[smt.qfeuf.Literal])
+                  tSolver.setTrue(literals(trail(qHead))) //just fill the tsolver
               } catch {
                 case (e: Exception) => ()
               }
