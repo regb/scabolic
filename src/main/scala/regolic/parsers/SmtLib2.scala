@@ -128,7 +128,7 @@ object SmtLib2 {
     case SSymbol("TRUE") => True()
     case SSymbol("FALSE") => False()
     case SSymbol(sym) => scope.get(sym) match {
-      case None => sys.error("no def for variable: " + sym)
+      case None => PredicateApplication(predSymbols(sym), List())
       case Some(Left(f)) => f
       case Some(Right(t)) => sys.error("unexpected term in formula variable: " + t)
     }
