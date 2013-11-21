@@ -106,8 +106,8 @@ object Eval {
               (for(i <- 0 until nbLits) yield 
                 SList(List(SSymbol("declare-fun"), SSymbol("p_" + i), SList(Nil), SSymbol("Bool")))).toList :::
               SList(List(SSymbol("assert"), printers.SmtLib2.conjunctionToSExpr(toMerge.map(t => smt.qfeuf.Literal(Right(t), 0, true, null)).toSet))) ::
-              SList(List(SSymbol("assert"), printers.SmtLib2.cnfToSExpr( cnf))) ::
-              SList(List(SSymbol("check-sat"))) ::
+              //SList(List(SSymbol("assert"), printers.SmtLib2.cnfToSExpr( cnf))) ::
+              //SList(List(SSymbol("check-sat"))) ::
               Nil
 
             println(smtLibProblem.map(sexpr.PrettyPrinter(_)).mkString("\n"))

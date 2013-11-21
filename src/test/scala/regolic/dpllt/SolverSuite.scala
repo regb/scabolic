@@ -139,4 +139,6 @@ class SolverSuite extends FunSuite {
     assert(s3.solve() === Unsatisfiable)
   }
 
+  //TODO: test case where decision variable trigger a theory conflict
+
 }

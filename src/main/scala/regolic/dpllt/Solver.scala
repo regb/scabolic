@@ -56,7 +56,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
   private[this] var nbSolveCalls = 0
          
   private[this] var decisionLevel = 0
-  private[this] var trail: FixedIntStack = new FixedIntStack(nbVars) //store literals, but only one polarity at the same time, so nbVar size is enough
+  private[this] var trail: FixedIntStack = new FixedIntStack(nbVars) //store literals, but only of one unique polarity per literal, so nbVar size is enough //TODO: could it be that we need nbVars + 1 ?
   private[this] var qHead = 0
 
   //reasons contains the clause explaining why bcp propagated a certain propositional variable
@@ -178,21 +178,21 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
 
       val timeout: Option[Int] = Settings.timeout
       var elapsedTime: Long = 0 //in ms
-      //assertWatchedInvariant
-      //assertTrailInvariant
+      assertWatchedInvariant
+      assertTrailInvariant
       //MAIN LOOP
       while(status == Unknown) {
         val startTime = System.currentTimeMillis
-        //assertWatchedInvariant
-        //assertTrailInvariant
+        assertWatchedInvariant
+        assertTrailInvariant
         decideStopWatch.time {
           decide()
         }
 
         var cont = true
         while(cont) {
-          //assertWatchedInvariant
-          //assertTrailInvariant
+          assertWatchedInvariant
+          assertTrailInvariant
           deduceStopWatch.time {
             deduce()
           }
@@ -233,17 +233,30 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
       println("  tSolver-backtrack:         " + tBacktrackStopwatch.seconds + " sec")
     }
 
+        import sexpr.SExprs._
+        val smtLibProblem: List[SExpr] = 
+          SList(List(SSymbol("assert"), printers.SmtLib2.conjunctionToSExpr(model.zipWithIndex.flatMap{
+            case (pol, id) => if(pol != 1) List(literals(2*id + pol)) else List()
+          }.toSet))) ::
+          SList(List(SSymbol("check-sat"))) ::
+          Nil
+
+        println(smtLibProblem.map(sexpr.PrettyPrinter(_)).mkString("\n"))
     status match {
       case Unknown | Conflict => sys.error("unexpected")
       case Timeout => Results.Unknown
       case Unsatisfiable => Results.Unsatisfiable
-      case Satisfiable => Results.Satisfiable(model.map(pol => pol == 1))
+      case Satisfiable => {
+        
+        Results.Satisfiable(model.map(pol => pol == 1))
+      }
     }
   
   }
 
   private[this] def conflictAnalysis: Clause = {
     assert(conflict != null)
+    assert(conflict.lits.forall(lit => isUnsat(lit)))
     //assert(seen.forall(b => !b))
 
     //the algorithm augment the cut closest to the conflict node successively by doing
@@ -280,7 +293,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
           i += 1
         }
 
-        //assert(learntClause.forall(lit => levels(lit >> 1) != decisionLevel))
+        assert(learntClause.forall(lit => levels(lit >> 1) != decisionLevel))
 
         do {
           trailIndex -= 1
@@ -291,16 +304,17 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
         c = c - 1
         seen(p>>1) = false
 
-        //if(confl != null) {
-        //  assert(confl.lits(0) >> 1 == p)
-        //  assert(isSat(confl.lits(0)))
-        //  assert(confl.lits.tail.forall(lit => isUnsat(lit)))
-        //}
+        if(confl != null) {
+          assert(confl.lits(0) == p)
+          assert(isSat(confl.lits(0)))
+          assert(confl.lits.tail.forall(lit => isUnsat(lit)))
+        }
       } while(c > 0)
     }
-    assert(isAssigned(p))
     //p is 1-UIP
-    //assert(learntClause.forall(lit => isUnsat(lit)))
+    assert(isAssigned(p))
+    assert(levels(p>>1) == decisionLevel)
+    assert(learntClause.forall(lit => isUnsat(lit)))
 
     var toSetUnseen: List[Int] = learntClause
 
@@ -356,7 +370,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
 
     learntClause ::= (p ^ 1)  //don't forget to add p in the clause !
     val res = new Clause(learntClause.toArray)
-    //println("learnt: " + res.lits.map(literals(_)).mkString("[", ",", "]"))
+    println("learnt: " + res.lits.map(literals(_)).mkString("[", ",", "]"))
     res
   }
 
@@ -510,12 +524,6 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
       from.locked = true
     }
     levels(id) = decisionLevel
-
-    //val tLit = literals(lit)
-    //if(tLit.isInstanceOf[smt.qfeuf.Literal]) {
-    //  val tConsequences = setTrueStopwatch.time{ tSolver.setTrue(tLit) }
-    //  //tConsequences.foreach(l => enqueueLiteral(l.id*2 + (1 - l.polInt))) //TODO: correct polarity ?
-    //}
   }
 
   private[this] def decide() {
@@ -620,6 +628,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
   private[this] def backtrackTo(lvl: Int): Unit = {
     //println("backtrack to: " + lvl)
     while(decisionLevel > lvl && !trail.isEmpty) {
+      //TODO: move pop inside ite body ?
       val head = trail.pop()
       decisionLevel = levels(head >> 1)
       if(decisionLevel > lvl)
@@ -643,7 +652,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
       reasons(id) = null
     }
     if(literals(lit).isInstanceOf[smt.qfeuf.Literal])
-      tSolver.backtrack(1)
+      tSolver.asInstanceOf[smt.qfeuf.FastCongruenceClosure].backtrack(1, literals(lit))
   }
 
   private[this] def deduce(): Unit = {
@@ -663,33 +672,31 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
         try {
           val tConsequences = setTrueStopwatch.time{ tSolver.setTrue(tLit) }
         } catch {
-          case (e: Exception) => {
+          case (e: smt.qfeuf.FastCongruenceClosure.InconsistencyException) => {
             status = Conflict
+            if(reasons(forcedLit>>1) == null) {//decision variable
+              //assert(false)
+              val trailArray = (for(i <- 0 until qHead) yield trail(i) ^ 1).toArray
+              conflict = new Clause(trailArray.filter(el => reasons(el>>1) == null))
+              println(conflict)
+            } else {
+              conflict = new Clause(negatedLit +: reasons(forcedLit>>1).lits.tail)
+            }
+
             while(qHead < trail.size) {
               try {
                 if(literals(trail(qHead)).isInstanceOf[smt.qfeuf.Literal])
                   tSolver.setTrue(literals(trail(qHead))) //just fill the tsolver
               } catch {
-                case (e: Exception) => ()
+                case (e: smt.qfeuf.FastCongruenceClosure.InconsistencyException) => ()
               }
               qHead += 1
             }
             assert(qHead == trail.size)
-            if(reasons(forcedLit>>1) == null) {//decision variable
-              val trailArray = (for(i <- 0 until trail.size) yield trail(i)).toArray
-              conflict = new Clause(forcedLit +: trailArray.filter(el => reasons(el>>1) == null))
-            } else {
-              conflict = reasons(forcedLit>>1)
-            }
-            //val explanation = tSolver.explanation(0w
-            //conflict = new Clause(
-            //  forcedLit +: explIntRepr.toArray
-            //)
           }
         }
         //tConsequences.foreach(l => enqueueLiteral(l.id*2 + (1 - l.polInt))) //TODO: correct polarity ?
       }
-
 
       val ws: Vector[Clause] = watched(negatedLit)
       var i = 0
@@ -734,7 +741,6 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
               status = Conflict
               qHead = trail.size
               conflict = clause
-              assert(conflict.lits.forall(lit => isUnsat(lit)))
               while(i < ws.size) {
                 ws(j) = ws(i)
                 i += 1
@@ -745,9 +751,9 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
         }
       }
       ws.shrink(i - j)
-
     }
 
+    assert(qHead == trail.size)
   }
 
   //some debugging assertions that can be introduced in the code to check for correctness
@@ -798,6 +804,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
   }
 
   def assertTrailInvariant() {
+    assert(qHead <= trail.size)
     val seen: Array[Boolean] = Array.fill(cnfFormula.nbVar)(false) // default value of false
     var lst: List[Int] = Nil
     var currentLevel = decisionLevel

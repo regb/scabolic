@@ -466,12 +466,15 @@ class FastCongruenceClosure extends dpllt.TheorySolver {
     }
   }
 
-  def backtrack(n: Int): Unit = {
+  def backtrack(n: Int): Unit = backtrack(n, null)
+  def backtrack(n: Int, lit: dpllt.Literal): Unit = {
     if(n > iStack.size)
       throw new Exception("Can't pop "+ n +" literals from I-stack.")
     else {
       1 to n foreach { _ => {
-        iStack.pop
+        val poppedLit = iStack.pop
+        if(lit != null)
+          assert(lit == poppedLit)
 
         val reprChanges = undoReprChangesStack.pop
         while(!reprChanges.isEmpty) {
