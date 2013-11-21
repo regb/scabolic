@@ -148,7 +148,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
   }
 
   def solve(assumps: Array[Literal] = Array.empty[Literal]): Results.Result = {
-    println(literals.mkString("literals: {", ",", "}"))
+    //println(literals.mkString("literals: {", ",", "}"))
     nbSolveCalls += 1
 
     if(nbSolveCalls > 1) {
@@ -356,7 +356,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
 
     learntClause ::= (p ^ 1)  //don't forget to add p in the clause !
     val res = new Clause(learntClause.toArray)
-    println("learnt: " + res.lits.map(literals(_)).mkString("[", ",", "]"))
+    //println("learnt: " + res.lits.map(literals(_)).mkString("[", ",", "]"))
     res
   }
 
@@ -556,7 +556,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
           nbDecisions += 1
           decisionLevel += 1
           enqueueLiteral(2*next + (nbDecisions & 1))
-          println("Decide: " + literals(2*next + (nbDecisions & 1)))
+          //println("Decide: " + literals(2*next + (nbDecisions & 1)))
         } else {
           status = Satisfiable
         }
@@ -618,7 +618,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
 
 
   private[this] def backtrackTo(lvl: Int): Unit = {
-    println("backtrack to: " + lvl)
+    //println("backtrack to: " + lvl)
     while(decisionLevel > lvl && !trail.isEmpty) {
       val head = trail.pop()
       decisionLevel = levels(head >> 1)
@@ -729,7 +729,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
             if(isUnassigned(lits(0))) {
               nbPropagations += 1
               enqueueLiteral(lits(0), clause)
-              println("Deducing: " + literals(lits(0)))
+              //println("Deducing: " + literals(lits(0)))
             } else if(isUnsat(lits(0))) {
               status = Conflict
               qHead = trail.size

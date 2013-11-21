@@ -42,7 +42,7 @@ object SmtLib2 {
   }
 
   def conjunctionToSExpr(lits: Set[dpllt.Literal]): SExpr = {
-    SList(SSymbol("and") :: lits.toList.map(lit => litToSExpr(lit)))
+    if(lits.isEmpty) SSymbol("true") else SList(SSymbol("and") :: lits.toList.map(lit => litToSExpr(lit)))
   }
 
   def cnfToSExpr(clauses: Set[Set[dpllt.Literal]]): SExpr = {

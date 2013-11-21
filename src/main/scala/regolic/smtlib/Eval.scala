@@ -54,9 +54,10 @@ object Eval {
             val currified: Formula = mapPreorder(formula, f => f, t => Currifier(t))
             val (flattened, eqs) = Flattener.transform(currified)
             val withoutVars: Formula = mapPreorder(flattened, f => f, { case Variable(v, s) => FunctionApplication(FunctionSymbol(v, Nil, s), Nil) case t => t })
-            println("flatten: " + flattened)
-            println("eqs: " + eqs)
+            //println("flatten: " + flattened)
+            //println("eqs: " + eqs)
 
+            import scala.language.reflectiveCalls
             //TODO: this hashmap seems to be a recuring pattern
             val constantsToId = {
               var constantId = -1
@@ -69,6 +70,8 @@ object Eval {
                     constantId
                   }
                 }
+
+                def nbConstants = constantId + 1
               }
             }
             def builder(p: PredicateApplication, id: Int, pol: Boolean): smt.qfeuf.Literal = {
@@ -93,12 +96,25 @@ object Eval {
 
             val (cnf, nbLits, mapping) = dpllt.PropositionalSkeleton(withoutVars, builder)
 
-            println(printers.SmtLib2.conjunction(toMerge.toSet.map((t: (Int, Int, Int)) => new smt.qfeuf.Literal(Right(t), 0, true, null))))
-            println(printers.SmtLib2.cnf(cnf))
+            import sexpr.SExprs._
+            val smtLibProblem: List[SExpr] = 
+              SList(List(SSymbol("set-logic"), SSymbol("QF_UF"))) ::
+              SList(List(SSymbol("declare-sort"), SSymbol("U"), SInt(0))) ::
+              SList(List(SSymbol("declare-fun"), SSymbol("apply"), SList(List(SSymbol("U"), SSymbol("U"))), SList(List(SSymbol("U"))))) ::
+              (for(i <- 0 until constantsToId.nbConstants) yield 
+                SList(List(SSymbol("declare-fun"), SSymbol("c_" + i), SList(Nil), SSymbol("U")))).toList :::
+              (for(i <- 0 until nbLits) yield 
+                SList(List(SSymbol("declare-fun"), SSymbol("p_" + i), SList(Nil), SSymbol("Bool")))).toList :::
+              SList(List(SSymbol("assert"), printers.SmtLib2.conjunctionToSExpr(toMerge.map(t => smt.qfeuf.Literal(Right(t), 0, true, null)).toSet))) ::
+              SList(List(SSymbol("assert"), printers.SmtLib2.cnfToSExpr( cnf))) ::
+              SList(List(SSymbol("check-sat"))) ::
+              Nil
 
-            println("Apply: " + toMerge.mkString("[", "\n", "]"))
-            println("CNF: " + cnf.mkString("[", "\n", "]"))
-            println("Mapping: " + mapping.mkString("{", "\n", "}"))
+            println(smtLibProblem.map(sexpr.PrettyPrinter(_)).mkString("\n"))
+
+            //println("Apply: " + toMerge.mkString("[", "\n", "]"))
+            //println("CNF: " + cnf.mkString("[", "\n", "]"))
+            //println("Mapping: " + mapping.mkString("{", "\n", "}"))
 
             val cc = new smt.qfeuf.FastCongruenceClosure
             cc.initialize(cnf.flatten)
@@ -115,7 +131,7 @@ object Eval {
               case Unsatisfiable if expectedResult == Some(true) => "unsat | should be sat"
               case Unsatisfiable => "unsat"
             }
-            println(resultString)
+            println(";" + resultString)
           } else println("Solver not set.")
         }
         case SetInfo(attr) => {
