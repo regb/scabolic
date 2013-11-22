@@ -31,6 +31,7 @@ object Main {
 
         case "stats"         =>                           Settings.stats = true
         case "verbose" =>                                 Settings.logger = new VerboseStdErrLogger
+        case "trace" =>                                   Settings.logger = new TraceStdErrLogger
 
         //case s if s.startsWith("debug=") =>               Settings.debugLevel = try { 
         //                                                    s.substring("debug=".length, s.length).toInt 

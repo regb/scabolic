@@ -129,10 +129,13 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
       val litsUnique = cl.lits.toSet
       if(litsUnique.size == 1) {
         val id = litsUnique.head >> 1
-        if(model(id) == -1)
+        if(model(id) == -1) {
+          logger.debug("Simplifying clause of size 1: %s", literals(litsUnique.head))
           enqueueLiteral(litsUnique.head)
-        else if(model(id) == (litsUnique.head & 1))
+        } else if(model(id) == (litsUnique.head & 1)) {
+          logger.debug("Detecting conflicting clause of size 1: %s", literals(litsUnique.head))
           status = Unsatisfiable
+        }
       }
       else if(!litsUnique.exists(l1 => litsUnique.count(l2 => (l2 >> 1) == (l1 >> 1)) > 1)) {
         val newLits = new Clause(litsUnique.toArray)
@@ -166,9 +169,9 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
     logger.debug("CNF formula: %s", 
       cnfFormula.originalClauses.map(clause => 
         clause.lits.map(literals(_)).mkString("[", ", ", "]")
-      ).mkString("{", ", ", "}"))
+      ).mkString("{\n\t", "\n\t", "}"))
     logger.debug("Assumptions: %s", assumptions.map(literals(_)).mkString("[", ",", "]"))
-    logger.trace("Literals array: %s", literals.mkString("{", ",", "}"))
+    logger.trace("Literals array: %s", literals.mkString("{\n\t", "\n\t", "}"))
     search()
   }
   
@@ -225,6 +228,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
           }
 
           if(status == Conflict) {
+            logger.info("Conflict detected at level %d", decisionLevel)
             backtrackStopWatch.time {
               backtrack()
             }
@@ -530,6 +534,10 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
    * much easier to maintain and consistant.
    */
   private[this] def enqueueLiteral(lit: Int, from: Clause = null) {
+    logger.trace(
+      "Enqueuing literal %s from clause %s", 
+      literals(lit).toString, 
+      if(from == null) "null" else from.lits.map(literals(_)).mkString("[", ", ", "]"))
     val id = lit >> 1
     val pol = (lit & 1) ^ 1
     assert(model(id) == -1)
@@ -692,11 +700,12 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
         } catch {
           case (e: smt.qfeuf.FastCongruenceClosure.InconsistencyException) => {
             status = Conflict
-            if(reasons(forcedLit>>1) == null) {//decision variable
+            if(reasons(forcedLit>>1) == null) {
               logger.info("Theory conflict triggered by decision literal %s", tLit.toString)
               val trailArray = (for(i <- 0 until qHead) yield trail(i) ^ 1).toArray
               conflict = new Clause(trailArray.filter(el => reasons(el>>1) == null))
             } else {
+              logger.info("Theory conflict triggered by literal %s", tLit.toString)
               conflict = new Clause(negatedLit +: reasons(forcedLit>>1).lits.tail)
             }
 

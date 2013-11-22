@@ -112,9 +112,9 @@ object Eval {
 
             //println(smtLibProblem.map(sexpr.PrettyPrinter(_)).mkString("\n"))
 
-            //println("Apply: " + toMerge.mkString("[", "\n", "]"))
-            //println("CNF: " + cnf.mkString("[", "\n", "]"))
-            //println("Mapping: " + mapping.mkString("{", "\n", "}"))
+            val logger = Settings.logger
+            logger.debug("Apply: %s", toMerge.mkString("{\n\t", "\n\t", "}"))
+            logger.debug("Mapping: %s", mapping.mkString("{\n\t", "\n\t", "}"))
 
             val cc = new smt.qfeuf.FastCongruenceClosure
             cc.initialize(cnf.flatten)

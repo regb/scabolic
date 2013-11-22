@@ -44,42 +44,47 @@ abstract class Logger {
         Console.RED
       else if(prefix == warningPrefix) 
         Console.YELLOW
-      else if(prefix == debugPrefix || prefix == tracePrefix)
+      else if(prefix == debugPrefix)
         Console.MAGENTA
-      else
+      else if(prefix == tracePrefix)
+        Console.GREEN
+      else //for INFO
         Console.BLUE
     "[" + color + prefix.substring(1, prefix.length-2) + Console.RESET + "] " +
     msg.trim.replaceAll("\n", "\n" + (" " * (prefix.size)))
   }
 
-  def error(msg: String, args: Any*) = if(logLevel >= LogLevel.Error) output(reline(errorPrefix, msg.format(args: _*)))
-  def warning(msg: String, args: Any*) = if(logLevel >= LogLevel.Warning) output(reline(warningPrefix, msg.format(args: _*)))
-  def info(msg: String, args: Any*) = if(logLevel >= LogLevel.Info) output(reline(infoPrefix, msg.format(args: _*)))
-  def debug(msg: String, args: Any*) = if(logLevel >= LogLevel.Debug) output(reline(debugPrefix, msg.format(args: _*)))
-  def trace(msg: String, args: Any*) = if(logLevel >= LogLevel.Trace) output(reline(tracePrefix, msg.format(args: _*)))
+  def error(msg: => String, args: Any*) = if(logLevel >= LogLevel.Error) output(reline(errorPrefix, msg.format(args: _*)))
+  def warning(msg: => String, args: Any*) = if(logLevel >= LogLevel.Warning) output(reline(warningPrefix, msg.format(args: _*)))
+  def info(msg: => String, args: Any*) = if(logLevel >= LogLevel.Info) output(reline(infoPrefix, msg.format(args: _*)))
+  def debug(msg: => String, args: Any*) = if(logLevel >= LogLevel.Debug) output(reline(debugPrefix, msg.format(args: _*)))
+  def trace(msg: => String, args: Any*) = if(logLevel >= LogLevel.Trace) output(reline(tracePrefix, msg.format(args: _*)))
 
 }
 
-class DefaultStdErrLogger extends Logger {
+abstract class StdErrLogger extends Logger {
+  override def output(msg: String) : Unit = {
+    Console.err.println(msg)
+  }
+}
+
+class DefaultStdErrLogger extends StdErrLogger {
 
   import Logger._
 
   override val logLevel: LogLevel.Level = LogLevel.Warning
-
-  override def output(msg: String) : Unit = {
-    Console.err.println(msg)
-  }
-
 }
 
-class VerboseStdErrLogger extends Logger {
+class VerboseStdErrLogger extends StdErrLogger {
 
   import Logger._
 
   override val logLevel: LogLevel.Level = LogLevel.Debug
+}
 
-  override def output(msg: String) : Unit = {
-    Console.err.println(msg)
-  }
+class TraceStdErrLogger extends StdErrLogger {
 
+  import Logger._
+
+  override val logLevel: LogLevel.Level = LogLevel.Trace
 }
