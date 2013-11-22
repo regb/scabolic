@@ -206,21 +206,6 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
 
         var cont = true
         while(cont) {
-
-          import sexpr.SExprs._
-          val smtLibProblem: List[SExpr] = 
-            SList(List(SSymbol("assert"), printers.SmtLib2.conjunctionToSExpr(model.zipWithIndex.flatMap{
-              case (pol, id) => if(pol != -1) List(literals(2*id + pol)) else List()
-            }.toSet))) ::
-            SList(List(SSymbol("check-sat"))) ::
-            Nil
-
-          val filename = "outdebug/debug_cc_" + fileCounter + ".smt2"
-          fileCounter += 1
-          //val writer = new java.io.PrintWriter(filename)
-          //writer.println(smtLibProblem.map(sexpr.PrettyPrinter(_)).mkString("\n"))
-          //writer.close
-
           //assertWatchedInvariant
           //assertTrailInvariant
           deduceStopWatch.time {
