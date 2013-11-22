@@ -30,13 +30,14 @@ object Main {
         case "time"        =>                             time = true
 
         case "stats"         =>                           Settings.stats = true
+        case "verbose" =>                                 Settings.logger = new VerboseStdErrLogger
 
-        case s if s.startsWith("debug=") =>               Settings.debugLevel = try { 
-                                                            s.substring("debug=".length, s.length).toInt 
-                                                          } catch { 
-                                                            case _ => 0 
-                                                          }
-        case s if s.startsWith("tags=") =>                Settings.debugTags = Set(splitList(s.substring("tags=".length, s.length)): _*)
+        //case s if s.startsWith("debug=") =>               Settings.debugLevel = try { 
+        //                                                    s.substring("debug=".length, s.length).toInt 
+        //                                                  } catch { 
+        //                                                    case _ => 0 
+        //                                                  }
+        //case s if s.startsWith("tags=") =>                Settings.debugTags = Set(splitList(s.substring("tags=".length, s.length)): _*)
         case s if s.startsWith("timeout=") =>             Settings.timeout = try { 
                                                             Some(s.substring("timeout=".length, s.length).toInt)
                                                           } catch { 

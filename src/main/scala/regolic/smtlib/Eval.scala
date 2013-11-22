@@ -131,7 +131,7 @@ object Eval {
               case Unsatisfiable if expectedResult == Some(true) => "unsat | should be sat"
               case Unsatisfiable => "unsat"
             }
-            println(";" + resultString)
+            println(resultString)
           } else println("Solver not set.")
         }
         case SetInfo(attr) => {
