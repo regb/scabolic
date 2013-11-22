@@ -52,7 +52,7 @@ object Main {
                                                           } catch { 
                                                             case (_: Throwable) =>
                                                           }
-        case _ => Reporter.error("Invalid option: " + option + "\nValid options are:\n" + optionsHelp)
+        case _ => //Reporter.error("Invalid option: " + option + "\nValid options are:\n" + optionsHelp)
       }
     }
   }

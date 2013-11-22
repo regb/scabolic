@@ -40,6 +40,9 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
 
   import Solver._
 
+  //TODO: should be a parameter
+  val logger = new VerboseStdErrLogger
+
   /*
     This is a SAT solver, and I am trying to make it efficient, so don't expect nice functional code
     using immutable data and everything, this will be pure procedural code with many gloabl variables.
@@ -181,7 +184,9 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
       assertWatchedInvariant
       assertTrailInvariant
       //MAIN LOOP
+      var fileCounter = 0
       while(status == Unknown) {
+
         val startTime = System.currentTimeMillis
         assertWatchedInvariant
         assertTrailInvariant
@@ -191,6 +196,21 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
 
         var cont = true
         while(cont) {
+
+          import sexpr.SExprs._
+          val smtLibProblem: List[SExpr] = 
+            SList(List(SSymbol("assert"), printers.SmtLib2.conjunctionToSExpr(model.zipWithIndex.flatMap{
+              case (pol, id) => if(pol != -1) List(literals(2*id + pol)) else List()
+            }.toSet))) ::
+            SList(List(SSymbol("check-sat"))) ::
+            Nil
+
+          val filename = "outdebug/debug_cc_" + fileCounter + ".smt2"
+          fileCounter += 1
+          //val writer = new java.io.PrintWriter(filename)
+          //writer.println(smtLibProblem.map(sexpr.PrettyPrinter(_)).mkString("\n"))
+          //writer.close
+
           assertWatchedInvariant
           assertTrailInvariant
           deduceStopWatch.time {
@@ -233,15 +253,6 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
       println("  tSolver-backtrack:         " + tBacktrackStopwatch.seconds + " sec")
     }
 
-        import sexpr.SExprs._
-        val smtLibProblem: List[SExpr] = 
-          SList(List(SSymbol("assert"), printers.SmtLib2.conjunctionToSExpr(model.zipWithIndex.flatMap{
-            case (pol, id) => if(pol != 1) List(literals(2*id + pol)) else List()
-          }.toSet))) ::
-          SList(List(SSymbol("check-sat"))) ::
-          Nil
-
-        println(smtLibProblem.map(sexpr.PrettyPrinter(_)).mkString("\n"))
     status match {
       case Unknown | Conflict => sys.error("unexpected")
       case Timeout => Results.Unknown
@@ -258,6 +269,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
     assert(conflict != null)
     assert(conflict.lits.forall(lit => isUnsat(lit)))
     //assert(seen.forall(b => !b))
+    //println("conflict: " + conflict)
 
     //the algorithm augment the cut closest to the conflict node successively by doing
     //a BFS while only searching through the nodes of the current decision level
@@ -312,7 +324,8 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
       } while(c > 0)
     }
     //p is 1-UIP
-    assert(isAssigned(p))
+    //assert(isAssigned(p))
+    assert(isSat(p))
     assert(levels(p>>1) == decisionLevel)
     assert(learntClause.forall(lit => isUnsat(lit)))
 
@@ -370,7 +383,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
 
     learntClause ::= (p ^ 1)  //don't forget to add p in the clause !
     val res = new Clause(learntClause.toArray)
-    println("learnt: " + res.lits.map(literals(_)).mkString("[", ",", "]"))
+    //println("learnt: " + res.lits.map(literals(_)).mkString("[", ",", "]"))
     res
   }
 
@@ -678,7 +691,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
               //assert(false)
               val trailArray = (for(i <- 0 until qHead) yield trail(i) ^ 1).toArray
               conflict = new Clause(trailArray.filter(el => reasons(el>>1) == null))
-              println(conflict)
+              //println("decision conflict: " + conflict.lits.map(literals(_)).mkString("[", ", ", "]"))
             } else {
               conflict = new Clause(negatedLit +: reasons(forcedLit>>1).lits.tail)
             }
@@ -773,7 +786,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
   }
 
   //assert the invariant of watched literal is correct
-  def assertWatchedInvariant() {
+  def assertWatchedInvariant(): Unit = {
     for(cl <- (cnfFormula.originalClauses ::: cnfFormula.learntClauses)) {
       if(!watched(cl.lits(0)).contains(cl)) {
         println("clause " + cl + " is not correctly watched on " + cl.lits(0))
@@ -803,7 +816,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
     }
   }
 
-  def assertTrailInvariant() {
+  def assertTrailInvariant(): Unit = {
     assert(qHead <= trail.size)
     val seen: Array[Boolean] = Array.fill(cnfFormula.nbVar)(false) // default value of false
     var lst: List[Int] = Nil

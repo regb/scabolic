@@ -110,7 +110,7 @@ object Eval {
               //SList(List(SSymbol("check-sat"))) ::
               Nil
 
-            println(smtLibProblem.map(sexpr.PrettyPrinter(_)).mkString("\n"))
+            //println(smtLibProblem.map(sexpr.PrettyPrinter(_)).mkString("\n"))
 
             //println("Apply: " + toMerge.mkString("[", "\n", "]"))
             //println("CNF: " + cnf.mkString("[", "\n", "]"))
