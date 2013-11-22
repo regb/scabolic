@@ -8,6 +8,7 @@ import sat.Vector
 
 
 object Solver {
+
   /* The results, unknown means timeout */
   object Results {
     sealed trait Result
@@ -151,7 +152,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
   }
 
   def solve(assumps: Array[Literal] = Array.empty[Literal]): Results.Result = {
-    //println(literals.mkString("literals: {", ",", "}"))
+    logger.info("Solving formula")
     nbSolveCalls += 1
 
     if(nbSolveCalls > 1) {
@@ -162,6 +163,12 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
 
     assumptions = assumps.map((lit: Literal) => (lit.id << 1) + lit.polInt ^ 1) // TODO correct literal to int conversion
 
+    logger.debug("CNF formula: %s", 
+      cnfFormula.originalClauses.map(clause => 
+        clause.lits.map(literals(_)).mkString("[", ", ", "]")
+      ).mkString("{", ", ", "}"))
+    logger.debug("Assumptions: %s", assumptions.map(literals(_)).mkString("[", ",", "]"))
+    logger.trace("Literals array: %s", literals.mkString("{", ",", "}"))
     search()
   }
   
@@ -266,10 +273,10 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
   }
 
   private[this] def conflictAnalysis: Clause = {
+    logger.info("Conflict analysis: %s", conflict.lits.map(literals(_)).mkString("[", ", ", "]"))
     assert(conflict != null)
     assert(conflict.lits.forall(lit => isUnsat(lit)))
-    //assert(seen.forall(b => !b))
-    //println("conflict: " + conflict)
+    assert(seen.forall(b => !b))
 
     //the algorithm augment the cut closest to the conflict node successively by doing
     //a BFS while only searching through the nodes of the current decision level
@@ -383,7 +390,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
 
     learntClause ::= (p ^ 1)  //don't forget to add p in the clause !
     val res = new Clause(learntClause.toArray)
-    //println("learnt: " + res.lits.map(literals(_)).mkString("[", ",", "]"))
+    logger.info("Learning clause: %s", res.lits.map(literals(_)).mkString("[", ",", "]"))
     res
   }
 
@@ -577,7 +584,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
           nbDecisions += 1
           decisionLevel += 1
           enqueueLiteral(2*next + (nbDecisions & 1))
-          //println("Decide: " + literals(2*next + (nbDecisions & 1)))
+          logger.info("Decision literal: %s", literals(2*next + (nbDecisions & 1)).toString)
         } else {
           status = Satisfiable
         }
@@ -612,9 +619,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
       }
 
       if(nbConflicts == nextRestart) {
-        if(Settings.stats) {
-          println("restart after " + nbConflicts + " nb conflicts")
-        }
+        logger.info("Restarting after %d conflicts", nbConflicts)
         restartInterval = (restartInterval*restartFactor).toInt
         nextRestart = nbConflicts + restartInterval
         nbRestarts += 1
@@ -639,7 +644,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
 
 
   private[this] def backtrackTo(lvl: Int): Unit = {
-    //println("backtrack to: " + lvl)
+    logger.info("Backtracking to level %d", lvl)
     while(decisionLevel > lvl && !trail.isEmpty) {
       //TODO: move pop inside ite body ?
       val head = trail.pop()
@@ -688,10 +693,9 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
           case (e: smt.qfeuf.FastCongruenceClosure.InconsistencyException) => {
             status = Conflict
             if(reasons(forcedLit>>1) == null) {//decision variable
-              //assert(false)
+              logger.info("Theory conflict triggered by decision literal %s", tLit.toString)
               val trailArray = (for(i <- 0 until qHead) yield trail(i) ^ 1).toArray
               conflict = new Clause(trailArray.filter(el => reasons(el>>1) == null))
-              //println("decision conflict: " + conflict.lits.map(literals(_)).mkString("[", ", ", "]"))
             } else {
               conflict = new Clause(negatedLit +: reasons(forcedLit>>1).lits.tail)
             }
@@ -748,8 +752,8 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
             j += 1
             if(isUnassigned(lits(0))) {
               nbPropagations += 1
+              logger.debug("Deducing literal: %s", literals(lits(0)).toString)
               enqueueLiteral(lits(0), clause)
-              //println("Deducing: " + literals(lits(0)))
             } else if(isUnsat(lits(0))) {
               status = Conflict
               qHead = trail.size

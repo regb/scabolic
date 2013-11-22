@@ -1,5 +1,16 @@
 package regolic
 
+/*
+ * Logging should be used for extra information, not serving as a reporting tool for the
+ * tool usage. In particular, in a CLI style of use, we should use stdin and stdout for
+ * regular input-output (sat/unsat, model printing depending on arguments, etc), and logging
+ * should be sent to a different stream (and be configurable or turned off). logging level
+ * INFO is not to be used for regular output of the system (again, like sat/unsat).
+ *
+ * Choice of logging level is as follows: TODO
+ *
+ */
+
 object Logger {
 
   object LogLevel extends Enumeration {
@@ -41,11 +52,11 @@ abstract class Logger {
     msg.trim.replaceAll("\n", "\n" + (" " * (prefix.size)))
   }
 
-  def error(msg: Any) = if(logLevel >= LogLevel.Error) output(reline(errorPrefix, msg.toString))
-  def warning(msg: Any) = if(logLevel >= LogLevel.Warning) output(reline(warningPrefix, msg.toString))
-  def info(msg: Any) = if(logLevel >= LogLevel.Info) output(reline(infoPrefix, msg.toString))
-  def debug(msg: Any) = if(logLevel >= LogLevel.Debug) output(reline(debugPrefix, msg.toString))
-  def trace(msg: Any) = if(logLevel >= LogLevel.Trace) output(reline(tracePrefix, msg.toString))
+  def error(msg: String, args: Any*) = if(logLevel >= LogLevel.Error) output(reline(errorPrefix, msg.format(args: _*)))
+  def warning(msg: String, args: Any*) = if(logLevel >= LogLevel.Warning) output(reline(warningPrefix, msg.format(args: _*)))
+  def info(msg: String, args: Any*) = if(logLevel >= LogLevel.Info) output(reline(infoPrefix, msg.format(args: _*)))
+  def debug(msg: String, args: Any*) = if(logLevel >= LogLevel.Debug) output(reline(debugPrefix, msg.format(args: _*)))
+  def trace(msg: String, args: Any*) = if(logLevel >= LogLevel.Trace) output(reline(tracePrefix, msg.format(args: _*)))
 
 }
 
