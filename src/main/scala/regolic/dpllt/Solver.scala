@@ -191,15 +191,15 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
 
       val timeout: Option[Int] = Settings.timeout
       var elapsedTime: Long = 0 //in ms
-      assertWatchedInvariant
-      assertTrailInvariant
+      //assertWatchedInvariant
+      //assertTrailInvariant
       //MAIN LOOP
       var fileCounter = 0
       while(status == Unknown) {
 
         val startTime = System.currentTimeMillis
-        assertWatchedInvariant
-        assertTrailInvariant
+        //assertWatchedInvariant
+        //assertTrailInvariant
         decideStopWatch.time {
           decide()
         }
@@ -221,8 +221,8 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
           //writer.println(smtLibProblem.map(sexpr.PrettyPrinter(_)).mkString("\n"))
           //writer.close
 
-          assertWatchedInvariant
-          assertTrailInvariant
+          //assertWatchedInvariant
+          //assertTrailInvariant
           deduceStopWatch.time {
             deduce()
           }
@@ -706,7 +706,9 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
               conflict = new Clause(trailArray.filter(el => reasons(el>>1) == null))
             } else {
               logger.info("Theory conflict triggered by literal %s", tLit.toString)
-              conflict = new Clause(negatedLit +: reasons(forcedLit>>1).lits.tail)
+              val trailArray = (for(i <- 0 until qHead) yield trail(i) ^ 1).toArray
+              conflict = new Clause(trailArray.filter(el => reasons(el>>1) == null))
+              //conflict = new Clause(negatedLit +: reasons(forcedLit>>1).lits.tail)
             }
 
             while(qHead < trail.size) {
