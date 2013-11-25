@@ -281,6 +281,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
     //find 1-UIP
     find1UIPStopWatch.time {
       do {
+
         if(p != -1)
           assert(p == (confl.lits(0)))
         cnfFormula.incVSIDSClause(confl)
@@ -312,6 +313,13 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
         c = c - 1
         seen(p>>1) = false
 
+        if(confl == null && c > 0) { //conflict from theory propagation
+          val tLit = literals(p)
+          logger.info("Theory explanation of literal: %s", tLit.toString)
+          val expl = tSolver.explanation(tLit)
+          logger.info("Explanation is %s", expl.toString)
+          confl = new Clause(p +: expl.map(l => 2*l.id + l.polInt).toArray)
+        }
         if(confl != null) {
           assert(confl.lits(0) == p)
           assert(isSat(confl.lits(0)))
@@ -576,8 +584,8 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
         if(model(next) == -1) {
           nbDecisions += 1
           decisionLevel += 1
-          enqueueLiteral(2*next + (nbDecisions & 1))
           logger.info("Decision literal: %s", literals(2*next + (nbDecisions & 1)).toString)
+          enqueueLiteral(2*next + (nbDecisions & 1))
         } else {
           status = Satisfiable
         }
@@ -682,6 +690,20 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
       if(tLit.isInstanceOf[smt.qfeuf.Literal]) {
         try {
           val tConsequences = setTrueStopwatch.time{ tSolver.setTrue(tLit) }
+          tConsequences.foreach(l => {
+            logger.debug("Theory propagation: %s", l)
+            val lInt = 2*l.id + l.polInt
+            if(isUnsat(lInt)) {
+              logger.debug("Theory propagation deducing an unsat literal => conflict")
+              status = Conflict
+              val trailArray = (for(i <- 0 until qHead) yield trail(i) ^ 1).toArray
+              conflict = new Clause(trailArray.filter(el => reasons(el>>1) == null))
+            } else if(isSat(lInt)) {
+              logger.debug("Theory propagation deducing an already sat literal => ignoring")
+            } else {
+              enqueueLiteral(lInt)
+            }
+          })
         } catch {
           case (e: smt.qfeuf.FastCongruenceClosure.InconsistencyException) => {
             status = Conflict
@@ -708,7 +730,6 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
             assert(qHead == trail.size)
           }
         }
-        //tConsequences.foreach(l => enqueueLiteral(l.id*2 + (1 - l.polInt))) //TODO: correct polarity ?
       }
 
       val ws: Vector[Clause] = watched(negatedLit)

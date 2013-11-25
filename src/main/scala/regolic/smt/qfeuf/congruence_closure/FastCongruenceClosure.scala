@@ -51,6 +51,8 @@ class FastCongruenceClosure extends dpllt.TheorySolver {
   private[this] val undoUseListStack = new Stack[Array[ListBuffer[(Int, Int, Int)]]]
   private[this] val undoEdgesStack = new Stack[Stack[(Int, Int)]]
 
+  private[this] val literalsId = new HashMap[(Int, Int), Int]
+
   def initialize(lits: Set[dpllt.Literal]): Unit = {
     val nbConstants = lits.map{ 
       case Literal(Left((a,b)), _, _, _) => a.max(b)
@@ -83,7 +85,8 @@ class FastCongruenceClosure extends dpllt.TheorySolver {
     negLits = Array.fill(nbConstants)(List())
     diseqs = Array.fill(nbConstants)(List())
     lits.map(lit => lit match {
-      case Literal(Left(eq@(a, b)), _, pol, _) => {
+      case Literal(Left(eq@(a, b)), id, pol, _) => {
+        literalsId((a, b)) = id
         if(pol) {
           posLits(a) ::= eq
           posLits(b) ::= eq
@@ -101,7 +104,11 @@ class FastCongruenceClosure extends dpllt.TheorySolver {
   }
 
   def setTrue(lit: dpllt.Literal): Set[dpllt.Literal] = {
-    val l@Literal(ie, _, pol, _) = lit
+    val l@Literal(ie, id, pol, _) = lit
+    ie match {
+      case Left((a, b)) => literalsId((a, b)) = id
+      case _ => assert(false)
+    }
     iStack.push(l)
     undoReprChangesStack.push(new Stack)
     undoEdgesStack.push(new Stack)
@@ -129,7 +136,7 @@ class FastCongruenceClosure extends dpllt.TheorySolver {
           if((repr(c1) == aRep && repr(c2) == bRep) ||
              (repr(c1) == bRep && repr(c2) == aRep)) {
             diseqCauses((c1, c2)) = ((a, b))
-            tConsequences += Literal(Left((c1, c2)), 0, false, null)
+            tConsequences += Literal(Left((c1, c2)), literalsId((c1, c2)), false, null)
           }
         }
       }
@@ -166,6 +173,18 @@ class FastCongruenceClosure extends dpllt.TheorySolver {
     }
   }
 
+  //returns original input diseq that made those representatives different
+  private def wthAreThoseDifferent(aRep: Int, bRep: Int): (Int, Int) = {
+    iStack.flatMap{
+      case Literal(Left((c1, c2)), _, false, _) => 
+        if((repr(c1) == aRep && repr(c2) == bRep) || (repr(c1) == bRep && repr(c2) == aRep))
+          List((c1, c2))
+        else
+          List()
+      case _ => List()
+    }.head //optimistically get the head of a list, should be fine, don't worry
+  }
+
   //return set of consequences
   private def propagate(): Set[dpllt.Literal] = {
     val tConsequences = ListBuffer[Literal]()
@@ -196,19 +215,19 @@ class FastCongruenceClosure extends dpllt.TheorySolver {
           for((c1, c2) <- posLits(c)) {
             if((repr(c1) == aRep && repr(c2) == bRep) || //TODO: posLits(x) should have (x, y), x always on the left
                (repr(c1) == bRep && repr(c2) == aRep))
-              tConsequences += Literal(Left((c1, c2)), 0, true, null)
+              tConsequences += Literal(Left((c1, c2)), literalsId((c1, c2)), true, null)
           }
           for((c1, c2) <- negLits(c)) {
             if(repr(c1) == aRep) {
               if(diseqs(bRep).contains(repr(c2))) {
                 //TODO: (same for the other diseqCauses) the order of (a, b) may not correspond to the literal order and may fail to return the exact same literal (commutativity)
-                diseqCauses((c1, c2)) = ((a, b))
-                tConsequences += Literal(Left((c1, c2)), 0, false, null)
+                diseqCauses((c1, c2)) = wthAreThoseDifferent(bRep, repr(c2))
+                tConsequences += Literal(Left((c1, c2)), literalsId((c1, c2)), false, null)
               }
             } else if(repr(c2) == aRep) {
               if(diseqs(bRep).contains(repr(c1))) {
-                diseqCauses((c1, c2)) = ((a, b))
-                tConsequences += Literal(Left((c1, c2)), 0, false, null)
+                diseqCauses((c1, c2)) = wthAreThoseDifferent(bRep, repr(c1))
+                tConsequences += Literal(Left((c1, c2)), literalsId((c1, c2)), false, null)
               }
             }
           }
@@ -217,13 +236,13 @@ class FastCongruenceClosure extends dpllt.TheorySolver {
           for((c1, c2) <- negLits(c)) {
             if(repr(c1) == bRep) {
               if(diseqs(aRep).contains(repr(c2))) {
-                diseqCauses((c1, c2)) = ((a, b))
-                tConsequences += Literal(Left((c1, c2)), 0, false, null)
+                diseqCauses((c1, c2)) = wthAreThoseDifferent(aRep, repr(c2))
+                tConsequences += Literal(Left((c1, c2)), literalsId((c1, c2)), false, null)
               }
             } else if(repr(c2) == bRep) {
               if(diseqs(aRep).contains(repr(c1))) {
-                diseqCauses((c1, c2)) = ((a, b))
-                tConsequences += Literal(Left((c1, c2)), 0, false, null)
+                diseqCauses((c1, c2)) = wthAreThoseDifferent(aRep, repr(c1))
+                tConsequences += Literal(Left((c1, c2)), literalsId((c1, c2)), false, null)
               }
             }
           }
@@ -335,6 +354,7 @@ class FastCongruenceClosure extends dpllt.TheorySolver {
    * subset of the input equations passed through merge operations.
    */
   def explain(a: Int, b: Int): Set[InputEquation] = {
+    require(areCongruent(a, b))
     var acc: Set[InputEquation] = Set()
     def add(pair: MergePair) = if(pair != null) pair match {
       case Left((a, b)) => 
@@ -379,9 +399,9 @@ class FastCongruenceClosure extends dpllt.TheorySolver {
     val Literal(eq, _, pol, _) = l
     if(pol) {
       val Left((a, b)) = eq
-      explain(a, b).map{
-        case Left((a, b)) => Literal(Left((a,b)), 0, true, null)
-        case Right((a, b, c)) => Literal(Right((a,b,c)), 0, true, null)
+      explain(a, b).flatMap{
+        case Left((a, b)) => List(Literal(Left((a,b)), literalsId((a, b)), true, null))
+        case Right((a, b, c)) => List()//Literal(Right((a,b,c)), 0, true, null)
       }
     } else {
       val Left((d1, e1)) = eq
@@ -396,7 +416,11 @@ class FastCongruenceClosure extends dpllt.TheorySolver {
         (explain(d1, e2) union explain(e1, d2))
       }
 
-      rec.map(i => Literal(i, 0, true, null): dpllt.Literal) + Literal(Left(d2, e2), 0, false, null)
+      //rec.map(i => Literal(i, 0, true, null): dpllt.Literal) + 
+      rec.flatMap{
+        case Left((a, b)) => List(Literal(Left((a,b)), literalsId((a, b)), true, null))
+        case Right((a, b, c)) => List()//Literal(Right((a,b,c)), 0, true, null)
+      }.toSet + Literal(Left(d2, e2), literalsId((d2, e2)), false, null)
     }
   }
 
