@@ -417,28 +417,29 @@ class FastCongruenceClosureSuite extends FunSuite {
 
     val cc4 = new FastCongruenceClosure
     cc4.initialize(5, Set(lit1, lit2, lit3, lit4, lit5, lit6, lit7, lit8, lit9, lit10, lit11))
-    cc4.setTrue(lit7)
-    cc4.setTrue(lit4)
-    cc4.setTrue(lit8)
-    val csq7 = cc4.setTrue(lit5)
-    println(csq7)
-    assert(csq7.size === 4)
-    assert(csq7.contains(lit2))
-    assert(csq7.contains(lit9))
-    assert(csq7.contains(lit10))
-    assert(csq7.contains(lit11))
+    cc4.setTrue(lit7) //a = b
+    cc4.setTrue(lit4) //c = d
+    val csq7 = cc4.setTrue(lit8) //a != e
+    assert(csq7.size === 1)
+    assert(csq7.contains(lit9)) //b != e
+    val csq8 = cc4.setTrue(lit5) //b = d
+    assert(csq8.size === 3)
+    assert(csq8.contains(lit2)) //b = c
+    assert(csq8.contains(lit10)) //c != e
+    assert(csq8.contains(lit11)) //d != e
 
     val cc5 = new FastCongruenceClosure
     cc5.initialize(5, Set(lit1, lit2, lit3, lit4, lit5, lit6, lit7, lit8, lit9, lit10, lit11))
-    cc5.setTrue(lit7)
-    cc5.setTrue(lit4)
-    cc5.setTrue(lit10)
-    val csq8 = cc5.setTrue(lit5)
-    assert(csq8.size === 4)
-    assert(csq8.contains(lit2))
-    assert(csq8.contains(lit8))
-    assert(csq8.contains(lit9))
-    assert(csq8.contains(lit11))
+    cc5.setTrue(lit7) //a = b
+    cc5.setTrue(lit4) //c = d
+    val csq9 = cc5.setTrue(lit10) //c != e
+    assert(csq9.size === 1)
+    assert(csq9.contains(lit11))
+    val csq10 = cc5.setTrue(lit5)
+    assert(csq10.size === 3)
+    assert(csq10.contains(lit2))
+    assert(csq10.contains(lit8))
+    assert(csq10.contains(lit9))
   }
 
   test("negative setTrue theory propagation") {
@@ -675,8 +676,7 @@ class FastCongruenceClosureSuite extends FunSuite {
     cc4.setTrue(lit4) //c = d
     cc4.setTrue(lit7) //a != e
     val csq1 = cc4.setTrue(lit11) //a = d
-    assert(csq1.size === 3)
-    assert(csq1.contains(lit8))
+    assert(csq1.size === 2)
     assert(csq1.contains(lit9))
     assert(csq1.contains(lit10))
     val expl4 = cc4.explanation(lit9)
