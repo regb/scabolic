@@ -318,7 +318,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
           logger.info("Theory explanation of literal: %s", tLit.toString)
           val expl = tSolver.explanation(tLit)
           logger.info("Explanation is %s", expl.toString)
-          confl = new Clause(p +: expl.map(l => 2*l.id + l.polInt).toArray)
+          confl = new Clause(p +: expl.map(l => 2*l.id + (1 - l.polInt)).toArray)
         }
         if(confl != null) {
           assert(confl.lits(0) == p)
@@ -327,6 +327,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
         }
       } while(c > 0)
     }
+    logger.debug("UIP: " + literals(p))
     //p is 1-UIP
     //assert(isAssigned(p))
     assert(isSat(p))
