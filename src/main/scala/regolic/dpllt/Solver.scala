@@ -265,6 +265,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
     logger.info("Conflict analysis: %s", conflict.lits.map(literals(_)).mkString("[", ", ", "]"))
     assert(conflict != null)
     assert(conflict.lits.forall(lit => isUnsat(lit)))
+    assert(conflict.lits.exists(lit => levels(lit >> 1) == decisionLevel))
     assert(seen.forall(b => !b))
 
     //the algorithm augment the cut closest to the conflict node successively by doing
@@ -315,9 +316,9 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
 
         if(confl == null && c > 0) { //conflict from theory propagation
           val tLit = literals(p)
-          logger.info("Theory explanation of literal: %s", tLit.toString)
+          logger.debug("Theory explanation of literal: %s", tLit.toString)
           val expl = tSolver.explanation(tLit)
-          logger.info("Explanation is %s", expl.toString)
+          logger.debug("Explanation is %s", expl.toString)
           confl = new Clause(p +: expl.map(l => 2*l.id + (1 - l.polInt)).toArray)
         }
         if(confl != null) {
@@ -329,7 +330,6 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
     }
     logger.debug("UIP: " + literals(p))
     //p is 1-UIP
-    //assert(isAssigned(p))
     assert(isSat(p))
     assert(levels(p>>1) == decisionLevel)
     assert(learntClause.forall(lit => isUnsat(lit)))
@@ -552,6 +552,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
     if(cnfFormula.vsidsQueue.isEmpty) {
       status = Satisfiable
     } else {
+      logger.info("Determining decision literal at level %d".format(decisionLevel+1))
 
       // handle assumptions
       var next = 0 // TODO next can be both a variable and a literal, which is confusing
@@ -671,7 +672,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
       reasonClause.locked = false
       reasons(id) = null
     }
-    if(literals(lit).isInstanceOf[smt.qfeuf.Literal])
+    if(trail.size >= qHead && literals(lit).isInstanceOf[smt.qfeuf.Literal])
       tSolver.asInstanceOf[smt.qfeuf.FastCongruenceClosure].backtrack(1, literals(lit))
   }
 
@@ -719,16 +720,16 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
               //conflict = new Clause(negatedLit +: reasons(forcedLit>>1).lits.tail)
             }
 
-            while(qHead < trail.size) {
-              try {
-                if(literals(trail(qHead)).isInstanceOf[smt.qfeuf.Literal])
-                  tSolver.setTrue(literals(trail(qHead))) //just fill the tsolver
-              } catch {
-                case (e: smt.qfeuf.FastCongruenceClosure.InconsistencyException) => ()
-              }
-              qHead += 1
-            }
-            assert(qHead == trail.size)
+            //while(qHead < trail.size) {
+            //  try {
+            //    if(literals(trail(qHead)).isInstanceOf[smt.qfeuf.Literal])
+            //      tSolver.setTrue(literals(trail(qHead))) //just fill the tsolver
+            //  } catch {
+            //    case (e: smt.qfeuf.FastCongruenceClosure.InconsistencyException) => ()
+            //  }
+            //  qHead += 1
+            //}
+            //assert(qHead == trail.size)
           }
         }
       }
@@ -788,7 +789,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
       ws.shrink(i - j)
     }
 
-    assert(qHead == trail.size)
+    //assert(qHead == trail.size)
   }
 
   //some debugging assertions that can be introduced in the code to check for correctness
