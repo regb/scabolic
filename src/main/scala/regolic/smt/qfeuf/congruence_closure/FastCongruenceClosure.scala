@@ -116,7 +116,7 @@ class FastCongruenceClosure extends dpllt.TheorySolver {
     undoLookupStack.push(lookup.clone)
     undoUseListStack.push(useList.map(buf => buf.clone))
     val res = if(pol) {
-      merge(ie).filterNot(_ == lit)
+      merge(ie).filterNot(l => l.id == lit.id && l.polInt == lit.polInt)
     } else {
       //assuming disequalities are only between constants, due to flattener
       val Left((a, b)) = ie
@@ -140,7 +140,7 @@ class FastCongruenceClosure extends dpllt.TheorySolver {
           }
         }
       }
-      tConsequences.toSet.filterNot(_ == lit)
+      tConsequences.toSet.filterNot(l => l.id == lit.id && l.polInt == lit.polInt)
     }
     invariant()
     res

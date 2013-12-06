@@ -66,6 +66,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
   //reasons contains the clause explaining why bcp propagated a certain propositional variable
   //it could be null for either of three reasons: (1) not yet assigned (2) decision variable (3) theory propagation
   private[this] var reasons: Array[Clause] = new Array(nbVars)
+  private[this] var theoryPropagated: Array[Boolean] = new Array(nbVars)
   private[this] var levels: Array[Int] = Array.fill(nbVars)(-1)
   private[this] var model: Array[Int] = Array.fill(nbVars)(-1)
   private[this] var watched: Array[Vector[Clause]] = Array.fill(2*nbVars)(new Vector(20))
@@ -275,13 +276,16 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
     var learntClause: List[Int] = Nil
     var p: Int = -1 //literal
     var c = 0
-    var trailIndex = trail.size
+    var trailIndex = qHead+1//trail.size
     var confl = conflict
     conflict = null
 
     //find 1-UIP
+    logger.trace("Searching 1UIP...")
     find1UIPStopWatch.time {
       do {
+        assert(confl != null)
+        logger.trace("Current conflict reason: " + confl.lits.map(literals(_)).mkString("[", ", ", "]"))
 
         if(p != -1)
           assert(p == (confl.lits(0)))
@@ -309,16 +313,19 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
           trailIndex -= 1
           p = trail(trailIndex)
         } while(!seen(p>>1))
+        logger.trace("current UIP: " + literals(p))
 
         confl = reasons(p>>1)
         c = c - 1
         seen(p>>1) = false
+        logger.trace("current counter c: " + c)
 
-        if(confl == null && c > 0) { //conflict from theory propagation
+        if(confl == null && theoryPropagated(p>>1)) { //conflict from theory propagation
           val tLit = literals(p)
           logger.debug("Theory explanation of literal: %s", tLit.toString)
           val expl = tSolver.explanation(tLit)
           logger.debug("Explanation is %s", expl.toString)
+          assert(expl.forall(lit => isSat(2*lit.id + lit.polInt)))
           confl = new Clause(p +: expl.map(l => 2*l.id + (1 - l.polInt)).toArray)
         }
         if(confl != null) {
@@ -326,6 +333,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
           assert(isSat(confl.lits(0)))
           assert(confl.lits.tail.forall(lit => isUnsat(lit)))
         }
+        assert(confl != null || c == 0) //if confl is null then we reached a UIP
       } while(c > 0)
     }
     logger.debug("UIP: " + literals(p))
@@ -672,15 +680,19 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
       reasonClause.locked = false
       reasons(id) = null
     }
-    if(trail.size >= qHead && literals(lit).isInstanceOf[smt.qfeuf.Literal])
+    if(trail.size < qHead && !theoryPropagated(id) && literals(lit).isInstanceOf[smt.qfeuf.Literal]) {
+      logger.debug("Theory backtrack for lit: " + literals(lit))
       tSolver.asInstanceOf[smt.qfeuf.FastCongruenceClosure].backtrack(1, literals(lit))
+    }
+    theoryPropagated(id) = false
   }
 
   private[this] def deduce(): Unit = {
 
-    while(qHead < trail.size) {
+    while(qHead < trail.size && status != Conflict) {
 
       val forcedLit = trail(qHead)
+      logger.debug("Deduce processing enqueued literal: " + literals(forcedLit))
 
       //negatedLit is the literals that are made false and need updating of watchers
       val negatedLit = forcedLit ^ 1
@@ -689,21 +701,26 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
 
       //apply the forced literal in the theory solver
       val tLit = literals(forcedLit)
-      if(tLit.isInstanceOf[smt.qfeuf.Literal]) {
+      if(tLit.isInstanceOf[smt.qfeuf.Literal] && !theoryPropagated(forcedLit >> 1)) {
         try {
+          logger.debug("Theory setTrue: " + tLit)
           val tConsequences = setTrueStopwatch.time{ tSolver.setTrue(tLit) }
           tConsequences.foreach(l => {
-            logger.debug("Theory propagation: %s", l)
-            val lInt = 2*l.id + l.polInt
-            if(isUnsat(lInt)) {
-              logger.debug("Theory propagation deducing an unsat literal => conflict")
-              status = Conflict
-              val trailArray = (for(i <- 0 until qHead) yield trail(i) ^ 1).toArray
-              conflict = new Clause(trailArray.filter(el => reasons(el>>1) == null))
-            } else if(isSat(lInt)) {
-              logger.debug("Theory propagation deducing an already sat literal => ignoring")
-            } else {
-              enqueueLiteral(lInt)
+            if(status != Conflict) {
+              logger.debug("Theory propagation: " + l)
+              val lInt = 2*l.id + l.polInt
+              assert(lInt != forcedLit)
+              if(isUnsat(lInt)) {
+                logger.info("Theory propagation detecting conflict with unsat literal: " + l)
+                status = Conflict
+                val trailArray = (for(i <- 0 until qHead) yield trail(i) ^ 1).toArray
+                conflict = new Clause(trailArray.filter(el => reasons(el>>1) == null))
+              } else if(isSat(lInt)) {
+                logger.trace("Theory propagation deducing an already sat literal: " + l)
+              } else {
+                theoryPropagated(l.id) = true
+                enqueueLiteral(lInt)
+              }
             }
           })
         } catch {
@@ -712,11 +729,11 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
             if(reasons(forcedLit>>1) == null) {
               logger.info("Theory conflict triggered by decision literal %s", tLit.toString)
               val trailArray = (for(i <- 0 until qHead) yield trail(i) ^ 1).toArray
-              conflict = new Clause(trailArray.filter(el => reasons(el>>1) == null))
+              conflict = new Clause(trailArray.filter(el => reasons(el>>1) == null && !theoryPropagated(el>>1)))
             } else {
               logger.info("Theory conflict triggered by literal %s", tLit.toString)
               val trailArray = (for(i <- 0 until qHead) yield trail(i) ^ 1).toArray
-              conflict = new Clause(trailArray.filter(el => reasons(el>>1) == null))
+              conflict = new Clause(trailArray.filter(el => reasons(el>>1) == null && !theoryPropagated(el>>1)))
               //conflict = new Clause(negatedLit +: reasons(forcedLit>>1).lits.tail)
             }
 
@@ -774,6 +791,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
               logger.debug("Deducing literal: %s", literals(lits(0)).toString)
               enqueueLiteral(lits(0), clause)
             } else if(isUnsat(lits(0))) {
+              logger.info("Detecting conflict during boolean propagation")
               status = Conflict
               qHead = trail.size
               conflict = clause

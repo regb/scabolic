@@ -301,6 +301,11 @@ class FastCongruenceClosureSuite extends FunSuite {
     cc5.merge(4, 3, 1) //f(d) = b
     cc5.setTrue(lit5)
     intercept[InconsistencyException]{cc5.setTrue(lit4)}
+
+    val lit7 = Literal(Left(0, 0), 0, false, null)
+    val cc6 = new FastCongruenceClosure
+    cc6.initialize(1, Set(lit7))
+    intercept[InconsistencyException]{cc6.setTrue(lit7)}
   }
 
   test("advanced setTrue") {
