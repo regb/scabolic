@@ -13,7 +13,7 @@ abstract class Literal {
 
   def polarity: Boolean = polInt == 1
 
-  override def toString: String = (if(!polarity) "-" else "") + "v" + id
+  override def toString: String = (if(!polarity) "-" else "") + "l_" + id
 
   //returns the positive literal (always true)
   def pos: Literal

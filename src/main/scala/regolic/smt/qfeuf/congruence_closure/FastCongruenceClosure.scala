@@ -24,6 +24,8 @@ class FastCongruenceClosure extends dpllt.TheorySolver {
 
   import FastCongruenceClosure._
 
+  private val logger = Settings.logger
+
   private[this] val iStack = new Stack[Literal]
 
   private[this] var diseqs: Array[List[Int]] = null
@@ -497,8 +499,11 @@ class FastCongruenceClosure extends dpllt.TheorySolver {
     else {
       1 to n foreach { _ => {
         val poppedLit = iStack.pop
-        if(lit != null)
-          assert(lit == poppedLit)
+        logger.debug("backtracking literal " + poppedLit)
+        if(lit != null) {
+          logger.trace("expected to backtrack literal " + lit)
+          assert(lit.id == poppedLit.id && lit.polInt == poppedLit.polInt)
+        }
 
         val reprChanges = undoReprChangesStack.pop
         while(!reprChanges.isEmpty) {

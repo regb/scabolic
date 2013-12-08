@@ -264,8 +264,8 @@ class FastCongruenceClosureSuite extends FunSuite {
 
   test("setTrue InconsistencyException") {
     val lit1 = Literal(Left(0, 1), 0, true, null)
-    val lit2 = Literal(Left(1, 2), 0, true, null)
-    val lit3 = Literal(Left(0, 2), 0, false, null)
+    val lit2 = Literal(Left(1, 2), 1, true, null)
+    val lit3 = Literal(Left(0, 2), 2, false, null)
 
     val cc1 = new FastCongruenceClosure
     cc1.initialize(3, Set(lit1, lit2, lit3))
@@ -285,7 +285,7 @@ class FastCongruenceClosureSuite extends FunSuite {
     cc3.setTrue(lit2)
     intercept[InconsistencyException]{cc3.setTrue(lit3)}
 
-    val lit4 = Literal(Left(2, 3), 0, true, null)
+    val lit4 = Literal(Left(2, 3), 3, true, null)
     val lit5 = Literal(Left(0, 1), 0, false, null)
 
     val cc4 = new FastCongruenceClosure
@@ -302,10 +302,22 @@ class FastCongruenceClosureSuite extends FunSuite {
     cc5.setTrue(lit5)
     intercept[InconsistencyException]{cc5.setTrue(lit4)}
 
-    val lit7 = Literal(Left(0, 0), 0, false, null)
+    val lit7 = Literal(Left(0, 0), 4, false, null)
     val cc6 = new FastCongruenceClosure
     cc6.initialize(1, Set(lit7))
     intercept[InconsistencyException]{cc6.setTrue(lit7)}
+  }
+
+  test("setTrue InconsistencyException with apply") {
+    val lit1 = Literal(Left(3, 4), 0, true, null)
+    val lit2 = Literal(Left(3, 4), 0, false, null)
+    val lit3 = Literal(Left(1, 2), 0, true, null)
+    val cc1 = new FastCongruenceClosure
+    cc1.initialize(5, Set(lit1, lit2, lit3))
+    cc1.merge(0, 1, 3)
+    cc1.merge(0, 2, 4)
+    cc1.setTrue(lit2)
+    intercept[InconsistencyException]{cc1.setTrue(lit3)}
   }
 
   test("advanced setTrue") {
@@ -348,8 +360,8 @@ class FastCongruenceClosureSuite extends FunSuite {
 
   test("setTrue basic theory propagation") {
     val lit1 = Literal(Left(0, 1), 0, true, null)
-    val lit2 = Literal(Left(1, 2), 0, true, null)
-    val lit3 = Literal(Left(0, 2), 0, true, null)
+    val lit2 = Literal(Left(1, 2), 1, true, null)
+    val lit3 = Literal(Left(0, 2), 2, true, null)
 
     val cc1 = new FastCongruenceClosure
     cc1.initialize(3, Set(lit1, lit2, lit3))
@@ -359,9 +371,9 @@ class FastCongruenceClosureSuite extends FunSuite {
     assert(csq2.size === 1)
     assert(csq2.contains(lit3))
 
-    val lit4 = Literal(Left(2, 3), 0, true, null)
-    val lit5 = Literal(Left(0, 3), 0, true, null)
-    val lit6 = Literal(Left(1, 3), 0, true, null)
+    val lit4 = Literal(Left(2, 3), 3, true, null)
+    val lit5 = Literal(Left(0, 3), 4, true, null)
+    val lit6 = Literal(Left(1, 3), 5, true, null)
     val cc2 = new FastCongruenceClosure
     cc2.initialize(4, Set(lit1, lit2, lit3, lit4, lit5, lit6))
     val csq3 = cc2.setTrue(lit1)
@@ -377,8 +389,8 @@ class FastCongruenceClosureSuite extends FunSuite {
 
   test("setTrue theory propagation of negative literals") {
     val lit1 = Literal(Left(0, 1), 0, false, null)
-    val lit2 = Literal(Left(1, 2), 0, true, null)
-    val lit3 = Literal(Left(0, 2), 0, false, null)
+    val lit2 = Literal(Left(1, 2), 1, true, null)
+    val lit3 = Literal(Left(0, 2), 2, false, null)
 
     val cc1 = new FastCongruenceClosure
     cc1.initialize(3, Set(lit1, lit2, lit3))
@@ -388,9 +400,9 @@ class FastCongruenceClosureSuite extends FunSuite {
     assert(csq2.size === 1)
     assert(csq2.contains(lit3))
 
-    val lit4 = Literal(Left(2, 3), 0, true, null)
-    val lit5 = Literal(Left(1, 3), 0, true, null)
-    val lit6 = Literal(Left(0, 3), 0, false, null)
+    val lit4 = Literal(Left(2, 3), 3, true, null)
+    val lit5 = Literal(Left(1, 3), 4, true, null)
+    val lit6 = Literal(Left(0, 3), 5, false, null)
     val cc2 = new FastCongruenceClosure
     cc2.initialize(4, Set(lit1, lit2, lit3, lit4, lit5, lit6))
     val csq3 = cc2.setTrue(lit1)
@@ -404,10 +416,10 @@ class FastCongruenceClosureSuite extends FunSuite {
     assert(csq5.contains(lit6))
 
     val lit7 = Literal(Left(0, 1), 0, true, null)
-    val lit8 = Literal(Left(0, 4), 0, false, null)
-    val lit9 = Literal(Left(1, 4), 0, false, null)
-    val lit10 = Literal(Left(2, 4), 0, false, null)
-    val lit11 = Literal(Left(3, 4), 0, false, null)
+    val lit8 = Literal(Left(0, 4), 6, false, null)
+    val lit9 = Literal(Left(1, 4), 7, false, null)
+    val lit10 = Literal(Left(2, 4), 8, false, null)
+    val lit11 = Literal(Left(3, 4), 9, false, null)
     val cc3 = new FastCongruenceClosure
     cc3.initialize(5, Set(lit1, lit2, lit3, lit4, lit5, lit6, lit7, lit8, lit9, lit10, lit11))
     cc3.setTrue(lit7)
@@ -449,8 +461,8 @@ class FastCongruenceClosureSuite extends FunSuite {
 
   test("negative setTrue theory propagation") {
     val lit1 = Literal(Left(1, 2), 0, true, null)
-    val lit2 = Literal(Left(0, 1), 0, false, null)
-    val lit3 = Literal(Left(0, 2), 0, false, null)
+    val lit2 = Literal(Left(0, 1), 1, false, null)
+    val lit3 = Literal(Left(0, 2), 2, false, null)
 
     val cc1 = new FastCongruenceClosure
     cc1.initialize(3, Set(lit1, lit2, lit3))
@@ -463,9 +475,9 @@ class FastCongruenceClosureSuite extends FunSuite {
 
   test("setTrue with apply") {
     val lit1 = Literal(Left(1, 2), 0, true, null)
-    val lit2 = Literal(Left(3, 4), 0, true, null)
-    val lit3 = Literal(Left(1, 3), 0, true, null)
-    val lit4 = Literal(Left(2, 4), 0, true, null)
+    val lit2 = Literal(Left(3, 4), 1, true, null)
+    val lit3 = Literal(Left(1, 3), 2, true, null)
+    val lit4 = Literal(Left(2, 4), 3, true, null)
 
     val cc1 = new FastCongruenceClosure
     cc1.initialize(5, Set(lit1, lit2, lit3, lit4))

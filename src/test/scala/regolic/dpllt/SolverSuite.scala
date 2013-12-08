@@ -139,6 +139,13 @@ class SolverSuite extends FunSuite {
     assert(s3.solve() === Unsatisfiable)
   }
 
+  test("Trivial sat with check model") {
+    val s1 = new Solver(1, new PropositionalSolver)
+    s1.addClause(Set(a))
+    val Satisfiable(model) = s1.solve()
+    assert(model(0))
+  }
+
   //TODO: test case where decision variable trigger a theory conflict
 
 }
