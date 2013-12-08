@@ -134,7 +134,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
         if(model(id) == -1) {
           logger.debug("Simplifying clause of size 1: " + literals(litsUnique.head))
           enqueueLiteral(litsUnique.head)
-        } else if(model(id) == (litsUnique.head & 1)) {
+        } else if(model(id) != (litsUnique.head & 1)) {
           logger.debug("Detecting conflicting clause of size 1: " + literals(litsUnique.head))
           status = Unsatisfiable
         }
@@ -152,8 +152,8 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
   def addClause(lits: Set[Literal]) = {
     incrementallyAddedClauses ::= new Clause(lits)
     for(lit <- lits) {
-      literals(2*lit.id + lit.polInt) = lit
-      literals(2*lit.id + (lit.polInt^1)) = lit.pos.neg
+      literals(2*lit.id + 0) = lit.pos.neg
+      literals(2*lit.id + 1) = lit.pos
     }
   }
 
@@ -408,8 +408,8 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
   def litPolarity(lit: Int): Boolean = (lit & 1) == 0
   def isAssigned(lit: Int): Boolean = model(lit >> 1) != -1
   def isUnassigned(lit: Int): Boolean = model(lit >> 1) == -1
-  def isSat(lit: Int): Boolean = (model(lit >> 1) ^ (lit & 1)) == 1
-  def isUnsat(lit: Int): Boolean = (model(lit >> 1) ^ (lit & 1)) == 0
+  def isSat(lit: Int): Boolean = (model(lit >> 1) ^ (lit & 1)) == 0
+  def isUnsat(lit: Int): Boolean = (model(lit >> 1) ^ (lit & 1)) == 1
 
   private class CNFFormula(var originalClauses: List[Clause], val nbVar: Int) {
     require(originalClauses.forall(cl => cl.lits.forall(lit => lit >= 0 && lit < 2*nbVar)))
@@ -545,9 +545,8 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
         literals(lit).toString, 
         if(from == null) "null" else from.lits.map(literals(_)).mkString("[", ", ", "]")))
     val id = lit >> 1
-    val pol = (lit & 1) ^ 1
+    val pol = (lit & 1)
     assert(model(id) == -1)
-    logger.trace("Assigning model of literal %s to %d".format(literals(lit).toString, pol))
     model(id) = pol
     trail.push(lit)
     reasons(id) = from

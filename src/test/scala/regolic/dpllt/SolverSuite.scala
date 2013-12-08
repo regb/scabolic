@@ -142,8 +142,23 @@ class SolverSuite extends FunSuite {
   test("Trivial sat with check model") {
     val s1 = new Solver(1, new PropositionalSolver)
     s1.addClause(Set(a))
-    val Satisfiable(model) = s1.solve()
-    assert(model(0))
+    val Satisfiable(m1) = s1.solve()
+    assert(m1(0))
+
+    val s2 = new Solver(2, new PropositionalSolver)
+    s2.addClause(Set(a))
+    s2.addClause(Set(b))
+    val Satisfiable(m2) = s2.solve()
+    assert(m2(0))
+    assert(m2(1))
+
+    val s3 = new Solver(2, new PropositionalSolver)
+    s3.addClause(Set(a, b))
+    s3.addClause(Set(na, nb))
+    s3.addClause(Set(a, nb))
+    val Satisfiable(m3) = s3.solve()
+    assert(m3(0))
+    assert(!m3(1))
   }
 
   //TODO: test case where decision variable trigger a theory conflict
