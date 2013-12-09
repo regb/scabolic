@@ -120,14 +120,29 @@ object Eval {
             cc.initialize(cnf.flatten)
             toMerge.foreach{ case (a1, a2, a) => cc.merge(a1, a2, a) }
 
+            val ccConfirm = new smt.qfeuf.FastCongruenceClosure
+            ccConfirm.initialize(cnf.flatten)
+            toMerge.foreach{ case (a1, a2, a) => ccConfirm.merge(a1, a2, a) }
+
             val solver = new dpllt.Solver(nbLits, cc)
             cnf.foreach(clause => solver.addClause(clause))
 
             val result = solver.solve()
 
             val resultString = result match {
-              case Satisfiable(_) if expectedResult == Some(false) => "sat | should be unsat"
-              case Satisfiable(_) => "sat"
+              case Satisfiable(model) => {
+                val literals: Array[dpllt.Literal] = Array.fill(2*nbLits)(null)
+                cnf.foreach(clause => clause.foreach(lit => literals(2*lit.id + lit.polInt) = lit))
+                model.zipWithIndex.foreach{ case (pol, id) => {
+                  val tLit = literals(2*id + (if(pol) 1 else 0))
+                  if(tLit.isInstanceOf[smt.qfeuf.Literal])
+                    ccConfirm.setTrue(tLit)
+                }}
+                if(expectedResult == Some(false))
+                  "sat | should be unsat"
+                else
+                  "sat"
+              }           
               case Unsatisfiable if expectedResult == Some(true) => "unsat | should be sat"
               case Unsatisfiable => "unsat"
             }

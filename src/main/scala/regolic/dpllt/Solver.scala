@@ -751,6 +751,10 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
       var j = 0
       while(i < ws.size) {
         val clause = ws(i)
+        logger.trace("Considering clause: " + 
+                     clause.lits.map(literals(_)).mkString("[", ", ", "]") +
+                     " watching literal: " + literals(negatedLit)
+                    )
         val lits = clause.lits
         i += 1
 
