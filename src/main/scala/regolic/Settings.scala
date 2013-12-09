@@ -11,6 +11,6 @@ object Settings {
   var restartInterval: Int = 0
   var restartFactor: Double = 1.1
 
-  var logLevel: Logger.LogLevel.Level = Logger.LogLevel.Warning
+  var logLevel: Logger.LogLevel = Logger.Warning
 
 }

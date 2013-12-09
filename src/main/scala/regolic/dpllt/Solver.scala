@@ -41,6 +41,8 @@ object Solver {
 //TODO: nbVars should be nbLits
 class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
 
+  //override val logger: util.Logger = new util.TraceStdErrLogger
+
   import Solver._
 
   /*

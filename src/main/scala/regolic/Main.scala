@@ -33,8 +33,8 @@ object Main {
         case "time"        =>                             time = true
 
         case "stats"         =>                           Settings.stats = true
-        case "verbose" =>                                 Settings.logLevel = Logger.LogLevel.Debug
-        case "trace" =>                                   Settings.logLevel = Logger.LogLevel.Trace
+        case "verbose" =>                                 Settings.logLevel = Logger.Debug
+        case "trace" =>                                   Settings.logLevel = Logger.Trace
 
         //case s if s.startsWith("debug=") =>               Settings.debugLevel = try { 
         //                                                    s.substring("debug=".length, s.length).toInt 
@@ -102,9 +102,9 @@ object Main {
         val is = new java.io.FileInputStream(new java.io.File(inputFile))
         val (satInstance, nbVars) = regolic.parsers.Dimacs.cnf(is)
         val s = Settings.logLevel match {
-          case Logger.LogLevel.Warning => new dpllt.Solver(nbVars, new dpllt.PropositionalSolver) with HasDefaultStdErrLogger
-          case Logger.LogLevel.Debug => new dpllt.Solver(nbVars, new dpllt.PropositionalSolver) with HasVerboseStdErrLogger
-          case Logger.LogLevel.Trace => new dpllt.Solver(nbVars, new dpllt.PropositionalSolver) with HasTraceStdErrLogger
+          case Logger.Warning => new dpllt.Solver(nbVars, new dpllt.PropositionalSolver) with HasDefaultStdErrLogger
+          case Logger.Debug => new dpllt.Solver(nbVars, new dpllt.PropositionalSolver) with HasVerboseStdErrLogger
+          case Logger.Trace => new dpllt.Solver(nbVars, new dpllt.PropositionalSolver) with HasTraceStdErrLogger
         }
         satInstance.foreach(clause => {
           val lits: Set[dpllt.Literal] = 

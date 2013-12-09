@@ -1,15 +1,15 @@
 package regolic.util
 
 trait HasLogger {
-  val logger: Logger = new DefaultStdErrLogger
+  val logger: Logger = DefaultStdErrLogger
 }
 
 trait HasDefaultStdErrLogger extends HasLogger {
-  override val logger = new DefaultStdErrLogger
+  override val logger: Logger = DefaultStdErrLogger
 }
 trait HasVerboseStdErrLogger extends HasLogger {
-  override val logger = new VerboseStdErrLogger
+  override val logger: Logger = VerboseStdErrLogger
 }
 trait HasTraceStdErrLogger extends HasLogger {
-  override val logger = new TraceStdErrLogger
+  override val logger: Logger = TraceStdErrLogger
 }

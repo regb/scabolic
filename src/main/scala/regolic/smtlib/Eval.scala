@@ -117,22 +117,26 @@ object Eval {
             //logger.debug("Mapping: %s", mapping.mkString("{\n\t", "\n\t", "}"))
 
             val cc = Settings.logLevel match {
-              case Logger.LogLevel.Warning => new FastCongruenceClosure with HasDefaultStdErrLogger
-              case Logger.LogLevel.Debug => new FastCongruenceClosure with HasVerboseStdErrLogger
-              case Logger.LogLevel.Trace => new FastCongruenceClosure with HasTraceStdErrLogger
+              case Logger.Warning => new FastCongruenceClosure with HasDefaultStdErrLogger
+              case Logger.Debug => new FastCongruenceClosure with HasVerboseStdErrLogger
+              case Logger.Trace => new FastCongruenceClosure with HasTraceStdErrLogger
             }
             cc.initialize(cnf.flatten)
             toMerge.foreach{ case (a1, a2, a) => cc.merge(a1, a2, a) }
 
             val ccConfirm = Settings.logLevel match {
-              case Logger.LogLevel.Warning => new FastCongruenceClosure with HasDefaultStdErrLogger
-              case Logger.LogLevel.Debug => new FastCongruenceClosure with HasVerboseStdErrLogger
-              case Logger.LogLevel.Trace => new FastCongruenceClosure with HasTraceStdErrLogger
+              case Logger.Warning => new FastCongruenceClosure with HasDefaultStdErrLogger
+              case Logger.Debug => new FastCongruenceClosure with HasVerboseStdErrLogger
+              case Logger.Trace => new FastCongruenceClosure with HasTraceStdErrLogger
             }
             ccConfirm.initialize(cnf.flatten)
             toMerge.foreach{ case (a1, a2, a) => ccConfirm.merge(a1, a2, a) }
 
-            val solver = new dpllt.Solver(nbLits, cc)
+            val solver = Settings.logLevel match {
+              case Logger.Warning => new dpllt.Solver(nbLits, cc) with HasDefaultStdErrLogger
+              case Logger.Debug => new dpllt.Solver(nbLits, cc) with HasVerboseStdErrLogger
+              case Logger.Trace => new dpllt.Solver(nbLits, cc) with HasTraceStdErrLogger
+            }
             cnf.foreach(clause => solver.addClause(clause))
 
             val result = solver.solve()

@@ -13,15 +13,26 @@ package regolic.util
 
 object Logger {
 
-  object LogLevel extends Enumeration {
-    type Level = Value
-    val Error = Value(0)
-    val Warning = Value(1)
-    val Info = Value(2)
-    val Debug = Value(3)
-    val Trace = Value(4)
-  }
+  sealed trait LogLevel extends Ordered[LogLevel] {
+    val ordinal: Int
 
+    override def compare(ll: LogLevel): Int = ordinal - ll.ordinal
+  }
+  object Error extends LogLevel {
+    override val ordinal = 0
+  }
+  object Warning extends LogLevel {
+    override val ordinal = 1
+  }
+  object Info extends LogLevel {
+    override val ordinal = 2
+  }
+  object Debug extends LogLevel {
+    override val ordinal = 3
+  }
+  object Trace extends LogLevel {
+    override val ordinal = 4
+  }
 }
 
 abstract class Logger {
@@ -36,7 +47,7 @@ abstract class Logger {
 
   def output(msg: String): Unit
 
-  val logLevel: LogLevel.Level
+  val logLevel: LogLevel
 
   protected def reline(prefix: String, msg: String): String = {
     val color = 
@@ -54,11 +65,11 @@ abstract class Logger {
     msg.trim.replaceAll("\n", "\n" + (" " * (prefix.size)))
   }
 
-  def error(msg: => String, args: Any*) = if(logLevel >= LogLevel.Error) output(reline(errorPrefix, msg.format(args: _*)))
-  def warning(msg: => String, args: Any*) = if(logLevel >= LogLevel.Warning) output(reline(warningPrefix, msg.format(args: _*)))
-  def info(msg: => String, args: Any*) = if(logLevel >= LogLevel.Info) output(reline(infoPrefix, msg.format(args: _*)))
-  def debug(msg: => String, args: Any*) = if(logLevel >= LogLevel.Debug) output(reline(debugPrefix, msg.format(args: _*)))
-  def trace(msg: => String, args: Any*) = if(logLevel >= LogLevel.Trace) output(reline(tracePrefix, msg.format(args: _*)))
+  def error(msg: => String, args: Any*) = if(logLevel >= Error) output(reline(errorPrefix, msg.format(args: _*)))
+  def warning(msg: => String, args: Any*) = if(logLevel >= Warning) output(reline(warningPrefix, msg.format(args: _*)))
+  def info(msg: => String, args: Any*) = if(logLevel >= Info) output(reline(infoPrefix, msg.format(args: _*)))
+  def debug(msg: => String, args: Any*) = if(logLevel >= Debug) output(reline(debugPrefix, msg.format(args: _*)))
+  def trace(msg: => String, args: Any*) = if(logLevel >= Trace) output(reline(tracePrefix, msg.format(args: _*)))
 
 }
 
@@ -68,23 +79,23 @@ abstract class StdErrLogger extends Logger {
   }
 }
 
-class DefaultStdErrLogger extends StdErrLogger {
+object DefaultStdErrLogger extends StdErrLogger {
 
   import Logger._
 
-  override val logLevel: LogLevel.Level = LogLevel.Warning
+  override val logLevel: LogLevel = Warning
 }
 
-class VerboseStdErrLogger extends StdErrLogger {
+object VerboseStdErrLogger extends StdErrLogger {
 
   import Logger._
 
-  override val logLevel: LogLevel.Level = LogLevel.Debug
+  override val logLevel: LogLevel = Debug
 }
 
-class TraceStdErrLogger extends StdErrLogger {
+object TraceStdErrLogger extends StdErrLogger {
 
   import Logger._
 
-  override val logLevel: LogLevel.Level = LogLevel.Trace
+  override val logLevel: LogLevel = Trace
 }
