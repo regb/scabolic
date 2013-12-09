@@ -1,5 +1,7 @@
 package regolic
 
+import util.Logger
+
 object Settings {
 
   var stats = false
@@ -9,6 +11,6 @@ object Settings {
   var restartInterval: Int = 0
   var restartFactor: Double = 1.1
 
-  var logger: Logger = new DefaultStdErrLogger
+  var logLevel: Logger.LogLevel.Level = Logger.LogLevel.Warning
 
 }

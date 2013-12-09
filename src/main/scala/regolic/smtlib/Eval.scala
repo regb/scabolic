@@ -9,6 +9,7 @@ import dpllt.TheorySolver
 import dpllt.Solver.Results._
 import smt.qfeuf._
 
+import util._
 
 import asts.core.Manip._
 import asts.core.Trees._
@@ -66,7 +67,7 @@ object Eval {
                   case Some(id) => id
                   case None => {
                     constantId += 1
-                    this(cst) = constantId
+                    update(cst, constantId)
                     constantId
                   }
                 }
@@ -112,15 +113,22 @@ object Eval {
 
             //println(smtLibProblem.map(sexpr.PrettyPrinter(_)).mkString("\n"))
 
-            val logger = Settings.logger
-            logger.debug("Apply: %s", toMerge.mkString("{\n\t", "\n\t", "}"))
-            logger.debug("Mapping: %s", mapping.mkString("{\n\t", "\n\t", "}"))
+            //logger.debug("Apply: %s", toMerge.mkString("{\n\t", "\n\t", "}"))
+            //logger.debug("Mapping: %s", mapping.mkString("{\n\t", "\n\t", "}"))
 
-            val cc = new smt.qfeuf.FastCongruenceClosure
+            val cc = Settings.logLevel match {
+              case Logger.LogLevel.Warning => new FastCongruenceClosure with HasDefaultStdErrLogger
+              case Logger.LogLevel.Debug => new FastCongruenceClosure with HasVerboseStdErrLogger
+              case Logger.LogLevel.Trace => new FastCongruenceClosure with HasTraceStdErrLogger
+            }
             cc.initialize(cnf.flatten)
             toMerge.foreach{ case (a1, a2, a) => cc.merge(a1, a2, a) }
 
-            val ccConfirm = new smt.qfeuf.FastCongruenceClosure
+            val ccConfirm = Settings.logLevel match {
+              case Logger.LogLevel.Warning => new FastCongruenceClosure with HasDefaultStdErrLogger
+              case Logger.LogLevel.Debug => new FastCongruenceClosure with HasVerboseStdErrLogger
+              case Logger.LogLevel.Trace => new FastCongruenceClosure with HasTraceStdErrLogger
+            }
             ccConfirm.initialize(cnf.flatten)
             toMerge.foreach{ case (a1, a2, a) => ccConfirm.merge(a1, a2, a) }
 

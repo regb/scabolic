@@ -1,4 +1,4 @@
-package regolic
+package regolic.util
 
 /*
  * Logging should be used for extra information, not serving as a reporting tool for the

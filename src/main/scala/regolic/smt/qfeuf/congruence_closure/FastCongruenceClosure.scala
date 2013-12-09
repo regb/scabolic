@@ -5,6 +5,8 @@ package qfeuf
 import regolic.asts.core.Trees._
 import regolic.asts.fol.Trees._
 
+import util.HasLogger
+
 import scala.collection.mutable.Queue
 import scala.collection.mutable.Stack
 import scala.collection.mutable.Map
@@ -20,11 +22,9 @@ import scala.collection.mutable.ArrayBuffer
  * this way. The solver assume the constants are numbered from 0 to N, with N+1
  * different constatns.
  */
-class FastCongruenceClosure extends dpllt.TheorySolver {
+class FastCongruenceClosure extends dpllt.TheorySolver with HasLogger {
 
   import FastCongruenceClosure._
-
-  private val logger = Settings.logger
 
   private[this] val iStack = new Stack[Literal]
 

@@ -6,6 +6,8 @@ import sat.FixedIntStack
 import sat.FixedIntDoublePriorityQueue
 import sat.Vector
 
+import util.HasLogger
+
 
 object Solver {
 
@@ -37,12 +39,9 @@ object Solver {
 }
 
 //TODO: nbVars should be nbLits
-class Solver(nbVars: Int, tSolver: TheorySolver) {
+class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
 
   import Solver._
-
-  //TODO: should be a parameter
-  val logger = Settings.logger
 
   /*
     This is a SAT solver, and I am trying to make it efficient, so don't expect nice functional code

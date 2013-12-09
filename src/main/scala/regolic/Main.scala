@@ -1,8 +1,11 @@
 package regolic
 
-import regolic.asts.core.Trees._
-import regolic.asts.fol.Trees._
 import java.io.File
+
+import asts.core.Trees._
+import asts.fol.Trees._
+
+import util._
 
 object Main {
 
@@ -30,8 +33,8 @@ object Main {
         case "time"        =>                             time = true
 
         case "stats"         =>                           Settings.stats = true
-        case "verbose" =>                                 Settings.logger = new VerboseStdErrLogger
-        case "trace" =>                                   Settings.logger = new TraceStdErrLogger
+        case "verbose" =>                                 Settings.logLevel = Logger.LogLevel.Debug
+        case "trace" =>                                   Settings.logLevel = Logger.LogLevel.Trace
 
         //case s if s.startsWith("debug=") =>               Settings.debugLevel = try { 
         //                                                    s.substring("debug=".length, s.length).toInt 
@@ -98,7 +101,11 @@ object Main {
         val start = System.currentTimeMillis
         val is = new java.io.FileInputStream(new java.io.File(inputFile))
         val (satInstance, nbVars) = regolic.parsers.Dimacs.cnf(is)
-        val s = new dpllt.Solver(nbVars, new dpllt.PropositionalSolver)
+        val s = Settings.logLevel match {
+          case Logger.LogLevel.Warning => new dpllt.Solver(nbVars, new dpllt.PropositionalSolver) with HasDefaultStdErrLogger
+          case Logger.LogLevel.Debug => new dpllt.Solver(nbVars, new dpllt.PropositionalSolver) with HasVerboseStdErrLogger
+          case Logger.LogLevel.Trace => new dpllt.Solver(nbVars, new dpllt.PropositionalSolver) with HasTraceStdErrLogger
+        }
         satInstance.foreach(clause => {
           val lits: Set[dpllt.Literal] = 
             clause.map(l => new dpllt.PropositionalLiteral(l.getID, l.polarity): dpllt.Literal)
