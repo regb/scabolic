@@ -328,7 +328,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
           val tLit = literals(p)
           logger.debug("Theory explanation of literal: %s", tLit.toString)
           val expl = tSolver.explanation(tLit)
-          logger.debug("Explanation is %s", expl.toString)
+          logger.debug("Theory explanation for literal <" + tLit + "> is " + expl.mkString("[", ", ", "]"))
           assert(expl.forall(lit => isSat(2*lit.id + lit.polInt)))
           confl = new Clause(p +: expl.map(l => 2*l.id + (1 - l.polInt)).toArray)
         }
@@ -751,11 +751,10 @@ class Solver(nbVars: Int, tSolver: TheorySolver) {
       var j = 0
       while(i < ws.size) {
         val clause = ws(i)
-        logger.trace("Considering clause: " + 
-                     clause.lits.map(literals(_)).mkString("[", ", ", "]") +
-                     " watching literal: " + literals(negatedLit)
-                    )
         val lits = clause.lits
+        logger.trace("Considering clause: " + 
+                     lits.map(literals(_)).mkString("[", ", ", "]") +
+                     " watching literal: " + literals(negatedLit))
         i += 1
 
         assert(lits(0) == negatedLit || lits(1) == negatedLit)
