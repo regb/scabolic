@@ -55,7 +55,7 @@ abstract class Logger {
   val logLevel: LogLevel
 
   protected def reline(prefix: String, tag: Tag, msg: String): String = {
-    val color = 
+    val colorPrefix = 
       if(prefix == errorPrefix) 
         Console.RED
       else if(prefix == warningPrefix) 
@@ -66,8 +66,9 @@ abstract class Logger {
         Console.GREEN
       else //for INFO
         Console.BLUE
-    "[" + color + prefix.substring(1, prefix.length-2) + Console.RESET + "] " +
-    "[ " + tag.name + " ] " +
+    val colorTag = Console.CYAN
+    "[" + colorPrefix + prefix.substring(1, prefix.length-2) + Console.RESET + "] " +
+    "[ " + colorTag + tag.name + Console.RESET + " ] " +
     msg.trim.replaceAll("\n", "\n" + (" " * (prefix.size)))
   }
 

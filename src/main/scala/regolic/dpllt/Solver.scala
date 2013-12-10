@@ -41,7 +41,7 @@ object Solver {
 //TODO: nbVars should be nbLits
 class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
 
-  private[this] implicit val tag = new Logger.Tag("dpllt.solver")
+  private[this] implicit val tag = new Logger.Tag("DPLL(T)")
 
   import Solver._
 
@@ -270,6 +270,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
   }
 
   private[this] def conflictAnalysis: Clause = {
+    implicit val tag = new Logger.Tag("Conflict Analysis")
     logger.info("Conflict analysis: " + conflict.lits.map(literals(_)).mkString("[", ", ", "]"))
     assert(conflict != null)
     assert(conflict.lits.forall(lit => isUnsat(lit)))
@@ -301,15 +302,17 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
         val lits = confl.lits
         var i = if(p == -1) 0 else 1
         while(i < lits.size) {
-          //assert(isUnsat(lits(i)))
           val id = lits(i) >> 1
           val lvl = levels(id)
+          logger.trace("Considering literal [" + literals(lits(i)) + "] at level " + lvl + " with seen: " + seen(id))
           if(!seen(id) && lvl > 0) {
             seen(id) = true
             if(lvl == decisionLevel)
               c += 1
-            else
+            else {
+              logger.trace("Adding to learnt clause: " + literals(lits(i)))
               learntClause ::= lits(i)
+            }
           }
           i += 1
         }
@@ -331,7 +334,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
           val tLit = literals(p)
           logger.debug("Theory explanation of literal: " + tLit)
           val expl = tSolver.explanation(tLit)
-          logger.debug("Theory explanation for literal <" + tLit + "> is " + expl.mkString("[", ", ", "]"))
+          logger.debug("Theory explanation for literal [" + tLit + "] is " + expl.mkString("[", ", ", "]"))
           assert(expl.forall(lit => isSat(2*lit.id + lit.polInt)))
           confl = new Clause(p +: expl.map(l => 2*l.id + (1 - l.polInt)).toArray)
         }
@@ -544,7 +547,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
    */
   private[this] def enqueueLiteral(lit: Int, from: Clause = null) {
     logger.trace(
-      "Enqueuing literal < " + literals(lit) + " > from clause: " +
+      "Enqueuing literal [" + literals(lit) + "] from clause: " +
       (if(from == null) "null" else from.lits.map(literals(_)).mkString("[", ", ", "]")))
     val id = lit >> 1
     val pol = (lit & 1)
@@ -786,9 +789,10 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
       theoryHead += 1
       if(tLit.isInstanceOf[smt.qfeuf.Literal] && !theoryPropagated(lit >> 1)) {
         try {
-          logger.debug("Theory setTrue: " + tLit)
+          logger.info("Theory setTrue: " + tLit)
           val tConsequences = setTrueStopwatch.time{ tSolver.setTrue(tLit) }
           tConsequences.foreach(l => {
+            assert(tSolver.isTrue(l))
             if(status != Conflict) {
               logger.debug("Theory propagation: " + l)
               val lInt = 2*l.id + l.polInt

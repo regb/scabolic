@@ -24,7 +24,7 @@ import scala.collection.mutable.ArrayBuffer
  */
 class FastCongruenceClosure extends dpllt.TheorySolver with HasLogger {
 
-  private[this] implicit val tag = new Logger.Tag("smt.qfeuf.FastCongruenceClosure")
+  private[this] implicit val tag = new Logger.Tag("Congruence Closure")
 
   import FastCongruenceClosure._
 
@@ -223,13 +223,13 @@ class FastCongruenceClosure extends dpllt.TheorySolver with HasLogger {
           }
           for((c1, c2) <- negLits(c)) {
             if(repr(c1) == aRep) {
-              if(diseqs(bRep).contains(repr(c2))) {
+              if(!diseqs(aRep).contains(repr(c2)) && diseqs(bRep).contains(repr(c2))) {
                 //TODO: (same for the other diseqCauses) the order of (a, b) may not correspond to the literal order and may fail to return the exact same literal (commutativity)
                 diseqCauses((c1, c2)) = wthAreThoseDifferent(bRep, repr(c2))
                 tConsequences += Literal(Left((c1, c2)), literalsId((c1, c2)), false, null)
               }
             } else if(repr(c2) == aRep) {
-              if(diseqs(bRep).contains(repr(c1))) {
+              if(!diseqs(aRep).contains(repr(c1)) && diseqs(bRep).contains(repr(c1))) {
                 diseqCauses((c1, c2)) = wthAreThoseDifferent(bRep, repr(c1))
                 tConsequences += Literal(Left((c1, c2)), literalsId((c1, c2)), false, null)
               }
@@ -239,12 +239,12 @@ class FastCongruenceClosure extends dpllt.TheorySolver with HasLogger {
         for(c <- classList(bRep)) {
           for((c1, c2) <- negLits(c)) {
             if(repr(c1) == bRep) {
-              if(diseqs(aRep).contains(repr(c2))) {
+              if(!diseqs(bRep).contains(repr(c2)) && diseqs(aRep).contains(repr(c2))) {
                 diseqCauses((c1, c2)) = wthAreThoseDifferent(aRep, repr(c2))
                 tConsequences += Literal(Left((c1, c2)), literalsId((c1, c2)), false, null)
               }
             } else if(repr(c2) == bRep) {
-              if(diseqs(aRep).contains(repr(c1))) {
+              if(!diseqs(bRep).contains(repr(c1)) &&diseqs(aRep).contains(repr(c1))) {
                 diseqCauses((c1, c2)) = wthAreThoseDifferent(aRep, repr(c1))
                 tConsequences += Literal(Left((c1, c2)), literalsId((c1, c2)), false, null)
               }
