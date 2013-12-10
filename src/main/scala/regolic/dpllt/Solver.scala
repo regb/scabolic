@@ -63,6 +63,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
   private[this] var decisionLevel = 0
   private[this] var trail: FixedIntStack = new FixedIntStack(nbVars) //store literals, but only of one unique polarity per literal, so nbVar size is enough //TODO: could it be that we need nbVars + 1 ?
   private[this] var qHead = 0
+  private[this] var theoryHead = 0
 
   //reasons contains the clause explaining why bcp propagated a certain propositional variable
   //it could be null for either of three reasons: (1) not yet assigned (2) decision variable (3) theory propagation
@@ -109,6 +110,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
     decisionLevel = 0
     trail = new FixedIntStack(nbVars) //store literals, but only one polarity at the same time, so nbVar size is enough
     qHead = 0
+    theoryHead = 0
     reasons = new Array(nbVars)
     levels = Array.fill(nbVars)(-1)
     model = Array.fill(nbVars)(-1)
@@ -559,47 +561,6 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
       from.locked = true
     }
     levels(id) = decisionLevel
-
-    val tLit = literals(lit)
-    if(tLit.isInstanceOf[smt.qfeuf.Literal] && !theoryPropagated(lit >> 1)) {
-      try {
-        logger.debug("Theory setTrue: " + tLit)
-        val tConsequences = setTrueStopwatch.time{ tSolver.setTrue(tLit) }
-        tConsequences.foreach(l => {
-          if(status != Conflict) {
-            logger.debug("Theory propagation: " + l)
-            val lInt = 2*l.id + l.polInt
-            assert(lInt != lit)
-            if(isUnsat(lInt)) {
-              logger.info("Theory propagation detecting conflict with unsat literal: " + l)
-              status = Conflict
-              val trailArray = (for(i <- 0 until trail.size) yield trail(i) ^ 1).toArray
-              conflict = new Clause(trailArray.filter(el => reasons(el>>1) == null && !theoryPropagated(el>>1)))
-            } else if(isSat(lInt)) {
-              logger.trace("Theory propagation deducing an already sat literal: " + l)
-            } else {
-              theoryPropagated(l.id) = true
-              enqueueLiteral(lInt)
-            }
-          }
-        })
-      } catch {
-        case (e: smt.qfeuf.FastCongruenceClosure.InconsistencyException) => {
-          status = Conflict
-          if(reasons(lit>>1) == null) {
-            logger.info("Theory conflict triggered by decision literal " + tLit.toString)
-            val trailArray = (for(i <- 0 until trail.size) yield trail(i) ^ 1).toArray
-            conflict = new Clause(trailArray.filter(el => reasons(el>>1) == null && !theoryPropagated(el>>1)))
-          } else {
-            logger.info("Theory conflict triggered by literal " + tLit.toString)
-            val trailArray = (for(i <- 0 until trail.size) yield trail(i) ^ 1).toArray
-            conflict = new Clause(trailArray.filter(el => reasons(el>>1) == null && !theoryPropagated(el>>1)))
-            //conflict = new Clause(negatedLit +: reasons(lit>>1).lits.tail)
-          }
-        }
-      }
-    }
-
   }
 
   private[this] def decide() {
@@ -703,7 +664,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
 
 
   private[this] def backtrackTo(lvl: Int): Unit = {
-    logger.info("Backtracking to level %d", lvl)
+    logger.info("Backtracking to level " + lvl)
     while(decisionLevel > lvl && !trail.isEmpty) {
       //TODO: move pop inside ite body ?
       val head = trail.pop()
@@ -714,10 +675,12 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
         trail.push(head)
     }
     qHead = trail.size
+    theoryHead = trail.size
     decisionLevel = lvl
   }
 
   private[this] def undo(lit: Int): Unit = {
+    logger.trace("Undoing literal: " + literals(lit))
     assert(isSat(lit))
     val id = lit>>1
     cnfFormula.vsidsQueue.insert(id)
@@ -728,7 +691,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
       reasonClause.locked = false
       reasons(id) = null
     }
-    if(!theoryPropagated(id) && literals(lit).isInstanceOf[smt.qfeuf.Literal]) {
+    if(trail.size < theoryHead && !theoryPropagated(id) && literals(lit).isInstanceOf[smt.qfeuf.Literal]) {
       logger.debug("Theory backtrack for lit: " + literals(lit))
       tSolver.asInstanceOf[smt.qfeuf.FastCongruenceClosure].backtrack(1, literals(lit))
     }
@@ -736,6 +699,13 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
   }
 
   private[this] def deduce(): Unit = {
+    while(qHead < trail.size && status != Conflict) {
+      booleanPropagation()
+      theoryPropagation()
+    }
+  }
+
+  private[this] def booleanPropagation(): Unit = {
 
     while(qHead < trail.size && status != Conflict) {
 
@@ -806,13 +776,59 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
       ws.shrink(i - j)
     }
 
-    //assert(qHead == trail.size)
+    assert(qHead == trail.size)
+  }
+
+  def theoryPropagation(): Unit = {
+    while(theoryHead < trail.size && status != Conflict) {
+      val lit = trail(theoryHead)
+      val tLit = literals(lit)
+      logger.debug("Processing theory head: " + tLit)
+      theoryHead += 1
+      if(tLit.isInstanceOf[smt.qfeuf.Literal] && !theoryPropagated(lit >> 1)) {
+        try {
+          logger.debug("Theory setTrue: " + tLit)
+          val tConsequences = setTrueStopwatch.time{ tSolver.setTrue(tLit) }
+          tConsequences.foreach(l => {
+            if(status != Conflict) {
+              logger.debug("Theory propagation: " + l)
+              val lInt = 2*l.id + l.polInt
+              assert(lInt != lit)
+              if(isUnsat(lInt)) {
+                logger.info("Theory propagation detecting conflict with unsat literal: " + l)
+                status = Conflict
+                val trailArray = (for(i <- 0 until trail.size) yield trail(i) ^ 1).toArray
+                conflict = new Clause(trailArray.filter(el => reasons(el>>1) == null && !theoryPropagated(el>>1)))
+              } else if(isSat(lInt)) {
+                logger.trace("Theory propagation deducing an already sat literal: " + l)
+              } else {
+                theoryPropagated(l.id) = true
+                enqueueLiteral(lInt)
+              }
+            }
+          })
+        } catch {
+          case (e: smt.qfeuf.FastCongruenceClosure.InconsistencyException) => {
+            status = Conflict
+            if(reasons(lit>>1) == null) {
+              logger.info("Theory conflict triggered by decision literal " + tLit.toString)
+              val trailArray = (for(i <- 0 until trail.size) yield trail(i) ^ 1).toArray
+              conflict = new Clause(trailArray.filter(el => reasons(el>>1) == null && !theoryPropagated(el>>1)))
+            } else {
+              logger.info("Theory conflict triggered by literal " + tLit.toString)
+              val trailArray = (for(i <- 0 until trail.size) yield trail(i) ^ 1).toArray
+              conflict = new Clause(trailArray.filter(el => reasons(el>>1) == null && !theoryPropagated(el>>1)))
+            }
+          }
+        }
+      }
+    }
   }
 
   //some debugging assertions that can be introduced in the code to check for correctness
 
   //assert that there is no unit clauses in the database
-  def assertNoUnits() {
+  def assertNoUnits(): Unit = {
 
     assert(qHead == trail.size) //we assume that all unit clauses queued have been processed
 
