@@ -6,7 +6,7 @@ import sat.FixedIntStack
 import sat.FixedIntDoublePriorityQueue
 import sat.Vector
 
-import util.HasLogger
+import util.{HasLogger, Logger}
 
 
 object Solver {
@@ -41,7 +41,7 @@ object Solver {
 //TODO: nbVars should be nbLits
 class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
 
-  //override val logger: util.Logger = new util.TraceStdErrLogger
+  private[this] implicit val tag = new Logger.Tag("dpllt.solver")
 
   import Solver._
 
@@ -197,29 +197,29 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
 
       val timeout: Option[Int] = Settings.timeout
       var elapsedTime: Long = 0 //in ms
-      assertWatchedInvariant
-      assertTrailInvariant
+      //assertWatchedInvariant
+      //assertTrailInvariant
       //MAIN LOOP
       var fileCounter = 0
       while(status == Unknown) {
 
         val startTime = System.currentTimeMillis
-        assertWatchedInvariant
-        assertTrailInvariant
+        //assertWatchedInvariant
+        //assertTrailInvariant
         decideStopWatch.time {
           decide()
         }
 
         var cont = true
         while(cont) {
-          assertWatchedInvariant
-          assertTrailInvariant
+          //assertWatchedInvariant
+          //assertTrailInvariant
           deduceStopWatch.time {
             deduce()
           }
 
           if(status == Conflict) {
-            logger.info("Conflict detected at level %d", decisionLevel)
+            logger.info("Conflict detected at level " + decisionLevel)
             backtrackStopWatch.time {
               backtrack()
             }
@@ -270,7 +270,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
   }
 
   private[this] def conflictAnalysis: Clause = {
-    logger.info("Conflict analysis: %s", conflict.lits.map(literals(_)).mkString("[", ", ", "]"))
+    logger.info("Conflict analysis: " + conflict.lits.map(literals(_)).mkString("[", ", ", "]"))
     assert(conflict != null)
     assert(conflict.lits.forall(lit => isUnsat(lit)))
     assert(conflict.lits.exists(lit => levels(lit >> 1) == decisionLevel))
@@ -329,7 +329,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
 
         if(confl == null && theoryPropagated(p>>1)) { //conflict from theory propagation
           val tLit = literals(p)
-          logger.debug("Theory explanation of literal: %s", tLit.toString)
+          logger.debug("Theory explanation of literal: " + tLit)
           val expl = tSolver.explanation(tLit)
           logger.debug("Theory explanation for literal <" + tLit + "> is " + expl.mkString("[", ", ", "]"))
           assert(expl.forall(lit => isSat(2*lit.id + lit.polInt)))
@@ -403,7 +403,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
 
     learntClause ::= (p ^ 1)  //don't forget to add p in the clause !
     val res = new Clause(learntClause.toArray)
-    logger.info("Learning clause: %s", res.lits.map(literals(_)).mkString("[", ",", "]"))
+    logger.info("Learning clause: " + res.lits.map(literals(_)).mkString("[", ",", "]"))
     res
   }
 
@@ -544,9 +544,8 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
    */
   private[this] def enqueueLiteral(lit: Int, from: Clause = null) {
     logger.trace(
-      "Enqueuing literal %s from clause %s".format(
-        literals(lit).toString, 
-        if(from == null) "null" else from.lits.map(literals(_)).mkString("[", ", ", "]")))
+      "Enqueuing literal < " + literals(lit) + " > from clause: " +
+      (if(from == null) "null" else from.lits.map(literals(_)).mkString("[", ", ", "]")))
     val id = lit >> 1
     val pol = (lit & 1)
     assert(model(id) == -1)
@@ -602,7 +601,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
         if(model(next) == -1) {
           nbDecisions += 1
           decisionLevel += 1
-          logger.info("Decision literal: " + literals(2*next + (nbDecisions & 1)).toString)
+          logger.info("Decision literal: " + literals(2*next + (nbDecisions & 1)))
           enqueueLiteral(2*next + (nbDecisions & 1))
         } else {
           logger.info("no more literal to assign: model found")
@@ -639,7 +638,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
       }
 
       if(nbConflicts == nextRestart) {
-        logger.info("Restarting after %d conflicts", nbConflicts)
+        logger.info("Restarting after " + nbConflicts + " conflicts")
         restartInterval = (restartInterval*restartFactor).toInt
         nextRestart = nbConflicts + restartInterval
         nbRestarts += 1
@@ -757,7 +756,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
             j += 1
             if(isUnassigned(lits(0))) {
               nbPropagations += 1
-              logger.debug("Deducing literal: %s", literals(lits(0)).toString)
+              logger.debug("Deducing literal: " + literals(lits(0)))
               enqueueLiteral(lits(0), clause)
             } else if(isUnsat(lits(0))) {
               logger.info("Detecting conflict during boolean propagation")
@@ -811,11 +810,11 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
           case (e: smt.qfeuf.FastCongruenceClosure.InconsistencyException) => {
             status = Conflict
             if(reasons(lit>>1) == null) {
-              logger.info("Theory conflict triggered by decision literal " + tLit.toString)
+              logger.info("Theory conflict triggered by decision literal " + tLit)
               val trailArray = (for(i <- 0 until trail.size) yield trail(i) ^ 1).toArray
               conflict = new Clause(trailArray.filter(el => reasons(el>>1) == null && !theoryPropagated(el>>1)))
             } else {
-              logger.info("Theory conflict triggered by literal " + tLit.toString)
+              logger.info("Theory conflict triggered by literal " + tLit)
               val trailArray = (for(i <- 0 until trail.size) yield trail(i) ^ 1).toArray
               conflict = new Clause(trailArray.filter(el => reasons(el>>1) == null && !theoryPropagated(el>>1)))
             }

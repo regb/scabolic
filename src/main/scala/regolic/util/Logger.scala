@@ -1,5 +1,7 @@
 package regolic.util
 
+import scala.annotation.implicitNotFound
+
 /*
  * Logging should be used for extra information, not serving as a reporting tool for the
  * tool usage. In particular, in a CLI style of use, we should use stdin and stdout for
@@ -33,6 +35,9 @@ object Logger {
   object Trace extends LogLevel {
     override val ordinal = 4
   }
+
+  @implicitNotFound("No implicit logger tag found in scope. You need define an implicit util.Logger.Tag")
+  class Tag(val name: String)
 }
 
 abstract class Logger {
@@ -49,7 +54,7 @@ abstract class Logger {
 
   val logLevel: LogLevel
 
-  protected def reline(prefix: String, msg: String): String = {
+  protected def reline(prefix: String, tag: Tag, msg: String): String = {
     val color = 
       if(prefix == errorPrefix) 
         Console.RED
@@ -62,14 +67,15 @@ abstract class Logger {
       else //for INFO
         Console.BLUE
     "[" + color + prefix.substring(1, prefix.length-2) + Console.RESET + "] " +
+    "[ " + tag.name + " ] " +
     msg.trim.replaceAll("\n", "\n" + (" " * (prefix.size)))
   }
 
-  def error(msg: => String, args: Any*) = if(logLevel >= Error) output(reline(errorPrefix, msg.format(args: _*)))
-  def warning(msg: => String, args: Any*) = if(logLevel >= Warning) output(reline(warningPrefix, msg.format(args: _*)))
-  def info(msg: => String, args: Any*) = if(logLevel >= Info) output(reline(infoPrefix, msg.format(args: _*)))
-  def debug(msg: => String, args: Any*) = if(logLevel >= Debug) output(reline(debugPrefix, msg.format(args: _*)))
-  def trace(msg: => String, args: Any*) = if(logLevel >= Trace) output(reline(tracePrefix, msg.format(args: _*)))
+  def error(msg: => String)(implicit tag: Tag) = if(logLevel >= Error) output(reline(errorPrefix, tag, msg))
+  def warning(msg: => String)(implicit tag: Tag) = if(logLevel >= Warning) output(reline(warningPrefix, tag, msg))
+  def info(msg: => String)(implicit tag: Tag) = if(logLevel >= Info) output(reline(infoPrefix, tag, msg))
+  def debug(msg: => String)(implicit tag: Tag) = if(logLevel >= Debug) output(reline(debugPrefix, tag, msg))
+  def trace(msg: => String)(implicit tag: Tag) = if(logLevel >= Trace) output(reline(tracePrefix, tag, msg))
 
 }
 

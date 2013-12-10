@@ -5,7 +5,7 @@ package qfeuf
 import regolic.asts.core.Trees._
 import regolic.asts.fol.Trees._
 
-import util.HasLogger
+import util.{HasLogger, Logger}
 
 import scala.collection.mutable.Queue
 import scala.collection.mutable.Stack
@@ -23,6 +23,8 @@ import scala.collection.mutable.ArrayBuffer
  * different constatns.
  */
 class FastCongruenceClosure extends dpllt.TheorySolver with HasLogger {
+
+  private[this] implicit val tag = new Logger.Tag("smt.qfeuf.FastCongruenceClosure")
 
   import FastCongruenceClosure._
 
