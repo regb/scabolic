@@ -709,7 +709,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
     while(qHead < trail.size && status != Conflict) {
 
       val forcedLit = trail(qHead)
-      logger.debug("Deduce processing enqueued literal: " + literals(forcedLit))
+      logger.trace("Processing BCP enqueued literal: " + literals(forcedLit))
 
       //negatedLit is the literals that are made false and need updating of watchers
       val negatedLit = forcedLit ^ 1
@@ -759,7 +759,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
               logger.debug("Deducing literal: " + literals(lits(0)))
               enqueueLiteral(lits(0), clause)
             } else if(isUnsat(lits(0))) {
-              logger.info("Detecting conflict during boolean propagation")
+              logger.info("Detecting conflict during boolean propagation; unsat literal: " + literals(lits(0)))
               status = Conflict
               qHead = trail.size
               conflict = clause
@@ -782,7 +782,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
     while(theoryHead < trail.size && status != Conflict) {
       val lit = trail(theoryHead)
       val tLit = literals(lit)
-      logger.debug("Processing theory head: " + tLit)
+      logger.trace("Processing theory head: " + tLit)
       theoryHead += 1
       if(tLit.isInstanceOf[smt.qfeuf.Literal] && !theoryPropagated(lit >> 1)) {
         try {
