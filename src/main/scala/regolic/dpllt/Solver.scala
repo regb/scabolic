@@ -323,6 +323,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
           trailIndex -= 1
           p = trail(trailIndex)
         } while(!seen(p>>1))
+        assert(isSat(p))
         logger.trace("current UIP: " + literals(p))
 
         confl = reasons(p>>1)
@@ -332,9 +333,9 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
 
         if(confl == null && theoryPropagated(p>>1)) { //conflict from theory propagation
           val tLit = literals(p)
-          logger.debug("Theory explanation of literal: " + tLit)
+          logger.debug("Computing theory explanation of literal: " + tLit)
           val expl = tSolver.explanation(tLit)
-          logger.debug("Theory explanation for literal [" + tLit + "] is " + expl.mkString("[", ", ", "]"))
+          assert(expl.forall(lit => tSolver.isTrue(lit)))
           assert(expl.forall(lit => isSat(2*lit.id + lit.polInt)))
           confl = new Clause(p +: expl.map(l => 2*l.id + (1 - l.polInt)).toArray)
         }
@@ -782,7 +783,8 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
   }
 
   def theoryPropagation(): Unit = {
-    while(theoryHead < trail.size && status != Conflict) {
+    //theory propagation only propagates up to qHead, so is always behind boolean propagation (TODO: might not be necessary)
+    while(theoryHead < qHead /*trail.size*/ && status != Conflict) {
       val lit = trail(theoryHead)
       val tLit = literals(lit)
       logger.trace("Processing theory head: " + tLit)

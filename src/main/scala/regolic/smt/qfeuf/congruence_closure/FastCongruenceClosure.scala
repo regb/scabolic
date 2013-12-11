@@ -405,7 +405,7 @@ class FastCongruenceClosure extends dpllt.TheorySolver with HasLogger {
     //TODO: is it necessary to backtrack to l' (such that setTrue(l') propagates l)
     //      and then restore ?
     val Literal(eq, _, pol, _) = l
-    if(pol) {
+    val res: Set[dpllt.Literal] = if(pol) {
       val Left((a, b)) = eq
       explain(a, b).flatMap{
         case Left((a, b)) => List(Literal(Left((a,b)), literalsId((a, b)), true, null))
@@ -430,6 +430,13 @@ class FastCongruenceClosure extends dpllt.TheorySolver with HasLogger {
         case Right((a, b, c)) => List()//Literal(Right((a,b,c)), 0, true, null)
       }.toSet + Literal(Left(d2, e2), literalsId((d2, e2)), false, null)
     }
+    logger.debug("Theory explanation for literal [" + l + "] is " + res.mkString("[", ", ", "]"))
+    assert(res.forall(lit => isTrue(lit)))
+    assert({
+      val prefixIStack = iStack.reverse.takeWhile(lit => !(lit.id == l.id && lit.polInt == l.polInt))
+      res.forall(l2 => prefixIStack.exists(lit => lit.id == l2.id && lit.polInt == l2.polInt))
+    })
+    res
   }
 
   //private def explain(c1: Int, c2: Int): Set[Formula] = {
