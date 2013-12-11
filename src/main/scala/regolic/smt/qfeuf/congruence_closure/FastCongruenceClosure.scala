@@ -128,8 +128,6 @@ class FastCongruenceClosure extends dpllt.TheorySolver with HasLogger {
         throw new InconsistencyException
       val aRep = repr(a)
       val bRep = repr(b)
-      diseqs(aRep) ::= bRep
-      diseqs(bRep) ::= aRep
 
       // Computing the T-consequences
       val (cla, clb) = (classList(aRep), classList(bRep))
@@ -137,13 +135,19 @@ class FastCongruenceClosure extends dpllt.TheorySolver with HasLogger {
       val tConsequences = ListBuffer[dpllt.Literal]()
       for(c <- cl) {
         for((c1, c2) <- negLits(c)) {
-          if((repr(c1) == aRep && repr(c2) == bRep) ||
-             (repr(c1) == bRep && repr(c2) == aRep)) {
-            diseqCauses((c1, c2)) = ((a, b))
-            tConsequences += Literal(Left((c1, c2)), literalsId((c1, c2)), false, null)
+          if(!diseqs(repr(c1)).contains(repr(c2))) {
+            if((repr(c1) == aRep && repr(c2) == bRep) ||
+               (repr(c1) == bRep && repr(c2) == aRep)) {
+              diseqCauses((c1, c2)) = ((a, b))
+              tConsequences += Literal(Left((c1, c2)), literalsId((c1, c2)), false, null)
+            }
           }
         }
       }
+
+      diseqs(aRep) ::= bRep
+      diseqs(bRep) ::= aRep
+
       tConsequences.toSet.filterNot(l => l.id == lit.id && l.polInt == lit.polInt)
     }
     invariant()

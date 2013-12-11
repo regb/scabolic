@@ -487,6 +487,16 @@ class FastCongruenceClosureSuite extends FunSuite {
     cc1.setTrue(lit3)
     cc1.setTrue(lit5)
     assert(cc1.setTrue(lit4).isEmpty)
+
+    val lit6 = Literal(Left(2, 3), 2, true, null)
+    val lit7 = Literal(Left(1, 2), 1, false, null)
+    val lit8 = Literal(Left(0, 3), 5, false, null)
+    val cc2 = new FastCongruenceClosure
+    cc2.initialize(5, Set(lit1, lit2, lit3, lit4, lit5, lit6, lit7, lit8))
+    cc2.setTrue(lit1) //a = b
+    cc2.setTrue(lit6) //c = d
+    assert(cc2.setTrue(lit7).size === 1) //b != c
+    assert(cc2.setTrue(lit8).isEmpty) //a != d
   }
 
   test("setTrue with apply") {
@@ -993,7 +1003,6 @@ class FastCongruenceClosureSuite extends FunSuite {
     cc1.setTrue(lit11) //e != d
     cc1.setTrue(lit12) //e == f
     val csq2 = cc1.setTrue(lit13) //a == f
-    println(csq2)
     assert(!csq2.contains(lit3))
     assert(!csq2.contains(lit8))
   }
