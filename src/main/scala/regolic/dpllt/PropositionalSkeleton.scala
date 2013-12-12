@@ -46,9 +46,9 @@ object PropositionalSkeleton {
       case p@Not(eq@Equals(_, _)) => varToLiteral.get(eq) match {
         case Some(repr) => repr.neg
         case None => {
-          val repr = builder(eq, LiteralId.next, false)
+          val repr = builder(eq, LiteralId.next, true)
           varToLiteral(eq) = repr
-          repr
+          repr.neg
         }
       }
       case p@PropositionalVariable(_) => varToLiteral.get(p) match {

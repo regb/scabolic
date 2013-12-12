@@ -266,6 +266,10 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
       case Satisfiable => {
         assert(model.forall(pol => pol == 1 || pol == 0))
         assert((cnfFormula.originalClauses ++ cnfFormula.learntClauses).forall(clause => clause.lits.exists(lit => isSat(lit))))
+        assert(model.zipWithIndex.forall{ case (pol, id) => {
+          val lit = literals(2*id + pol)
+          !lit.isInstanceOf[smt.qfeuf.Literal] || tSolver.isTrue(lit)
+        }})
         logger.info("Model: " + model.zipWithIndex.map{ case (pol, id) => literals(2*id + pol) }.mkString("[\n\t", ",\n\t", "]") )
         Results.Satisfiable(model.map(pol => pol == 1))
       }

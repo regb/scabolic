@@ -40,10 +40,10 @@ object Eval {
     for(cmd <- cmds) {
       cmd match {
         case SetLogic(logic) => solver = SolverFactory(logic)
-        case Pop(n) => {
+        case Pop(n) => {//TODO: what is n ?
           asserts = asserts.tail
         }
-        case Push(n) => {
+        case Push(n) => {//TODO: what is n ?
           asserts ::= True()
         }
         case Assert(f) => {
@@ -100,6 +100,7 @@ object Eval {
             import sexpr.SExprs._
             val smtLibProblem: List[SExpr] = 
               SList(List(SSymbol("set-logic"), SSymbol("QF_UF"))) ::
+              SList(List(SSymbol("set-info"), SSymbol(":smt-lib-version 2.0"))) ::
               SList(List(SSymbol("declare-sort"), SSymbol("U"), SInt(0))) ::
               SList(List(SSymbol("declare-fun"), SSymbol("apply"), SList(List(SSymbol("U"), SSymbol("U"))), SList(List(SSymbol("U"))))) ::
               (for(i <- 0 until constantsToId.nbConstants) yield 
@@ -107,8 +108,8 @@ object Eval {
               (for(i <- 0 until nbLits) yield 
                 SList(List(SSymbol("declare-fun"), SSymbol("p_" + i), SList(Nil), SSymbol("Bool")))).toList :::
               SList(List(SSymbol("assert"), printers.SmtLib2.conjunctionToSExpr(toMerge.map(t => smt.qfeuf.Literal(Right(t), 0, true, null)).toSet))) ::
-              //SList(List(SSymbol("assert"), printers.SmtLib2.cnfToSExpr( cnf))) ::
-              //SList(List(SSymbol("check-sat"))) ::
+              SList(List(SSymbol("assert"), printers.SmtLib2.cnfToSExpr(cnf))) ::
+              SList(List(SSymbol("check-sat"))) ::
               Nil
 
             //println(smtLibProblem.map(sexpr.PrettyPrinter(_)).mkString("\n"))
