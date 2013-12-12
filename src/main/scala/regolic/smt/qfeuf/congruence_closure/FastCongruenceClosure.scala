@@ -432,10 +432,6 @@ class FastCongruenceClosure extends dpllt.TheorySolver with HasLogger {
     }
     logger.debug("Theory explanation for literal [" + l + "] is " + res.mkString("[", ", ", "]"))
     assert(res.forall(lit => isTrue(lit)))
-    assert({
-      val prefixIStack = iStack.reverse.takeWhile(lit => !(lit.id == l.id && lit.polInt == l.polInt))
-      res.forall(l2 => prefixIStack.exists(lit => lit.id == l2.id && lit.polInt == l2.polInt))
-    })
     res
   }
 

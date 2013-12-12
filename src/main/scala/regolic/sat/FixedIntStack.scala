@@ -5,7 +5,7 @@ package regolic.sat
  * This is intended to be used for the trail in the SAT solver.
  */
 class FixedIntStack(maxSize: Int) {
-  private val stack: Array[Int] = new Array(maxSize)
+  val stack: Array[Int] = new Array(maxSize)
   private var topIndex: Int = -1
 
   def push(el: Int) {

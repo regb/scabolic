@@ -43,11 +43,11 @@ object PropositionalSkeleton {
           repr
         }
       }
-      case p@Not(eq@Equals(_, _)) => varToLiteral.get(p) match {
-        case Some(repr) => repr
+      case p@Not(eq@Equals(_, _)) => varToLiteral.get(eq) match {
+        case Some(repr) => repr.neg
         case None => {
           val repr = builder(eq, LiteralId.next, false)
-          varToLiteral(p) = repr
+          varToLiteral(eq) = repr
           repr
         }
       }

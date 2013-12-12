@@ -9,6 +9,10 @@ import sat.Vector
 import util.{HasLogger, Logger}
 
 
+/*
+ * TODO: what should we do with multiple copy of the same literal with different id ?
+ *       Can break communication with theory solver with literals mapping
+ */
 object Solver {
 
   /* The results, unknown means timeout */
@@ -336,6 +340,15 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
           logger.debug("Computing theory explanation of literal: " + tLit)
           val expl = tSolver.explanation(tLit)
           assert(expl.forall(lit => tSolver.isTrue(lit)))
+          assert(expl.forall(lit => { val realLit = literals(lit.id*2 + lit.polInt); realLit.id == lit.id && realLit.polInt == lit.polInt }))
+          assert({ //make sure no cycle
+            val prefixTrail: Array[Int] = trail.stack.takeWhile(_ != p)
+            expl.forall(lit => if(!prefixTrail.contains(2*lit.id + lit.polInt)) {
+              logger.debug(prefixTrail.map(l => "id: " + (l>>1) + ", polInt: " + (l&1) + ", lit: " + literals(l)).mkString("[", "\n", "]"))
+              logger.error("literal [" + lit + ", id: " + lit.id + ", pol: " + lit.polInt + "] from theory explanation is not in prefix of trail")
+              false
+            } else true)
+          })
           assert(expl.forall(lit => isSat(2*lit.id + lit.polInt)))
           confl = new Clause(p +: expl.map(l => 2*l.id + (1 - l.polInt)).toArray)
         }
