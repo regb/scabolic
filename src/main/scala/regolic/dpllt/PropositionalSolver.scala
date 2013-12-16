@@ -1,26 +1,45 @@
 package regolic
 package dpllt
 
-case class PropositionalLiteral(id: Int, polInt: Int) extends Literal {
-  require(polInt == 1 | polInt == 0)
-  def this(id: Int, pol: Boolean) = this(id, if(pol) 1 else 0)
+import scala.reflect._
 
-  def neg = new PropositionalLiteral(id, 1-polInt)
-  def pos = new PropositionalLiteral(id, 1)
+object BooleanTheory extends TheoryComponent {
 
-  override def toString: String = (if(polarity) "" else "-") + "b_" + id
-}
+  val literalClassTag = classTag[Literal]
 
-class PropositionalSolver extends TheorySolver {
+  type Literal = PropositionalLiteral
 
-  def initialize(ls: Set[Literal]): Unit = {}
+  case class PropositionalLiteral(id: Int, polInt: Int) extends AbstractLiteral {
+    require(polInt == 1 | polInt == 0)
+    def this(id: Int, pol: Boolean) = this(id, if(pol) 1 else 0)
 
-  def isTrue(l: Literal): Boolean = true
+    def neg = new PropositionalLiteral(id, 1-polInt)
+    def pos = new PropositionalLiteral(id, 1)
 
-  def backtrack(n: Int): Unit = {}
+    override def toString: String = (if(polarity) "" else "-") + "b_" + id
+  }
 
-  def setTrue(l: Literal): Set[Literal] = Set()
+  type Solver = PropositionalSolver
 
-  def explanation(l: Literal): Set[Literal] = Set()
-  
+  /*
+   * Assume that no duplicate literal is setTrue
+   * Basically this is not a very correct implementation of the interface, but should allows
+   * for efficient sat solving
+   */
+  class PropositionalSolver extends AbstractSolver {
+
+    final override def backtrack(n: Int): Unit = {}
+
+    final override def setTrue(l: Literal): Either[Set[Literal], Set[Literal]] = Left(Set())
+
+    final override def isTrue(l: Literal) = true
+
+    final override def explanation(l: Literal): Set[Literal] = Set()
+
+    final override def check() = None
+
+  }
+
+  def makeSolver(ls: Set[Set[Literal]]) = new PropositionalSolver
+
 }

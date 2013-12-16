@@ -87,6 +87,13 @@ object Main {
       val options = options0.map(str => str.substring(2))
       processOptions(options)
 
+      val logger = Settings.logLevel match {
+        case Logger.Warning => DefaultStdErrLogger
+        case Logger.Debug => VerboseStdErrLogger
+        case Logger.Trace => TraceStdErrLogger
+      }
+      implicit val context = Context(logger = logger)
+
       if(cmd == "sat") {
         val inputFile = trueArgs(0)
         val start = System.currentTimeMillis
@@ -101,14 +108,10 @@ object Main {
         val start = System.currentTimeMillis
         val is = new java.io.FileInputStream(new java.io.File(inputFile))
         val (satInstance, nbVars) = regolic.parsers.Dimacs.cnf(is)
-        val s = Settings.logLevel match {
-          case Logger.Warning => new dpllt.Solver(nbVars, new dpllt.PropositionalSolver) with HasDefaultStdErrLogger
-          case Logger.Debug => new dpllt.Solver(nbVars, new dpllt.PropositionalSolver) with HasVerboseStdErrLogger
-          case Logger.Trace => new dpllt.Solver(nbVars, new dpllt.PropositionalSolver) with HasTraceStdErrLogger
-        }
+        val s = new dpllt.Solver(nbVars, dpllt.BooleanTheory)
         satInstance.foreach(clause => {
-          val lits: Set[dpllt.Literal] = 
-            clause.map(l => new dpllt.PropositionalLiteral(l.getID, l.polarity): dpllt.Literal)
+          val lits: Set[dpllt.BooleanTheory.Literal] =
+            clause.map(l => new dpllt.BooleanTheory.PropositionalLiteral(l.getID, l.polarity))
           s.addClause(lits)
         })
         val res = s.solve()

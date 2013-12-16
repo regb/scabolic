@@ -23,16 +23,6 @@ object Solver {
     case object Unknown extends Result
   }
 
-  //ignore size 1 for watched literal, they are never kept in the db
-  private class Clause(val lits: Array[Int]) {
-    var activity: Double = 0d
-    var locked = false
-    def this(listLits: Set[Literal]) = this(listLits.map(lit => 2*lit.id + lit.polInt).toArray)
-    val size = lits.size
-
-    override def toString = lits.map(lit => (if(lit % 2 == 0) "" else "-") + (lit >> 1)).mkString("[", ", ", "]")
-  }
-
   //Enumeration for the different status of the algorithm
   private sealed trait Status
   private case object Satisfiable extends Status
@@ -43,16 +33,24 @@ object Solver {
 }
 
 //TODO: nbVars should be nbLits
-class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
+class Solver(nbVars: Int, val theory: TheoryComponent)(implicit val context: Context) {
+
+  private val logger = context.logger
+
+  implicit val ct = theory.literalClassTag
+
+  type Literal = theory.Literal
+  type TheorySolver = theory.Solver
 
   private[this] implicit val tag = new Logger.Tag("DPLL(T)")
 
   import Solver._
 
   /*
-    This is a SAT solver, and I am trying to make it efficient, so don't expect nice functional code
-    using immutable data and everything, this will be pure procedural code with many gloabl variables.
-  */
+   * Not for the faint of heart.
+   * If you like Scala or functional programming, you may want to skip the rest of this file and
+   * take it as a black box.
+   */
 
   private[this] var nbConflicts = 0
   private[this] var nbDecisions = 0
@@ -102,6 +100,19 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
   private[this] val explanationStopwatch = StopWatch("explanation")
   private[this] val setTrueStopwatch = StopWatch("setTrue")
   private[this] val tBacktrackStopwatch = StopWatch("t-backtrack")
+
+  var tSolver: theory.Solver = _
+
+  //ignore size 1 for watched literal, they are never kept in the db
+  private class Clause(val lits: Array[Int]) {
+    var activity: Double = 0d
+    var locked = false
+    def this(listLits: Set[Literal]) = this(listLits.map(lit => 2*lit.id + lit.polInt).toArray)
+    val size = lits.size
+
+    override def toString = lits.map(lit => (if(lit % 2 == 0) "" else "-") + (lit >> 1)).mkString("[", ", ", "]")
+  }
+
 
   private def resetSolver(): Unit = {
     nbConflicts = 0
@@ -153,6 +164,8 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
     cnfFormula = new CNFFormula(newClauses, nbVars)
     for(clause <- newClauses)
       recordClause(clause)
+
+    tSolver = theory.makeSolver(cnfFormula.originalClauses.map(clause => clause.lits.map(literals(_)).toSet).toSet)
   }
 
 
@@ -268,7 +281,7 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
         assert((cnfFormula.originalClauses ++ cnfFormula.learntClauses).forall(clause => clause.lits.exists(lit => isSat(lit))))
         assert(model.zipWithIndex.forall{ case (pol, id) => {
           val lit = literals(2*id + pol)
-          !lit.isInstanceOf[smt.qfeuf.Literal] || tSolver.isTrue(lit)
+          tSolver.isTrue(lit)
         }})
         logger.info("Model: " + model.zipWithIndex.map{ case (pol, id) => literals(2*id + pol) }.mkString("[\n\t", ",\n\t", "]") )
         Results.Satisfiable(model.map(pol => pol == 1))
@@ -711,9 +724,9 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
       reasonClause.locked = false
       reasons(id) = null
     }
-    if(trail.size < theoryHead && !theoryPropagated(id) && literals(lit).isInstanceOf[smt.qfeuf.Literal]) {
+    if(trail.size < theoryHead && !theoryPropagated(id)) {
       logger.debug("Theory backtrack for lit: " + literals(lit))
-      tSolver.asInstanceOf[smt.qfeuf.FastCongruenceClosure].backtrack(1, literals(lit))
+      tSolver.backtrack(1)
     }
     theoryPropagated(id) = false
   }
@@ -806,31 +819,32 @@ class Solver(nbVars: Int, tSolver: TheorySolver) extends HasLogger {
       val tLit = literals(lit)
       logger.trace("Processing theory head: " + tLit)
       theoryHead += 1
-      if(tLit.isInstanceOf[smt.qfeuf.Literal] && !theoryPropagated(lit >> 1)) {
-        try {
-          logger.info("Theory setTrue: " + tLit)
-          val tConsequences = setTrueStopwatch.time{ tSolver.setTrue(tLit) }
-          tConsequences.foreach(l => {
-            assert(tSolver.isTrue(l))
-            if(status != Conflict) {
-              logger.debug("Theory propagation: " + l)
-              val lInt = 2*l.id + l.polInt
-              assert(lInt != lit)
-              if(isUnsat(lInt)) {
-                logger.info("Theory propagation detecting conflict with unsat literal: " + l)
-                status = Conflict
-                val trailArray = (for(i <- 0 until trail.size) yield trail(i) ^ 1).toArray
-                conflict = new Clause(trailArray.filter(el => reasons(el>>1) == null && !theoryPropagated(el>>1)))
-              } else if(isSat(lInt)) {
-                logger.trace("Theory propagation deducing an already sat literal: " + l)
-              } else {
-                theoryPropagated(l.id) = true
-                enqueueLiteral(lInt)
+      if(!theoryPropagated(lit >> 1)) {
+        logger.info("Theory setTrue: " + tLit)
+        val res = setTrueStopwatch.time{ tSolver.setTrue(tLit) }
+        res match {
+          case Left(tConsequences) => {
+            tConsequences.foreach(l => {
+              assert(tSolver.isTrue(l))
+              if(status != Conflict) {
+                logger.debug("Theory propagation: " + l)
+                val lInt = 2*l.id + l.polInt
+                assert(lInt != lit)
+                if(isUnsat(lInt)) {
+                  logger.info("Theory propagation detecting conflict with unsat literal: " + l)
+                  status = Conflict
+                  val trailArray = (for(i <- 0 until trail.size) yield trail(i) ^ 1).toArray
+                  conflict = new Clause(trailArray.filter(el => reasons(el>>1) == null && !theoryPropagated(el>>1)))
+                } else if(isSat(lInt)) {
+                  logger.trace("Theory propagation deducing an already sat literal: " + l)
+                } else {
+                  theoryPropagated(l.id) = true
+                  enqueueLiteral(lInt)
+                }
               }
-            }
-          })
-        } catch {
-          case (e: smt.qfeuf.FastCongruenceClosure.InconsistencyException) => {
+            })
+          } 
+          case Right(unsatCore) => {
             status = Conflict
             if(reasons(lit>>1) == null) {
               logger.info("Theory conflict triggered by decision literal " + tLit)
