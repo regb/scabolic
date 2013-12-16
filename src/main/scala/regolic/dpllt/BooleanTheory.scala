@@ -5,10 +5,9 @@ import scala.reflect._
 
 object BooleanTheory extends TheoryComponent {
 
-  val literalClassTag = classTag[Literal]
+  val literalClassTag: ClassTag[Literal] = classTag[PropositionalLiteral]
 
   type Literal = PropositionalLiteral
-
   case class PropositionalLiteral(id: Int, polInt: Int) extends AbstractLiteral {
     require(polInt == 1 | polInt == 0)
     def this(id: Int, pol: Boolean) = this(id, if(pol) 1 else 0)
@@ -18,9 +17,9 @@ object BooleanTheory extends TheoryComponent {
 
     override def toString: String = (if(polarity) "" else "-") + "b_" + id
   }
+  override def makeLiteral(id: Int, pol: Boolean) = PropositionalLiteral(id, if(pol) 1 else 0)
 
   type Solver = PropositionalSolver
-
   /*
    * Assume that no duplicate literal is setTrue
    * Basically this is not a very correct implementation of the interface, but should allows
@@ -40,6 +39,6 @@ object BooleanTheory extends TheoryComponent {
 
   }
 
-  def makeSolver(ls: Set[Set[Literal]]) = new PropositionalSolver
+  override def makeSolver(ls: Set[Set[Literal]]) = new PropositionalSolver
 
 }

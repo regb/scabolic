@@ -110,8 +110,8 @@ object Main {
         val (satInstance, nbVars) = regolic.parsers.Dimacs.cnf(is)
         val s = new dpllt.Solver(nbVars, dpllt.BooleanTheory)
         satInstance.foreach(clause => {
-          val lits: Set[dpllt.BooleanTheory.Literal] =
-            clause.map(l => new dpllt.BooleanTheory.PropositionalLiteral(l.getID, l.polarity))
+          val lits: Set[s.theory.Literal] =
+            clause.map(l => s.theory.makeLiteral(l.getID, l.polarity))
           s.addClause(lits)
         })
         val res = s.solve()

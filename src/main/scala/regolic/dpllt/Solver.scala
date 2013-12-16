@@ -8,6 +8,8 @@ import sat.Vector
 
 import util.{HasLogger, Logger}
 
+import scala.reflect._
+import scala.reflect.runtime.universe._
 
 /*
  * TODO: what should we do with multiple copy of the same literal with different id ?
@@ -35,12 +37,11 @@ object Solver {
 //TODO: nbVars should be nbLits
 class Solver(nbVars: Int, val theory: TheoryComponent)(implicit val context: Context) {
 
-  private val logger = context.logger
-
-  implicit val ct = theory.literalClassTag
-
   type Literal = theory.Literal
-  type TheorySolver = theory.Solver
+
+  implicit val ev = theory.literalClassTag
+
+  private val logger = context.logger
 
   private[this] implicit val tag = new Logger.Tag("DPLL(T)")
 

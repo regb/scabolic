@@ -5,7 +5,7 @@ import scala.reflect.ClassTag
 
 trait TheoryComponent {
 
-  val literalClassTag: ClassTag[Literal]
+  implicit val literalClassTag: ClassTag[Literal]
 
   type Literal <: AbstractLiteral
 
@@ -22,12 +22,13 @@ trait TheoryComponent {
 
     override def toString: String = (if(!polarity) "-" else "") + "l_" + id
     override def equals(o: Any): Boolean = o != null && (o match {
-      case (lit: AbstractLiteral) => id == lit.id && polInt == lit.polInt
+      case (lit: Literal) => id == lit.id && polInt == lit.polInt
       case _ => false
     })
   }
 
-  def makeSolver(ls: Set[Set[Literal]]): Solver
+  def makeLiteral(id: Int, pol: Boolean): Literal
+
 
   type Solver <: AbstractSolver
 
@@ -62,5 +63,7 @@ trait TheoryComponent {
      */
     def backtrack(n: Int): Unit
   }
+  def makeSolver(ls: Set[Set[Literal]]): Solver
+
 
 }

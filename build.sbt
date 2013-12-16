@@ -10,6 +10,9 @@ scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature") //"-optimize"
 
 libraryDependencies += "org.scalatest" % "scalatest_2.10" % "1.9.1" % "test"
 
+libraryDependencies += "org.scala-lang" % "scala-reflect" % "2.10.0"
+
+
 scabolic <<= (baseDirectory, fullClasspath in Runtime) map { (base, cp) =>
   val template = """#!/bin/sh
 java -classpath "%s" %s "$@"
