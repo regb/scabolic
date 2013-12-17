@@ -1,4 +1,4 @@
-package regolic.smt.qfeuf
+package regolic.dpllt.qfeuf
 
 import regolic.asts.core.Trees._
 import regolic.asts.fol.Trees._
