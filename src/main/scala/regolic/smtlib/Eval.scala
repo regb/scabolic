@@ -5,9 +5,8 @@ import parsers.SmtLib2._
 import parsers.SmtLib2.Trees._
 import sexpr.SExprs._
 
-import dpllt.TheorySolver
-import dpllt.Solver.Results._
-import smt.qfeuf._
+import dpllt._
+import DPLLSolver.Results._
 
 import util._
 
@@ -18,19 +17,19 @@ import asts.fol.Manip._
 
 object Eval {
 
-  object SolverFactory {
-    def apply(logic: Logic) = {
-      logic match {
-        case QF_UF => Some(new FastCongruenceClosure)
-        case _ => {
-          println("Logic not supported.")
-          None
-        }
-      }
-    }
-  }
+  //object SolverFactory {
+  //  def apply(logic: Logic) = {
+  //    logic match {
+  //      case QF_UF => Some(new FastCongruenceClosure)
+  //      case _ => {
+  //        println("Logic not supported.")
+  //        None
+  //      }
+  //    }
+  //  }
+  //}
 
-  def execute(cmds: List[Command]): Unit = null
+  def execute(cmds: List[Command]): Unit = ???
   //def execute(cmds: List[Command]): Unit = {
   //  //var solver: Option[TheorySolver] = None
   //  var solver: Option[FastCongruenceClosure] = None

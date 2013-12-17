@@ -108,17 +108,17 @@ object Main {
         val start = System.currentTimeMillis
         val is = new java.io.FileInputStream(new java.io.File(inputFile))
         val (satInstance, nbVars) = regolic.parsers.Dimacs.cnf(is)
-        val s = new dpllt.Solver(nbVars, dpllt.BooleanTheory)
+        val s = new dpllt.DPLLSolver[dpllt.BooleanTheory.type](nbVars, dpllt.BooleanTheory)(context)
         satInstance.foreach(clause => {
           val lits: Set[s.theory.Literal] =
-            clause.map(l => s.theory.makeLiteral(l.getID, l.polarity))
+            clause.map(l => dpllt.BooleanTheory.PropositionalLiteral(l.getID, if(l.polarity) 1 else 0))
           s.addClause(lits)
         })
         val res = s.solve()
         res match {
-          case dpllt.Solver.Results.Satisfiable(_) => println("sat")
-          case dpllt.Solver.Results.Unsatisfiable => println("unsat")
-          case dpllt.Solver.Results.Unknown => println("unknown")
+          case dpllt.DPLLSolver.Results.Satisfiable(_) => println("sat")
+          case dpllt.DPLLSolver.Results.Unsatisfiable => println("unsat")
+          case dpllt.DPLLSolver.Results.Unknown => println("unknown")
         }
         val end = System.currentTimeMillis
         val elapsed = end - start

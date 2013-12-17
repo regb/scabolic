@@ -8,11 +8,9 @@ trait TheoryComponent {
   implicit val literalClassTag: ClassTag[Literal]
 
   type Literal <: AbstractLiteral
-  type LiteralRepr
   abstract class AbstractLiteral {
     val id: Int 
     val polInt: Int
-    val repr: LiteralRepr
 
     def polarity: Boolean = polInt == 1
 
@@ -27,8 +25,6 @@ trait TheoryComponent {
       case _ => false
     })
   }
-
-  def makeLiteral(id: Int, pol: Boolean, repr: LiteralRepr): Literal
 
 
   type Solver <: AbstractSolver

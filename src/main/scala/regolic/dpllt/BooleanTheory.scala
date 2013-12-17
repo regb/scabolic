@@ -8,10 +8,7 @@ object BooleanTheory extends TheoryComponent {
   val literalClassTag: ClassTag[Literal] = classTag[PropositionalLiteral]
 
   type Literal = PropositionalLiteral
-  type LiteralRepr = Unit
   case class PropositionalLiteral(id: Int, polInt: Int) extends AbstractLiteral {
-
-    override val repr: Unit = ()
 
     require(polInt == 1 | polInt == 0)
     def this(id: Int, pol: Boolean) = this(id, if(pol) 1 else 0)
@@ -21,7 +18,6 @@ object BooleanTheory extends TheoryComponent {
 
     override def toString: String = (if(polarity) "" else "-") + "b_" + id
   }
-  override def makeLiteral(id: Int, pol: Boolean, repr: LiteralRepr) = PropositionalLiteral(id, if(pol) 1 else 0)
 
   type Solver = PropositionalSolver
   /*

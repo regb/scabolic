@@ -8,14 +8,11 @@ import sat.Vector
 
 import util.{HasLogger, Logger}
 
-import scala.reflect._
-import scala.reflect.runtime.universe._
-
 /*
  * TODO: what should we do with multiple copy of the same literal with different id ?
  *       Can break communication with theory solver with literals mapping
  */
-object Solver {
+object DPLLSolver {
 
   /* The results, unknown means timeout */
   object Results {
@@ -35,9 +32,9 @@ object Solver {
 }
 
 //TODO: nbVars should be nbLits
-class Solver(nbVars: Int, val theory: TheoryComponent)(implicit val context: Context) {
+class DPLLSolver[T <: TheoryComponent](nbVars: Int, val theory: T)(implicit val context: Context) {
 
-  type Literal = theory.Literal
+  import theory.{Solver => TheorySolver, Literal}
 
   implicit val ev = theory.literalClassTag
 
@@ -45,7 +42,7 @@ class Solver(nbVars: Int, val theory: TheoryComponent)(implicit val context: Con
 
   private[this] implicit val tag = new Logger.Tag("DPLL(T)")
 
-  import Solver._
+  import DPLLSolver._
 
   /*
    * Not for the faint of heart.

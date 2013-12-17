@@ -5,13 +5,15 @@ import regolic.asts.core.Trees._
 import regolic.asts.fol.Trees._
 
 import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.HashMap
+import scala.collection.mutable.ListBuffer
 
-object PropositionalSkeleton {
+class PropositionalSkeleton[T <: TheoryComponent](val theory: T) {
 
-  def apply(formula: Formula, builder: (PredicateApplication, Int, Boolean) => Literal): 
+  import theory.Literal
+
+  def apply(formula: Formula, makePropVar: (Int, Boolean) => Literal, builder: (PredicateApplication, Int, Boolean) => Literal): 
     (Set[Set[Literal]], Int, Map[Formula, Literal]) = {
-    import scala.collection.mutable.HashMap
-    import scala.collection.mutable.ListBuffer
 
     //TODO: move in some util/common generics class
     trait Counter {
@@ -54,20 +56,23 @@ object PropositionalSkeleton {
       case p@PropositionalVariable(_) => varToLiteral.get(p) match {
         case Some(repr) => repr
         case None => {
-          val repr = new PropositionalLiteral(LiteralId.next, true)
+          //val repr = new PropositionalLiteral(LiteralId.next, true)
+          val repr = makePropVar(LiteralId.next, true)
           varToLiteral(p) = repr
           repr
         }
       }
       case Not(f) => {
         val fRepr = rec(f)
-        val repr = new PropositionalLiteral(LiteralId.next, true)
+        //val repr = new PropositionalLiteral(LiteralId.next, true)
+        val repr = makePropVar(LiteralId.next, true)
         constraints += Set(repr.neg, fRepr.neg)
         constraints += Set(repr.pos, fRepr)
         repr
       }
       case And(fs) => {
-        val repr = new PropositionalLiteral(LiteralId.next, true)
+        //val repr = new PropositionalLiteral(LiteralId.next, true)
+        val repr = makePropVar(LiteralId.next, true)
         val fsRepr = fs.map(f => rec(f))
         for(fRepr <- fsRepr)
           constraints += Set(repr.neg, fRepr)
@@ -75,7 +80,8 @@ object PropositionalSkeleton {
         repr
       }
       case Or(fs) => {
-        val repr = new PropositionalLiteral(LiteralId.next, true)
+        //val repr = new PropositionalLiteral(LiteralId.next, true)
+        val repr = makePropVar(LiteralId.next, true)
         val fsRepr = fs.map(f => rec(f))
         for(fRepr <- fsRepr)
           constraints += Set(repr, fRepr.neg)
@@ -83,7 +89,8 @@ object PropositionalSkeleton {
         repr
       }
       case Implies(f1, f2) => {
-        val repr = new PropositionalLiteral(LiteralId.next, true)
+        //val repr = new PropositionalLiteral(LiteralId.next, true)
+        val repr = makePropVar(LiteralId.next, true)
         val f1Repr = rec(f1)
         val f2Repr = rec(f2)
         constraints += Set(repr.neg, f1Repr.neg, f2Repr)
@@ -92,7 +99,8 @@ object PropositionalSkeleton {
         repr
       }
       case Iff(f1, f2) => {
-        val repr = new PropositionalLiteral(LiteralId.next, true)
+        //val repr = new PropositionalLiteral(LiteralId.next, true)
+        val repr = makePropVar(LiteralId.next, true)
         val f1Repr = rec(f1)
         val f2Repr = rec(f2)
         constraints += Set(repr.neg, f1Repr.neg, f2Repr)
