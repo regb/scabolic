@@ -109,12 +109,13 @@ object Main {
         val is = new java.io.FileInputStream(new java.io.File(inputFile))
         val (satInstance, nbVars) = regolic.parsers.Dimacs.cnf(is)
         val s = new dpllt.DPLLSolver[dpllt.BooleanTheory.type](nbVars, dpllt.BooleanTheory)(context)
-        satInstance.foreach(clause => {
+        val cnf = satInstance.map(clause => {
           val lits: Set[s.theory.Literal] =
             clause.map(l => dpllt.BooleanTheory.PropositionalLiteral(l.getID, if(l.polarity) 1 else 0))
-          s.addClause(lits)
-        })
-        val res = s.solve()
+          lits
+        }).toSet
+        cnf.foreach(lits => s.addClause(lits))
+        val res = s.solve(dpllt.BooleanTheory.makeSolver(cnf))
         res match {
           case dpllt.DPLLSolver.Results.Satisfiable(_) => println("sat")
           case dpllt.DPLLSolver.Results.Unsatisfiable => println("unsat")

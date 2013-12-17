@@ -46,6 +46,7 @@ class Component(implicit val context: Context) extends TheoryComponent {
 
 
   type Solver = FastCongruenceClosure
+  
   def makeSolver(cnf: Set[Set[Literal]]): Solver = {
     val s = new FastCongruenceClosure
     s.initialize(cnf.flatten)
@@ -223,8 +224,8 @@ class Component(implicit val context: Context) extends TheoryComponent {
     //returns original input diseq that made those representatives different
     private def wthAreThoseDifferent(aRep: Int, bRep: Int): (Int, Int) = {
       iStack.flatMap(lit => {
-        val Lit(c1, c2, _, false, _) = lit
-        if((repr(c1) == aRep && repr(c2) == bRep) || (repr(c1) == bRep && repr(c2) == aRep))
+        val Lit(c1, c2, _, pol, _) = lit
+        if(!pol && ((repr(c1) == aRep && repr(c2) == bRep) || (repr(c1) == bRep && repr(c2) == aRep)))
           List((c1, c2))
         else
           List()

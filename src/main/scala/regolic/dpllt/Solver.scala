@@ -163,7 +163,7 @@ class DPLLSolver[T <: TheoryComponent](nbVars: Int, val theory: T)(implicit val 
     for(clause <- newClauses)
       recordClause(clause)
 
-    tSolver = theory.makeSolver(cnfFormula.originalClauses.map(clause => clause.lits.map(literals(_)).toSet).toSet)
+    //tSolver = theory.makeSolver(cnfFormula.originalClauses.map(clause => clause.lits.map(literals(_)).toSet).toSet)
   }
 
 
@@ -175,8 +175,9 @@ class DPLLSolver[T <: TheoryComponent](nbVars: Int, val theory: T)(implicit val 
     }
   }
 
-  def solve(assumps: Array[Literal] = Array.empty[Literal]): Results.Result = {
+  def solve(solver: TheorySolver, assumps: Array[Literal] = Array.empty[Literal]): Results.Result = {
     logger.info("Solving formula")
+    tSolver = solver
     nbSolveCalls += 1
 
     if(nbSolveCalls > 1) {

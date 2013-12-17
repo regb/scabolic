@@ -22,11 +22,7 @@ class BinaryTheory[T1 <: TheoryComponent, T2 <: TheoryComponent](val t1: T1, val
     //returns the negation of the literal
     override def neg: Literal = Lit(repr.left.map(l1 => l1.neg).right.map(l2 => l2.neg))
 
-    override def toString: String = (if(!polarity) "-" else "") + "l_" + id
-    override def equals(o: Any): Boolean = o != null && (o match {
-      case (lit: Literal) => id == lit.id && polInt == lit.polInt
-      case _ => false
-    })
+    override def toString: String = repr.fold(_.toString, _.toString)
   }
 
   type Solver = CombinedSolver
@@ -43,7 +39,7 @@ class BinaryTheory[T1 <: TheoryComponent, T2 <: TheoryComponent](val t1: T1, val
     new CombinedSolver(s1, s2)
   }
 
-  class CombinedSolver(s1: t1.Solver, s2: t2.Solver) extends AbstractSolver {
+  class CombinedSolver(val s1: t1.Solver, val s2: t2.Solver) extends AbstractSolver {
 
     private val iStack = new scala.collection.mutable.Stack[Literal]
 
