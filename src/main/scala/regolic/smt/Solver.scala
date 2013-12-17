@@ -6,8 +6,6 @@ import regolic.asts.fol.Trees._
 import regolic.asts.fol.Manip._
 import regolic.parsers.SmtLib2.Trees._
 
-import regolic.smt.qfeuf.CongruenceSolver
-//import regolic.smt.qfeuf.FastCongruenceSolver
 import regolic.smt.qflra.SimplexSolver
 
 import scala.collection.mutable.HashMap
@@ -33,7 +31,7 @@ trait Solver {
 
 object Solver {
 
-  val allSolvers: List[Solver] = List(/*FastCongruenceSolver,*/ SimplexSolver, regolic.smt.qfa.Solver)
+  val allSolvers: List[Solver] = List(/*FastCongruenceSolver,*/ SimplexSolver /*regolic.smt.qfa.Solver*/)
 
   def execute(cmds: List[Command]) {
     println("Executing following script: " + cmds)

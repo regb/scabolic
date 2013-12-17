@@ -144,15 +144,15 @@ object Main {
 
         //jvm's warmup
         val benchmark = benchmarks.head
-        //(1 to 3).foreach{_ => satSolver(benchmark)}
         (1 to 3).foreach{_ => satSolver(benchmark)}
+        //(1 to 3).foreach{_ => satSolver(benchmark, true)}
 
         val start = System.currentTimeMillis
         var nbTimeout = 0
         benchmarks.foreach(file => {
           print("Solving " + file + " ... ")
-          //val res = satSolver(file)
           val res = satSolver(file)
+          //val res = satSolver(file, true)
           if(res == Unknown)
             nbTimeout += 1
         })

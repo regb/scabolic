@@ -1,4 +1,6 @@
-package regolic.smt.qfeuf
+package regolic
+package dpllt
+package qfeuf
 
 import regolic.smt.Solver
 import regolic.asts.core.Trees._
@@ -9,7 +11,7 @@ import regolic.parsers.SmtLib2.Trees.QF_UF
 
 import scala.collection.mutable.HashMap
 
-object CongruenceSolver extends Solver {
+object ClassicalCongruenceSolver extends Solver {
 
   val logic = QF_UF
 

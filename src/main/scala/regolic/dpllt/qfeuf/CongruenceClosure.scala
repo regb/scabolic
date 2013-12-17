@@ -1,17 +1,17 @@
-package regolic.smt.qfeuf 
-
-import regolic.smt.Solver
-import regolic.asts.core.Trees._
-import regolic.asts.fol.Trees._
-
-import scala.collection.mutable.Queue
-import scala.collection.mutable.Stack
-import scala.collection.mutable.Map
-import scala.collection.mutable.HashMap
-import scala.collection.mutable.ListBuffer
-import scala.collection.mutable.ArrayBuffer
-
-import regolic.StopWatch
+//package regolic.smt.qfeuf 
+//
+//import regolic.smt.Solver
+//import regolic.asts.core.Trees._
+//import regolic.asts.fol.Trees._
+//
+//import scala.collection.mutable.Queue
+//import scala.collection.mutable.Stack
+//import scala.collection.mutable.Map
+//import scala.collection.mutable.HashMap
+//import scala.collection.mutable.ListBuffer
+//import scala.collection.mutable.ArrayBuffer
+//
+//import regolic.StopWatch
 
 /*
  * Algorithm described in "Fast congruence closure and extensions"
