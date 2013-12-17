@@ -5,6 +5,7 @@ import scala.reflect._
 
 /*
  * Combination of two theories. Assume the theories are disjoint.
+ * Need to be careful, because shared variables among theories are not handled.
  */
 class BinaryTheory[T1 <: TheoryComponent, T2 <: TheoryComponent](val t1: T1, val t2: T2) extends TheoryComponent {
 
