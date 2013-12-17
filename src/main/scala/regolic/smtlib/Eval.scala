@@ -15,6 +15,8 @@ import asts.core.Trees._
 import asts.fol.Trees._
 import asts.fol.Manip._
 
+import scala.collection.mutable.HashMap
+
 object Eval {
 
   //object SolverFactory {
@@ -50,9 +52,36 @@ object Eval {
           val qfeufComponent = new qfeuf.Component
           val theoryComponent = new TheoryWithBoolean[qfeufComponent.type](qfeufComponent)
           val formula: Formula = simplify(asserts.foldLeft(True(): Formula)((acc, f) => And(acc, f)))
-          val currified: Formula = mapPreorder(formula, f => f, t => qfeuf.Currifier(t))
+
+          val boolSort = Sort("BoolFakeSort", List())
+          val boolConst = FunctionApplication(FunctionSymbol("BoolConst", Nil, boolSort), Nil)
+          val predToFun: HashMap[PredicateSymbol, FunctionSymbol] = new HashMap
+          val formulaWithoutPreds = mapPreorder(formula, (f: Formula) => f match { 
+            case Equals(_, _) => f
+            case Not(Equals(_, _)) => f
+            case PredicateApplication(sym, args) => predToFun.get(sym) match {
+              case Some(s) => Equals(FunctionApplication(s, args), boolConst)
+              case None => {
+                val freshSym = freshFunctionSymbol(sym.name, sym.argSorts, boolSort)
+                predToFun(sym) = freshSym
+                Equals(FunctionApplication(freshSym, args), boolConst)
+              }
+            }
+            case Not(PredicateApplication(sym, args)) => predToFun.get(sym) match {
+              case Some(s) => Not(Equals(FunctionApplication(s, args), boolConst))
+              case None => {
+                val freshSym = freshFunctionSymbol(sym.name, sym.argSorts, boolSort)
+                predToFun(sym) = freshSym
+                Not(Equals(FunctionApplication(freshSym, args), boolConst))
+              }
+            }
+            case f => f
+          }, (t: Term) => t)
+
+          val currified: Formula = mapPreorder(formulaWithoutPreds, f => f, t => qfeuf.Currifier(t))
           val (flattened, eqs) = qfeuf.Flattener.transform(currified)
           val withoutVars: Formula = mapPreorder(flattened, f => f, { case Variable(v, s) => FunctionApplication(FunctionSymbol(v, Nil, s), Nil) case t => t })
+
           //println("flatten: " + flattened)
           //println("eqs: " + eqs)
 
@@ -135,6 +164,7 @@ object Eval {
             }           
             case Unsatisfiable if expectedResult == Some(true) => "unsat | should be sat"
             case Unsatisfiable => "unsat"
+            case Unknown => "unknown"
           }
           println(resultString)
         }

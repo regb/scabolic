@@ -66,7 +66,7 @@ class Component(implicit val context: Context) extends TheoryComponent {
     private val logger = context.logger
 
     //TODO
-    override def check = None
+    override def check: Option[Set[Literal]] = ???
 
     private[this] implicit val tag = new Logger.Tag("Congruence Closure")
 
