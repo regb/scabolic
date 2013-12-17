@@ -65,18 +65,35 @@ object Main {
   import regolic.sat.Solver
   import Solver.Results._
 
-  def satSolver(f: File) = {
+  def satSolver(f: File, withSmt: Boolean = false)(implicit context: Context) = {
     val is = new java.io.FileInputStream(f)
     val (satInstance, nbVars) = regolic.parsers.Dimacs.cnf(is)
     val s = new Solver(nbVars)
-    satInstance.foreach(s.addClause(_))
-    val res = s.solve()
-    res match {
-      case Satisfiable(_) => println("sat")
-      case Unsatisfiable => println("unsat")
-      case Unknown => println("unknown")
+    if(withSmt) {
+      val s = new dpllt.DPLLSolver[dpllt.BooleanTheory.type](nbVars, dpllt.BooleanTheory)
+      val cnf = satInstance.map(clause => {
+        val lits: Set[s.theory.Literal] =
+          clause.map(l => dpllt.BooleanTheory.PropositionalLiteral(l.getID, if(l.polarity) 1 else 0))
+        lits
+      }).toSet
+      cnf.foreach(lits => s.addClause(lits))
+      val res = s.solve(dpllt.BooleanTheory.makeSolver(cnf))
+      res match {
+        case dpllt.DPLLSolver.Results.Satisfiable(_) => println("sat")
+        case dpllt.DPLLSolver.Results.Unsatisfiable => println("unsat")
+        case dpllt.DPLLSolver.Results.Unknown => println("unknown")
+      }
+      res
+    } else {
+      satInstance.foreach(s.addClause(_))
+      val res = s.solve()
+      res match {
+        case Satisfiable(_) => println("sat")
+        case Unsatisfiable => println("unsat")
+        case Unknown => println("unknown")
+      }
+      res
     }
-    res
   }
 
   def main(arguments: Array[String]) {
@@ -106,21 +123,7 @@ object Main {
       } else if(cmd == "sat-dpllt") {
         val inputFile = trueArgs(0)
         val start = System.currentTimeMillis
-        val is = new java.io.FileInputStream(new java.io.File(inputFile))
-        val (satInstance, nbVars) = regolic.parsers.Dimacs.cnf(is)
-        val s = new dpllt.DPLLSolver[dpllt.BooleanTheory.type](nbVars, dpllt.BooleanTheory)(context)
-        val cnf = satInstance.map(clause => {
-          val lits: Set[s.theory.Literal] =
-            clause.map(l => dpllt.BooleanTheory.PropositionalLiteral(l.getID, if(l.polarity) 1 else 0))
-          lits
-        }).toSet
-        cnf.foreach(lits => s.addClause(lits))
-        val res = s.solve(dpllt.BooleanTheory.makeSolver(cnf))
-        res match {
-          case dpllt.DPLLSolver.Results.Satisfiable(_) => println("sat")
-          case dpllt.DPLLSolver.Results.Unsatisfiable => println("unsat")
-          case dpllt.DPLLSolver.Results.Unknown => println("unknown")
-        }
+        satSolver(new java.io.File(inputFile), true)
         val end = System.currentTimeMillis
         val elapsed = end - start
         if(time)
@@ -141,12 +144,14 @@ object Main {
 
         //jvm's warmup
         val benchmark = benchmarks.head
+        //(1 to 3).foreach{_ => satSolver(benchmark)}
         (1 to 3).foreach{_ => satSolver(benchmark)}
 
         val start = System.currentTimeMillis
         var nbTimeout = 0
         benchmarks.foreach(file => {
           print("Solving " + file + " ... ")
+          //val res = satSolver(file)
           val res = satSolver(file)
           if(res == Unknown)
             nbTimeout += 1
