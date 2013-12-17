@@ -62,5 +62,4 @@ trait TheoryComponent {
   }
   def makeSolver(ls: Set[Set[Literal]]): Solver
 
-
 }
