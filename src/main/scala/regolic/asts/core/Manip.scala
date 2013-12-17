@@ -2,6 +2,7 @@ package regolic.asts.core
 
 import regolic.asts.core.Trees._
 
+import scala.collection.mutable.ListBuffer
 // when we apply some function to a quantified term, it does not affect the bound variables
 // If a map modify the quantified variable, we should maybe propagate in the bound term?
 // TODO: alpha renaming
@@ -50,8 +51,24 @@ object Manip {
 
   def mapPostorder(f: Formula, ff: (Formula) => Formula, ft: (Term) => Term): Formula = mapPostorder(f, ff, ft, Nil)
   private def mapPostorder(f: Formula, ff: (Formula) => Formula, ft: (Term) => Term, bv: List[Variable]): Formula = f match {
-    case PredicateApplication(s, ts) => ff(PredicateApplication(s, ts.map(t => mapPostorder(t, ff, ft, bv))))
-    case ConnectiveApplication(s, fs) => ff(ConnectiveApplication(s, fs.map(f => mapPostorder(f, ff, ft, bv))))
+    case PredicateApplication(s, ts) => {
+      var newArgs: ListBuffer[Term] = new ListBuffer
+      var oldArgs: List[Term] = ts
+      while(!oldArgs.isEmpty) {
+        newArgs.append(mapPostorder(oldArgs.head, ff, ft, bv))
+        oldArgs = oldArgs.tail
+      }
+      ff(PredicateApplication(s, newArgs.toList))
+    }
+    case ConnectiveApplication(s, fs) => {
+      var newArgs: ListBuffer[Formula] = new ListBuffer
+      var oldArgs = fs
+      while(!oldArgs.isEmpty) {
+        newArgs.append(mapPostorder(oldArgs.head, ff, ft, bv))
+        oldArgs = oldArgs.tail
+      }
+      ff(ConnectiveApplication(s, newArgs.toList))
+    }
     case QuantifierApplication(s, v, f) => ff(QuantifierApplication(s, v, mapPostorder(f, ff, ft, v :: bv)))
   }
 
