@@ -32,7 +32,15 @@ object Manip {
   private def mapPostorder(t: Term, ff: (Formula) => Formula, ft: (Term) => Term, bv: List[Variable]): Term = t match {
     case v@Variable(_, _) if bv.contains(v) => v
     case v@Variable(_, _) => ft(v)
-    case FunctionApplication(s, ts) => ft(FunctionApplication(s, ts.map(t => mapPostorder(t, ff, ft, bv))))
+    case FunctionApplication(s, ts) => {
+      var newArgs: ListBuffer[Term] = new ListBuffer
+      var oldArgs: List[Term] = ts
+      while(!oldArgs.isEmpty) {
+        newArgs.append(mapPostorder(oldArgs.head, ff, ft, bv))
+        oldArgs = oldArgs.tail
+      }
+      ft(FunctionApplication(s, newArgs.toList))
+    }
     case ITE(c, t, e) => {
       val newC = mapPostorder(c, ff, ft, bv)
       val newT = mapPostorder(t, ff, ft, bv)
