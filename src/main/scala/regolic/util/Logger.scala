@@ -37,7 +37,7 @@ object Logger {
   }
 
   @implicitNotFound("No implicit logger tag found in scope. You need define an implicit util.Logger.Tag")
-  class Tag(val name: String)
+  case class Tag(val name: String)
 }
 
 abstract class Logger {
