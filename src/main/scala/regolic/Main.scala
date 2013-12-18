@@ -161,6 +161,9 @@ object Main {
         println("Number of timeout: " + nbTimeout)
         println("Total solving time (w/o Timeouts): " + (elapsed/1000d))
         println("Average solving time (w/o Timeouts): " + (elapsed/1000d)/(benchmarks.size - nbTimeout))
+      } else if(cmd == "smtlib") {
+        val repl = new smtlib.REPL
+        repl.run
       } else {
         println("Unknown command: " + cmd)
       }
