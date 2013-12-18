@@ -17,6 +17,10 @@ import asts.fol.Manip._
 
 import scala.collection.mutable.HashMap
 
+/*
+ * We assume symbols declaration are valid at the top level and are not scope (stack/frame) specific
+ * (Even Z3 is not supporting that)
+ */
 object Eval {
 
   //object SolverFactory {
