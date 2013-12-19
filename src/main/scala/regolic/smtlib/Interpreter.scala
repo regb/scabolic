@@ -16,6 +16,10 @@ import util.Logger
 
 import Commands._
 
+import java.io.OutputStream
+import java.io.FileOutputStream
+import java.io.PrintStream
+
 /*
  * We assume symbols declaration are valid at the top level and are not scope (stack/frame) specific
  * (Even Z3 is not supporting that)
@@ -32,11 +36,16 @@ class Interpreter(implicit val context: Context) {
   private val solver = new cafesat.Solver
   private var expectedResult: Option[Boolean] = None
 
+  private var regularOutput: PrintStream = System.out
+  private var errorOutput: PrintStream = System.err
+
+  private var printSuccess: Boolean = false
+
   def eval(command: Command): CommandResponse = {
     logger.info("Evaluating command: " + command)
     val res = command match {
-      case SetLogic(_) => ()
-      case DeclareSort(SSymbol(name), arity) => ()
+      case SetLogic(_) => Unsupported
+      case DeclareSort(SSymbol(name), arity) => Success
       case DeclareFun(SSymbol(name), sorts, sort) => {
         val paramSorts = sorts map parseSort
         val returnSort = parseSort(sort)
@@ -44,54 +53,115 @@ class Interpreter(implicit val context: Context) {
           predSymbols += (name -> PredicateSymbol(name, paramSorts.toList))
         else
           funSymbols += (name -> FunctionSymbol(name, paramSorts.toList, returnSort))
+        Success
       }
-      case Pop(n) => solver.pop(n)
-      case Push(n) => (1 to n).foreach(_ => solver.push())
-      case Assert(f) => solver.assertCnstr(parseFormula(f, Map()))
-      case SetInfo(attr) => attr match {
-        case Attribute("STATUS", Some(SSymbol("SAT"))) => {
-          if(expectedResult != None)
-            logger.warning("Setting status multiple times")
-          expectedResult = Some(true)
-        }
-        case Attribute("STATUS", Some(SSymbol("UNSAT"))) => {
-          if(expectedResult != None)
-            logger.warning("Setting status multiple times")
-          expectedResult = Some(false)
-        }
-        case Attribute("STATUS", v) => {
-          logger.warning("set-info status set to unsupported value: " + v)
-          expectedResult = None
-        }
-        case Attribute("SOURCE", Some(SSymbol(src))) => ()
-        case Attribute("SMT-LIB-VERSION", Some(SDouble(ver))) => ()
-        case Attribute("CATEGORY", Some(SString(cat))) => ()
-        case Attribute(key, value) =>
-          logger.warning("unsupported set-info attribute with key: " + key + " and value: " + value)
+      case Pop(n) => {
+        solver.pop(n)
+        Success
       }
+      case Push(n) => {
+        (1 to n).foreach(_ => solver.push())
+        Success
+      }
+      case Assert(f) => {
+        solver.assertCnstr(parseFormula(f, Map()))
+        Success
+      }
+      case SetInfo(attr) => evalAttribute(attr)
+      case SetOption(option) => evalOption(option)
       case CheckSat => {
         val result = solver.check()
-        val resultString = result match {
+        result match {
           case Some(true) => {
             if(expectedResult == Some(false))
-              "sat | should be unsat"
+              Error("result is sat, but :status info requires unsat")
             else
-              "sat"
+              SatStatus
           }           
-          case Some(false) if expectedResult == Some(true) => "unsat | should be sat"
-          case Some(false) => "unsat"
-          case None => "unknown"
+          case Some(false) if expectedResult == Some(true) =>
+            Error("result is unsat, but :status info requires sat")
+          case Some(false) =>
+            UnsatStatus
+          case None => 
+            UnknownStatus
         }
-        println(resultString)
       }
       case Exit => {
         sys.exit()
+        Success
       }
-      case cmd =>
+      case cmd => {
         logger.warning("Ignoring unsuported command: " + cmd)
+        Unsupported
+      }
     }
-    logger.info("Result is: " + res)
-    null
+    logger.info("Command response: " + res)
+    if(res != Success || printSuccess)
+      regularOutput.println(res)
+    res
+  }
+
+  private def evalOption(option: SMTOption): CommandResponse = option match {
+    case RegularOutputChannel(channel) => {
+      if(channel == "stdout") {
+        regularOutput = System.out
+        Success
+      } else {
+        try {
+          //TODO: close regularOutput if not stdout/stderr
+          val tmp = new PrintStream(new FileOutputStream(channel))
+          regularOutput = tmp
+          Success
+        } catch {
+          case (e: Exception) => {
+            logger.warning("Could not open regular output file <" + channel + ">: " + e.getMessage)
+            Error("Could not set regular output at: " + channel)
+          }
+        }
+      }
+
+    }
+    case PrintSuccess(bv) => {
+      printSuccess = bv
+      Success
+    }
+    case _ => {
+      logger.warning("ignoring unsupported option: " + option)
+      Unsupported
+    }
+    
+  }
+  private def evalAttribute(attr: Attribute): CommandResponse = attr match {
+    case Attribute("STATUS", Some(SSymbol("SAT"))) => {
+      if(expectedResult != None)
+        logger.warning("Setting status multiple times")
+      expectedResult = Some(true)
+      Success
+    }
+    case Attribute("STATUS", Some(SSymbol("UNSAT"))) => {
+      if(expectedResult != None)
+        logger.warning("Setting status multiple times")
+      expectedResult = Some(false)
+      Success
+    }
+    case Attribute("STATUS", v) => {
+      logger.warning("set-info status set to unsupported value: " + v)
+      expectedResult = None
+      Error("set-info :status with invalid value: " + v)
+    }
+    case Attribute("SOURCE", Some(SSymbol(src))) => {
+      Success
+    }
+    case Attribute("SMT-LIB-VERSION", Some(SDouble(ver))) => {
+      Success
+    }
+    case Attribute("CATEGORY", Some(SString(cat))) => {
+      Success
+    }
+    case Attribute(key, value) => {
+      logger.warning("Ignoring unsupported set-info attribute with key: " + key + " and value: " + value)
+      Unsupported
+    }
   }
 
   private def parseSort(sExpr: SExpr): TSort = sExpr match {
@@ -225,9 +295,7 @@ object Interpreter {
   def execute(commands: TraversableOnce[Command])(implicit context: Context): Unit = {
     val interpreter = new Interpreter
     for(command <- commands) {
-      val res = interpreter.eval(command)
-      //TODO: if printable
-      println(res)
+      interpreter.eval(command)
     }
   }
 
