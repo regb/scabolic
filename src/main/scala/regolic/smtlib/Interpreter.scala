@@ -44,6 +44,7 @@ class Interpreter(implicit val context: Context) {
   def eval(command: Command): CommandResponse = {
     logger.info("Evaluating command: " + command)
     val res = command match {
+      case SetLogic(QF_UF) => Success
       case SetLogic(_) => Unsupported
       case DeclareSort(SSymbol(name), arity) => Success
       case DeclareFun(SSymbol(name), sorts, sort) => {
