@@ -7,13 +7,10 @@ import regolic.asts.core.Trees._
 import regolic.asts.core.Manip._
 import regolic.asts.fol.Trees._
 import regolic.asts.fol.Manip._
-import regolic.parsers.SmtLib2.Trees.QF_UF
 
 import scala.collection.mutable.HashMap
 
-object ClassicalCongruenceSolver extends Solver {
-
-  val logic = QF_UF
+object ClassicalCongruenceSolver {
 
   def isSat(f: Formula): Pair[Boolean, Option[Map[Formula, Set[Formula]]]] = {
 

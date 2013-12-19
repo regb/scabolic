@@ -3,7 +3,7 @@ package smtlib
 
 import scala.collection.TraversableOnce
 
-import regolic.asts.core.Trees._
+import regolic.asts.core.Trees.{Sort => TSort, _}
 import regolic.asts.fol.Trees._
 import regolic.asts.theories.int.{Trees => IntTrees}
 import regolic.asts.theories.real.{Trees => RealTrees}
@@ -16,6 +16,11 @@ import util.Logger
 
 import Commands._
 
+/*
+ * We assume symbols declaration are valid at the top level and are not scope (stack/frame) specific
+ * (Even Z3 is not supporting that)
+ * Though, we might want to actually support this as that is the standard and may not be that difficult to implement
+ */
 class Interpreter(implicit val context: Context) {
 
   private val logger = context.logger
@@ -35,7 +40,7 @@ class Interpreter(implicit val context: Context) {
       case DeclareFun(SSymbol(name), sorts, sort) => {
         val paramSorts = sorts map parseSort
         val returnSort = parseSort(sort)
-        if(returnSort == Sort("BOOL", List()))
+        if(returnSort == TSort("BOOL", List()))
           predSymbols += (name -> PredicateSymbol(name, paramSorts.toList))
         else
           funSymbols += (name -> FunctionSymbol(name, paramSorts.toList, returnSort))
@@ -89,9 +94,9 @@ class Interpreter(implicit val context: Context) {
     null
   }
 
-  private def parseSort(sExpr: SExpr): Sort = sExpr match {
-    case SSymbol(s) => Sort(s, List())
-    case SList(SSymbol(s) :: ss) => Sort(s, ss map parseSort)
+  private def parseSort(sExpr: SExpr): TSort = sExpr match {
+    case SSymbol(s) => TSort(s, List())
+    case SList(SSymbol(s) :: ss) => TSort(s, ss map parseSort)
     case _ => sys.error("Error in parseSort: unexpected sexpr: " + sExpr)
   }
 

@@ -14,6 +14,10 @@ object Parser {
   class UnknownCommand(msg: String) extends Exception(msg)
 }
 
+/*
+ * TODO: specify what is the behaviour with CAPS from Symbol S-Expr parser
+ */
+
 class Parser(input: java.io.Reader)(implicit val context: Context) extends Iterator[Command] {
 
   private val logger = context.logger
