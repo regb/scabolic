@@ -24,10 +24,12 @@ import java.io.PrintStream
  * We assume symbols declaration are valid at the top level and are not scope (stack/frame) specific
  * (Even Z3 is not supporting that)
  * Though, we might want to actually support this as that is the standard and may not be that difficult to implement
+ *
+ * :print-success is at false by default, although the SMTLIB standard seems to assume it to be true by default. It seems more reasonnable to not print 'success' on each command
  */
 class Interpreter(implicit val context: Context) {
 
-  private val logger = context.logger
+  private var logger = context.logger
   private implicit val tag = Logger.Tag("SMTLIB Interpreter")
 
   private var funSymbols: Map[String, FunctionSymbol] = Map()
@@ -37,9 +39,17 @@ class Interpreter(implicit val context: Context) {
   private var expectedResult: Option[Boolean] = None
 
   private var regularOutput: PrintStream = System.out
-  private var errorOutput: PrintStream = System.err
+  private var loggingOutput: PrintStream = System.err
 
   private var printSuccess: Boolean = false
+
+  //make a new logger according to current SMT options
+  //private val: Logger = new Logger {
+  //  override def output(msg: String): Unit = loggingOutput.println(msg)
+
+
+
+  //}
 
   def eval(command: Command): CommandResponse = {
     logger.info("Evaluating command: " + command)
@@ -57,8 +67,12 @@ class Interpreter(implicit val context: Context) {
         Success
       }
       case Pop(n) => {
-        solver.pop(n)
-        Success
+        try {
+          solver.pop(n)
+          Success
+        } catch {
+          case (e: Exception) => Error("Cannot pop " + n + " scope frames")
+        }
       }
       case Push(n) => {
         (1 to n).foreach(_ => solver.push())
