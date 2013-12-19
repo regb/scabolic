@@ -8,11 +8,16 @@ import scala.collection.Iterator
 
 import Commands._
 
+import util.Logger
+
 object Parser {
   class UnknownCommand(msg: String) extends Exception(msg)
 }
 
-class Parser(input: java.io.Reader) extends Iterator[Command] {
+class Parser(input: java.io.Reader)(implicit val context: Context) extends Iterator[Command] {
+
+  private val logger = context.logger
+  private implicit val tag = Logger.Tag("SMTLIB Parser")
 
   import Parser._
 
@@ -64,6 +69,7 @@ class Parser(input: java.io.Reader) extends Iterator[Command] {
       case _ =>
         throw new UnknownCommand("Unknown command: " + cmd)
     }
+    logger.debug("Parsed command: " + res)
     res
   }
 
