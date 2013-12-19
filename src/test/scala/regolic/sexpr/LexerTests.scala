@@ -7,6 +7,14 @@ import org.scalatest.FunSuite
 
 class LexerTests extends FunSuite {
 
+  test("eof read") {
+    val reader1 = new StringReader("12")
+    val lexer1 = new Lexer(reader1)
+    assert(lexer1.next === IntLit(12))
+    assert(lexer1.next === null)
+    assert(lexer1.next === null)
+  }
+
   test("integer literals") {
     val reader1 = new StringReader("12")
     val lexer1 = new Lexer(reader1)

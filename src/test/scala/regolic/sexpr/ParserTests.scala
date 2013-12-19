@@ -31,6 +31,13 @@ class ParserTests extends FunSuite {
     assert(parser3.parse === SList(List(
       SInt(42), 
       SList(List(SString("test1"),SInt(21))))))
+
+    val reader4 = new StringReader("""
+      ()
+    """)
+    val lexer4 = new Lexer(reader4)
+    val parser4 = new Parser(lexer4)
+    assert(parser4.parse === SList(List()))
   }
 
   test("packages") {

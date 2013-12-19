@@ -19,14 +19,30 @@ class Parser(input: java.io.Reader) extends Iterator[Command] {
   private val l = new sexpr.Lexer(input)
   private val p = new sexpr.Parser(l)
 
-  private var nextCommand: SExpr = p.parse
+  private var lookAhead: Option[SExpr] = None
 
-  def parseAll: Seq[Command] = ???
-
-  override def hasNext: Boolean = nextCommand != null
+  override def hasNext: Boolean = {
+    lookAhead match {
+      case Some(expr) => expr != null
+      case None => {
+        val c = p.parse
+        lookAhead = Some(c)
+        c != null
+      }
+    }
+  }
 
   override def next: Command = {
-    val res = nextCommand match {
+    val cmd = lookAhead match {
+      case None => p.parse
+      case Some(c) => {
+        lookAhead = None
+        c
+      }
+    }
+    if(cmd == null)
+      throw new NoSuchElementException
+    val res = cmd match {
       case SList(List(SSymbol("SET-LOGIC"), SSymbol(logic))) => 
         SetLogic(Logic.fromString(logic))
       case SList(SSymbol("SET-INFO") :: attr) =>
@@ -46,9 +62,8 @@ class Parser(input: java.io.Reader) extends Iterator[Command] {
       case SList(List(SSymbol("POP"), SInt(n))) => 
         Pop(n.toInt)
       case _ =>
-        throw new UnknownCommand("Unknown command: " + nextCommand)
+        throw new UnknownCommand("Unknown command: " + cmd)
     }
-    nextCommand = p.parse
     res
   }
 

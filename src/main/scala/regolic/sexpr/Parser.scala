@@ -6,35 +6,58 @@ import SExprs._
 class Parser(lexer: Lexer) {
 
   private var _currentToken: Token = null
-  private var _futureToken: Token = lexer.next
-  private def next: Token = {
-    if(_futureToken == null)
-      throw new java.io.EOFException
+  private var lookAhead: Option[Token] = None
 
-    _currentToken = _futureToken 
-    _futureToken = lexer.next
-    _currentToken
+  private def next: Token = {
+    lookAhead match {
+      case Some(t) => {
+        lookAhead = None
+        _currentToken = t
+        t
+      }
+      case None => {
+        _currentToken = lexer.next
+        lookAhead = None
+        _currentToken
+      }
+    }
   }
-  private def peek: Token = _futureToken
+
+  private def peek: Token = {
+    lookAhead match {
+      case Some(t) => t
+      case None =>
+        lookAhead = Some(lexer.next)
+        lookAhead.get
+    }
+  }
+
   private def eat(t: Token): Unit = {
-    val n = next
-    assert(n == t)
+    val c = next
+    assert(c == t)
   }
 
   /* 
      Return the next SExpr if there is one, or null if EOF.
      Throw an EOFException if EOF is reached at an unexpected moment (incomplete SExpr).
   */
-  def parse: SExpr = if(peek == null) null else {
-    next match {
+  def parse: SExpr = {
+    val tok = next
+    if(tok == null) null else tok match {
       case OParen => {
         val buffer = new scala.collection.mutable.ListBuffer[SExpr]
         while(peek != CParen) {
-          val child: SExpr = parse
-          buffer.append(child)
+          buffer.append(parse)
         }
         eat(CParen)
         SList(buffer.toList)
+        //var future = next
+        //while(peek != CParen) {
+        //  val child: SExpr = parse
+        //  buffer.append(child)
+        //}
+        //eat(CParen)
+        //SList(buffer.toList)
       }
       case IntLit(d) => SInt(d)
       case StringLit(s) => SString(s)
