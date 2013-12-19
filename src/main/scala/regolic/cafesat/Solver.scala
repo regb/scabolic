@@ -29,6 +29,8 @@ class Solver(implicit val context: Context) {
   private var currentModel: Model = _
 
   def pop(numScopes: Int = 1): Unit = {
+    if(numScopes > (asserts.size - 1))
+      throw new Exception("Poping empty scope")
     asserts = asserts.drop(numScopes)
   }
 
