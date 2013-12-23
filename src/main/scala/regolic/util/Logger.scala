@@ -20,6 +20,11 @@ object Logger {
 
     override def compare(ll: LogLevel): Int = ordinal - ll.ordinal
   }
+  //TODO: not sure about that name, but if one uses this to define logLevel then there won't
+  //be any logging
+  object NoLogging extends LogLevel {
+    override val ordinal = -1
+  }
   object Error extends LogLevel {
     override val ordinal = 0
   }

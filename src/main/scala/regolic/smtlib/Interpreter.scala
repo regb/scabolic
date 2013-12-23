@@ -40,17 +40,31 @@ class Interpreter(implicit val context: Context) {
    */
   private var logic: Option[Logic] = None
 
+  /*
+   * TODO: should be able to pass it via the context, would solve the logger issue as well
+   */
+  private var interactiveMode: Boolean = false
+
   private var funSymbols: Map[String, FunctionSymbol] = Map()
   private var predSymbols: Map[String, PredicateSymbol] = Map()
 
-  private val solver = new cafesat.Solver
   private var expectedResult: Option[Boolean] = None
 
   private var regularOutput: PrintStream = System.out
   private var regularOutputClosable: Option[PrintStream] = None
   private var loggingOutput: PrintStream = System.err
   private var loggingOutputClosable: Option[PrintStream] = None
-  private var loggingLevel: Logger.LogLevel = Logger.Warning
+  private var loggingLevel: Logger.LogLevel = Logger.NoLogging
+  def verbosityToLogLevel(verbosity: Int): Logger.LogLevel = verbosity match {
+    case 0 => Logger.NoLogging
+    case 1 => Logger.Error
+    case 2 => Logger.Warning
+    case 3 => Logger.Info
+    case 4 => Logger.Debug
+    case 5 => Logger.Trace
+    case n if n < 0 => Logger.NoLogging
+    case n if n > 5 => Logger.Trace
+  }
 
   //False by default, although the standard requires it to be true by default, I think it's a bit too verbose
   private var printSuccess: Boolean = false
@@ -64,6 +78,7 @@ class Interpreter(implicit val context: Context) {
   }
   private implicit val tag = Logger.Tag("SMTLIB Interpreter")
 
+  private val solver = new cafesat.Solver()(context.copy(logger = this.logger))
 
   def eval(command: Command): CommandResponse = {
     logger.info("Evaluating command: " + command)
@@ -106,6 +121,13 @@ class Interpreter(implicit val context: Context) {
       case Assert(f) => {
         solver.assertCnstr(parseFormula(f, Map()))
         Success
+      }
+      case GetAssertions if interactiveMode => {
+        Unsupported //need to stock stack of assertion sets in the interpreter rather than delegating to the solver
+      }
+      case GetAssertions => {
+        logger.warning("get-assertions can only be used in interactive mode")
+        Error("get-assertions can only be used in interactive mode")
       }
       case SetInfo(attr) => evalAttribute(attr)
       case SetOption(option) => evalOption(option)
@@ -198,6 +220,15 @@ class Interpreter(implicit val context: Context) {
     }
     case PrintSuccess(bv) => {
       printSuccess = bv
+      Success
+    }
+    case Verbosity(level) => {
+      loggingLevel = verbosityToLogLevel(level)
+      Success
+    }
+    case InteractiveMode(bv) => {
+      /* TODO: maybe can only be invoked at the very beginning ? */
+      interactiveMode = bv
       Success
     }
     case _ => {
