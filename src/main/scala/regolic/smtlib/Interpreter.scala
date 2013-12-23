@@ -39,7 +39,9 @@ class Interpreter(implicit val context: Context) {
   private var expectedResult: Option[Boolean] = None
 
   private var regularOutput: PrintStream = System.out
+  private var regularOutputClosable: Option[PrintStream] = None
   private var loggingOutput: PrintStream = System.err
+  private var loggingOutputClosable: Option[PrintStream] = None
 
   private var printSuccess: Boolean = false
 
@@ -119,13 +121,17 @@ class Interpreter(implicit val context: Context) {
   private def evalOption(option: SMTOption): CommandResponse = option match {
     case RegularOutputChannel(channel) => {
       if(channel == "stdout") {
+        regularOutputClosable.foreach(_.close)
+        regularOutputClosable = None
         regularOutput = System.out
         Success
       } else {
         try {
-          //TODO: close regularOutput if not stdout/stderr
           val tmp = new PrintStream(new FileOutputStream(channel))
           regularOutput = tmp
+          regularOutputClosable.foreach(_.close)
+          regularOutputClosable = None
+          regularOutputClosable = Some(tmp)
           Success
         } catch {
           case (e: Exception) => {
@@ -134,7 +140,6 @@ class Interpreter(implicit val context: Context) {
           }
         }
       }
-
     }
     case PrintSuccess(bv) => {
       printSuccess = bv
