@@ -52,7 +52,7 @@ abstract class Logger {
 
   def output(msg: String): Unit
 
-  val logLevel: LogLevel
+  def logLevel: LogLevel
 
   protected def reline(prefix: String, tag: Tag, msg: String): String = {
     val colorPrefix = 

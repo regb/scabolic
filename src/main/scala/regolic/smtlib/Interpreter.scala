@@ -29,7 +29,12 @@ import java.io.PrintStream
  */
 class Interpreter(implicit val context: Context) {
 
-  private var logger = context.logger
+  /*
+   * TODO: ignoring logger from context because the SMTLIB scripting language provides option
+   * to configure its own, as well as standard defaults. How to make it more configurable by still
+   * using the context ?
+   */
+
   private implicit val tag = Logger.Tag("SMTLIB Interpreter")
 
   private var funSymbols: Map[String, FunctionSymbol] = Map()
@@ -42,16 +47,16 @@ class Interpreter(implicit val context: Context) {
   private var regularOutputClosable: Option[PrintStream] = None
   private var loggingOutput: PrintStream = System.err
   private var loggingOutputClosable: Option[PrintStream] = None
+  private var loggingLevel: Logger.LogLevel = Logger.Warning
 
   private var printSuccess: Boolean = false
 
   //make a new logger according to current SMT options
-  //private val: Logger = new Logger {
-  //  override def output(msg: String): Unit = loggingOutput.println(msg)
+  private val logger = new Logger {
+    override def output(msg: String): Unit = loggingOutput.println(msg)
 
-
-
-  //}
+    override def logLevel: Logger.LogLevel = loggingLevel
+  }
 
   def eval(command: Command): CommandResponse = {
     logger.info("Evaluating command: " + command)
@@ -125,6 +130,11 @@ class Interpreter(implicit val context: Context) {
         regularOutputClosable = None
         regularOutput = System.out
         Success
+      } else if(channel == "stderr") {
+        regularOutputClosable.foreach(_.close)
+        regularOutputClosable = None
+        regularOutput = System.err
+        Success
       } else {
         try {
           val tmp = new PrintStream(new FileOutputStream(channel))
@@ -137,6 +147,33 @@ class Interpreter(implicit val context: Context) {
           case (e: Exception) => {
             logger.warning("Could not open regular output file <" + channel + ">: " + e.getMessage)
             Error("Could not set regular output at: " + channel)
+          }
+        }
+      }
+    }
+    case DiagnosticOutputChannel(channel) => {
+      if(channel == "stdout") {
+        loggingOutputClosable.foreach(_.close)
+        loggingOutputClosable = None
+        loggingOutput = System.out
+        Success
+      } else if(channel == "stderr") {
+        loggingOutputClosable.foreach(_.close)
+        loggingOutputClosable = None
+        loggingOutput = System.err
+        Success
+      } else {
+        try {
+          val tmp = new PrintStream(new FileOutputStream(channel))
+          loggingOutput = tmp
+          loggingOutputClosable.foreach(_.close)
+          loggingOutputClosable = None
+          loggingOutputClosable = Some(tmp)
+          Success
+        } catch {
+          case (e: Exception) => {
+            logger.warning("Could not open logging output file <" + channel + ">: " + e.getMessage)
+            Error("Could not set logging output at: " + channel)
           }
         }
       }

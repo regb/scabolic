@@ -82,6 +82,7 @@ class Parser(input: java.io.Reader)(implicit val context: Context) extends Itera
   private def parseOption(option: List[SExpr]): SMTOption = option match {
     case List(SQualifiedSymbol(None, SSymbol("PRINT-SUCCESS")), SBool(bv)) => PrintSuccess(bv)
     case List(SQualifiedSymbol(None, SSymbol("REGULAR-OUTPUT-CHANNEL")), SString(channel)) => RegularOutputChannel(channel)
+    case List(SQualifiedSymbol(None, SSymbol("DIAGNOSTIC-OUTPUT-CHANNEL")), SString(channel)) => DiagnosticOutputChannel(channel)
     case _ => sys.error("unexpected: " + option + " when expecting option")
   }
 
