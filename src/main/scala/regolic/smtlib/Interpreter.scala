@@ -25,7 +25,6 @@ import java.io.PrintStream
  * (Even Z3 is not supporting that)
  * Though, we might want to actually support this as that is the standard and may not be that difficult to implement
  *
- * :print-success is at false by default, although the SMTLIB standard seems to assume it to be true by default. It seems more reasonnable to not print 'success' on each command
  */
 class Interpreter(implicit val context: Context) {
 
@@ -35,6 +34,10 @@ class Interpreter(implicit val context: Context) {
    * using the context ?
    */
 
+  /*
+   * TODO: it should be an error not to define logic, only set/get-info and set/get-option and exit
+   * are allowed (according to the standard) before a set-logic. Z3 allows to skip the set-logic.
+   */
   private var logic: Option[Logic] = None
 
   private var funSymbols: Map[String, FunctionSymbol] = Map()
@@ -49,9 +52,11 @@ class Interpreter(implicit val context: Context) {
   private var loggingOutputClosable: Option[PrintStream] = None
   private var loggingLevel: Logger.LogLevel = Logger.Warning
 
+  //False by default, although the standard requires it to be true by default, I think it's a bit too verbose
   private var printSuccess: Boolean = false
 
-  //make a new logger according to current SMT options
+  //The logger closes over the current values for logging level and loggingOutput, set by the interpreter.
+  //This actually made me change the definition of logLevel in trait Logger from val to def.
   private val logger = new Logger {
     override def output(msg: String): Unit = loggingOutput.println(msg)
 
