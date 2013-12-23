@@ -35,7 +35,7 @@ class Interpreter(implicit val context: Context) {
    * using the context ?
    */
 
-  private implicit val tag = Logger.Tag("SMTLIB Interpreter")
+  private var logic: Option[Logic] = None
 
   private var funSymbols: Map[String, FunctionSymbol] = Map()
   private var predSymbols: Map[String, PredicateSymbol] = Map()
@@ -57,12 +57,25 @@ class Interpreter(implicit val context: Context) {
 
     override def logLevel: Logger.LogLevel = loggingLevel
   }
+  private implicit val tag = Logger.Tag("SMTLIB Interpreter")
+
 
   def eval(command: Command): CommandResponse = {
     logger.info("Evaluating command: " + command)
     val res = command match {
-      case SetLogic(QF_UF) => Success
-      case SetLogic(_) => Unsupported
+      case SetLogic(log) => logic match {
+        case Some(l) => Error("Logic already set to: " + l)
+        case None => {
+          log match {
+            case QF_UF => 
+              logic = Some(QF_UF)
+              Success
+            case l =>
+              logger.warning("Unsupported logic: " + l)
+              Unsupported
+          }
+        }
+      }
       case DeclareSort(SSymbol(name), arity) => Success
       case DeclareFun(SSymbol(name), sorts, sort) => {
         val paramSorts = sorts map parseSort
