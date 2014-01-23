@@ -40,9 +40,11 @@ class Interpreter(implicit val context: Context) extends AbstractInterpreter {
   private var logic: Option[Logic] = None
 
   /*
-   * TODO: should be able to pass it via the context, would solve the logger issue as well
+   * Standard options
    */
   private var interactiveMode: Boolean = false
+  //Default (standard) is true unless a Settings overwrite it
+  private var printSuccess: Boolean = Settings.printSuccess.getOrElse(true)
 
   private var funSymbols: Map[String, FunctionSymbol] = Map()
   private var predSymbols: Map[String, PredicateSymbol] = Map()
@@ -65,8 +67,6 @@ class Interpreter(implicit val context: Context) extends AbstractInterpreter {
     case n if n > 5 => Logger.Trace
   }
 
-  //Default (standard) is true unless a Settings overwrite it
-  private var printSuccess: Boolean = Settings.printSuccess.getOrElse(true)
 
   //The logger closes over the current values for logging level and loggingOutput, set by the interpreter.
   //This actually made me change the definition of logLevel in trait Logger from val to def.
@@ -81,7 +81,7 @@ class Interpreter(implicit val context: Context) extends AbstractInterpreter {
 
   override def eval(command: Command): CommandResponse = {
     logger.info("Evaluating command: " + command)
-    val res = command match {
+    val res: CommandResponse = command match {
       case SetLogic(log) => logic match {
         case Some(l) => Error("Logic already set to: " + l)
         case None => {
@@ -129,7 +129,7 @@ class Interpreter(implicit val context: Context) extends AbstractInterpreter {
         Error("get-assertions can only be used in interactive mode")
       }
       case SetInfo(attr) => evalAttribute(attr)
-      case SetOption(option) => evalOption(option)
+      case SetOption(option) => evalSetOption(option)
       case CheckSat => {
         val result = solver.check()
         result match {
@@ -137,16 +137,17 @@ class Interpreter(implicit val context: Context) extends AbstractInterpreter {
             if(expectedResult == Some(false))
               Error("result is sat, but :status info requires unsat")
             else
-              SatStatus
+              CheckSatResponse(SatStatus)
           }           
           case Some(false) if expectedResult == Some(true) =>
             Error("result is unsat, but :status info requires sat")
           case Some(false) =>
-            UnsatStatus
+            CheckSatResponse(UnsatStatus)
           case None => 
-            UnknownStatus
+            CheckSatResponse(UnknownStatus)
         }
       }
+      case GetInfo(flag) => evalGetInfo(flag)
       case Exit => {
         sys.exit()
         Success
@@ -159,10 +160,44 @@ class Interpreter(implicit val context: Context) extends AbstractInterpreter {
     logger.info("Command response: " + res)
     if(res != Success || printSuccess)
       regularOutput.println(res)
+    if(res.isInstanceOf[Error]) {
+      //the SMT-LIB standard gives two option on error
+      //either exit immediately or continue by ignoring the last command.
+      //We will attempt to continue while ignoring the error (no change in internal state)
+      logger.info("Command led to error. Ignoring command")
+    }
     res
   }
 
-  private def evalOption(option: SMTOption): CommandResponse = option match {
+  private def evalGetInfo(infoFlag: InfoFlag): CommandResponse = infoFlag match {
+    case ErrorBehaviourInfoFlag =>
+      GetInfoResponse(ErrorBehaviourInfoResponse(ContinuedExecutionErrorBehaviour), Seq())
+    case NameInfoFlag =>
+      GetInfoResponse(NameInfoResponse("CafeSat"), Seq())
+    case AuthorsInfoFlag =>
+      GetInfoResponse(AuthorsInfoResponse("Régis Blanc and Matthias Schlaipfer"), Seq())
+    case VersionInfoFlag =>
+      GetInfoResponse(VersionInfoResponse("0.01"), Seq())
+    case StatusInfoFlag => {//get status is the current status of the solver, ignoring assertions since last check-sat
+      //GetInfoResponse(StatusInfoResponse(status), Seq())
+      logger.warning("ignoring unsupported info flag: " + infoFlag)
+      Unsupported
+    }
+    case ReasonUnknownInfoFlag => {
+      logger.warning("ignoring unsupported info flag: " + infoFlag)
+      Unsupported
+    }
+    case AllStatisticsInfoFlag => {
+      logger.warning("ignoring unsupported info flag: " + infoFlag)
+      Unsupported
+    }
+    case KeywordInfoFlag(keyword) => {
+      logger.warning("ignoring unsupported info flag: " + keyword)
+      Unsupported
+    }
+  }
+
+  private def evalSetOption(option: SMTOption): CommandResponse = option match {
     case RegularOutputChannel(channel) => {
       if(channel == "stdout") {
         regularOutputClosable.foreach(_.close)
@@ -234,8 +269,8 @@ class Interpreter(implicit val context: Context) extends AbstractInterpreter {
       logger.warning("ignoring unsupported option: " + option)
       Unsupported
     }
-    
   }
+
   private def evalAttribute(attr: Attribute): CommandResponse = attr match {
     case Attribute("STATUS", Some(SSymbol("SAT"))) => {
       if(expectedResult != None)

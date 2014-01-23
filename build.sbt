@@ -1,6 +1,6 @@
 name := "Regolic"
 
-version := "0.1"
+version := "0.01"
 
 scalaVersion := "2.10.3"
 
