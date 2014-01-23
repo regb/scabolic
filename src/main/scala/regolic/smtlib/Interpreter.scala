@@ -65,8 +65,7 @@ class Interpreter(implicit val context: Context) {
     case n if n > 5 => Logger.Trace
   }
 
-  //False by default, although the standard requires it to be true by default, I think it's a bit too verbose
-  private var printSuccess: Boolean = false
+  private var printSuccess: Boolean = true
 
   //The logger closes over the current values for logging level and loggingOutput, set by the interpreter.
   //This actually made me change the definition of logLevel in trait Logger from val to def.
