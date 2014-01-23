@@ -1,7 +1,6 @@
 package regolic
 package smtlib
 
-
 import regolic.asts.core.Trees.{Sort => TSort, _}
 import regolic.asts.fol.Trees._
 import regolic.asts.theories.int.{Trees => IntTrees}
@@ -66,7 +65,8 @@ class Interpreter(implicit val context: Context) extends AbstractInterpreter {
     case n if n > 5 => Logger.Trace
   }
 
-  private var printSuccess: Boolean = true
+  //Default (standard) is true unless a Settings overwrite it
+  private var printSuccess: Boolean = Settings.printSuccess.getOrElse(true)
 
   //The logger closes over the current values for logging level and loggingOutput, set by the interpreter.
   //This actually made me change the definition of logLevel in trait Logger from val to def.

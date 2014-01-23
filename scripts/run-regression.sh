@@ -1,8 +1,8 @@
 #!/bin/sh
 
 error=false
-#RUNNER=./cafesat
-RUNNER="./scabolic sat-dpllt"
+RUNNER="./cafesat --dimacs"
+#RUNNER="./scabolic sat-dpllt"
 
 echo "Running SAT solver on satisfiable instances ..."
 for f in regression/dimacs/sat/*.cnf

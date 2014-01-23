@@ -27,7 +27,7 @@ java -classpath "%s" %s "$@"
 
 cafesat <<= (baseDirectory, fullClasspath in Runtime) map { (base, cp) =>
   val template = """#!/bin/sh
-java -classpath "%s" %s sat "$@"
+java -classpath "%s" %s cafesat "$@"
 """
     val mainStr = "regolic.Main"
     val contents = template.format(cp.files.absString, mainStr)

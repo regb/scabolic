@@ -22,7 +22,7 @@ separately built from the repository and its jar added to the classpath.
 
 To build Scabolic simply type:
 
-    sbt compile
+    sbt package
 
 ##CafeSat
 
@@ -30,7 +30,7 @@ To build Scabolic simply type:
   <img height="300px" src="/logo/cafesat2.jpg" />
 </p>
 
-CafeSat is the tool interface to the SAT solver in Scabolic. To build CafeSat:
+CafeSat is the tool interface to the SMT solver in Scabolic. To build CafeSat:
 
     sbt clean
     sbt compile
@@ -38,13 +38,29 @@ CafeSat is the tool interface to the SAT solver in Scabolic. To build CafeSat:
 
 Then you can use CafeSat as follows:
 
-    ./cafesat [ OPTIONS ] INPUT
+    ./cafesat [ OPTIONS ] { INPUT ]
 
-By default (actually, this cannot be changed so far), the INPUT is assumed to
-be in Dimacs CNF format.
+If no INPUT is specified, then CafeSat will expect SMT-LIB commands on the standard input, which
+is the standard behaviour of the SMT-LIB specifications. If an input is specified, then it will
+be parsed as an SMT-LIB script, and fully interpreted. Options can be used to modify this behaviour,
+for example the --demacs option will interpret the INPUT file in Dimacs CNF format.
 
 The [Scala'13 paper](http://dx.doi.org/10.1145/2489837.2489839) gives a short overview
 of CafeSat.
+
+###Examples
+
+To start an interactive session in the REPL with SMT-LIB:
+    ./cafesat
+To execute an SMT-LIB script you can do the following:
+    ./cafesat < input.smt2
+which simply transparently redirect stdin to the content of the file. Or use:
+    ./cafesat input.smt2
+in which CafeSat will open the file before feeding it to the SMT solver.
+
+To solve Dimacs SAT problems, use:
+    ./cafesat --dimacs input.cnf
+
 
 ##Scala API
 

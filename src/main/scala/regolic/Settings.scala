@@ -13,4 +13,11 @@ object Settings {
 
   var logLevel: Logger.LogLevel = Logger.Warning
 
+  /*
+   * SMT-LIB interpreter command-line/programmable options (by opposition to SMT-LIB scripting options)
+   */
+
+  //We would like to turn off :print-success for integration testing
+  var printSuccess: Option[Boolean] = None //None means one should use default value of interpreter
+
 }

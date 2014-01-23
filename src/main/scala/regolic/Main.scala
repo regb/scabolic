@@ -9,8 +9,8 @@ import util._
 
 object Main {
 
-  private var dimacs = true
-  private var smtlib2 = true
+  private var dimacs = false
+  private var smtlib2 = false
   private var time = false
 
   private val optionsHelp: String = (
@@ -22,7 +22,8 @@ object Main {
     "  --stats              Print statistics information" +
     "  --restartfactor=N    Restart strategy factor" + "\n" +
     "  --restartinterval=N  Restart strategy initial interval" + "\n" +
-    "  --time               Time the solving phase"
+    "  --time               Time the solving phase" + "\n" +
+    "  --no-print-success   Desactivate the :print-success default option of SMT-LIB standard"
   )
 
   def processOptions(options: Array[String]) {
@@ -31,6 +32,7 @@ object Main {
         case "dimacs"        =>                           dimacs = true
         case "smtlib2"        =>                          smtlib2 = true
         case "time"        =>                             time = true
+        case "no-print-success"    =>                     Settings.printSuccess = Some(false)
 
         case "stats"         =>                           Settings.stats = true
         case "verbose" =>                                 Settings.logLevel = Logger.Debug
@@ -111,10 +113,20 @@ object Main {
       }
       implicit val context = Context(logger = logger)
 
-      if(cmd == "sat") {
+      if(cmd == "cafesat") {
+
+        if(trueArgs.size == 0) {
+          val repl = new regolic.smtlib.REPL
+          repl.run
+        }
         val inputFile = trueArgs(0)
         val start = System.currentTimeMillis
-        satSolver(new java.io.File(inputFile))
+        if(dimacs) {
+          satSolver(new java.io.File(inputFile))
+        } else {
+          val is = new java.io.FileReader(inputFile)
+          regolic.smtlib.Interpreter.execute(new _root_.smtlib.Parser(is))
+        }
         val end = System.currentTimeMillis
         val elapsed = end - start
         if(time)

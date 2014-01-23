@@ -1,7 +1,7 @@
 #!/bin/sh
 
 error=false
-RUNNER="./scabolic smt"
+RUNNER="./cafesat --no-print-success"
 
 echo "Running SMT solver on satisfiable instances ..."
 for f in regression/smtlib/sat/*.smt2
