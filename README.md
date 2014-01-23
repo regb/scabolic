@@ -51,14 +51,21 @@ of CafeSat.
 ###Examples
 
 To start an interactive session in the REPL with SMT-LIB:
+
     ./cafesat
+
 To execute an SMT-LIB script you can do the following:
+
     ./cafesat < input.smt2
+
 which simply transparently redirect stdin to the content of the file. Or use:
+
     ./cafesat input.smt2
+
 in which CafeSat will open the file before feeding it to the SMT solver.
 
 To solve Dimacs SAT problems, use:
+
     ./cafesat --dimacs input.cnf
 
 
