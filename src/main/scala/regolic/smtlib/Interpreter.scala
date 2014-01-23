@@ -10,8 +10,9 @@ import regolic.asts.theories.array.{Trees => ArrayTrees}
 
 import util.Logger
 
-import _root_.smtlib._
+import _root_.smtlib.{Interpreter => AbstractInterpreter, _}
 import Commands._
+import CommandResponses._
 import _root_.smtlib.sexpr
 import sexpr.SExprs._
 
@@ -25,7 +26,7 @@ import java.io.PrintStream
  * Though, we might want to actually support this as that is the standard and may not be that difficult to implement
  *
  */
-class Interpreter(implicit val context: Context) {
+class Interpreter(implicit val context: Context) extends AbstractInterpreter {
 
   /*
    * TODO: ignoring logger from context because the SMTLIB scripting language provides option
@@ -78,7 +79,7 @@ class Interpreter(implicit val context: Context) {
 
   private val solver = new cafesat.Solver()(context.copy(logger = this.logger))
 
-  def eval(command: Command): CommandResponse = {
+  override def eval(command: Command): CommandResponse = {
     logger.info("Evaluating command: " + command)
     val res = command match {
       case SetLogic(log) => logic match {
@@ -398,9 +399,7 @@ object Interpreter {
    */
   def execute(commands: TraversableOnce[Command])(implicit context: Context): Unit = {
     val interpreter = new Interpreter
-    for(command <- commands) {
-      interpreter.eval(command)
-    }
+    AbstractInterpreter.execute(Script(commands))(interpreter)
   }
 
 }
