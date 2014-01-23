@@ -132,7 +132,7 @@ object Main {
       } else if(cmd == "smt") {
         val inputFile = trueArgs(0)
         val is = new java.io.FileReader(inputFile)
-        smtlib.Interpreter.execute(new smtlib.Parser(is))
+        regolic.smtlib.Interpreter.execute(new _root_.smtlib.Parser(is))
       } else if(cmd == "satlib") {
         val dir = trueArgs(0)
         val dirFile = new java.io.File(dir)
@@ -158,7 +158,7 @@ object Main {
         println("Total solving time (w/o Timeouts): " + (elapsed/1000d))
         println("Average solving time (w/o Timeouts): " + (elapsed/1000d)/(benchmarks.size - nbTimeout))
       } else if(cmd == "smtlib") {
-        val repl = new smtlib.REPL
+        val repl = new regolic.smtlib.REPL
         repl.run
       } else {
         println("Unknown command: " + cmd)

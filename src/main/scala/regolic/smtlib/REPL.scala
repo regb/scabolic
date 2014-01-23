@@ -1,6 +1,8 @@
 package regolic
 package smtlib
 
+import _root_.smtlib.Parser
+
 class REPL(implicit val context: Context) {
 
   def run: Unit = {

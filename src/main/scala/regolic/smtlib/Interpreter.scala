@@ -1,7 +1,6 @@
 package regolic
 package smtlib
 
-import scala.collection.TraversableOnce
 
 import regolic.asts.core.Trees.{Sort => TSort, _}
 import regolic.asts.fol.Trees._
@@ -9,12 +8,12 @@ import regolic.asts.theories.int.{Trees => IntTrees}
 import regolic.asts.theories.real.{Trees => RealTrees}
 import regolic.asts.theories.array.{Trees => ArrayTrees}
 
-import regolic.sexpr
-import regolic.sexpr.SExprs._
-
 import util.Logger
 
+import _root_.smtlib._
 import Commands._
+import _root_.smtlib.sexpr
+import sexpr.SExprs._
 
 import java.io.OutputStream
 import java.io.FileOutputStream
@@ -96,8 +95,8 @@ class Interpreter(implicit val context: Context) {
           }
         }
       }
-      case DeclareSort(SSymbol(name), arity) => Success
-      case DeclareFun(SSymbol(name), sorts, sort) => {
+      case DeclareSort(name, arity) => Success
+      case DeclareFun(name, sorts, sort) => {
         val paramSorts = sorts map parseSort
         val returnSort = parseSort(sort)
         if(returnSort == TSort("BOOL", List()))

@@ -14,6 +14,16 @@ Currently, Scabolic provides two documented interfaces:
 - The CafeSat tool
 - A Scala API to use inner SAT solver
 
+##Setup
+
+This project depends on the
+[Scala-SMTLIB](https://github.com/regb/scala-smtlib) library, which need to be
+separately built from the repository and its jar added to the classpath.
+
+To build Scabolic simply type:
+
+    sbt compile
+
 ##CafeSat
 
 <p align="center">
