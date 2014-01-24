@@ -171,7 +171,6 @@ class Interpreter(implicit val context: Context) extends AbstractInterpreter {
 
   private def evalGetOption(option: String): CommandResponse = option match {
     case "PRINT-SUCCESS" => GetOptionResponse(SBool(printSuccess))
-    case "PRINT-SUCCESS" => GetOptionResponse(SBool(printSuccess))
     case _ => {
       logger.info("Ignoring unsuported option: " + option)
       Unsupported
@@ -207,6 +206,36 @@ class Interpreter(implicit val context: Context) extends AbstractInterpreter {
   }
 
   private def evalSetOption(option: SMTOption): CommandResponse = option match {
+    case PrintSuccess(bv) => {
+      printSuccess = bv
+      Success
+    }
+    case ExpandDefinitions(bv) => {
+      logger.warning("ignoring unimplementd :expand-definitions option")
+      Unsupported
+    }
+    case InteractiveMode(bv) => {
+      /* TODO: maybe can only be invoked at the very beginning ? */
+      interactiveMode = bv
+      logger.warning("ignoring unimplementd :interactive-mode option")
+      Unsupported
+    }
+    case ProduceProofs(bv) => {
+      logger.warning("ignoring unimplementd :produce-proofs option.")
+      Unsupported
+    }
+    case ProduceUnsatCores(bv) => {
+      logger.warning("ignoring unimplementd :produce-unsat-cores option.")
+      Unsupported
+    }
+    case ProduceModels(bv) => {
+      logger.warning("ignoring unimplementd :produce-models option.")
+      Unsupported
+    }
+    case ProduceAssignments(bv) => {
+      logger.warning("ignoring unimplementd :produce-assingments option.")
+      Unsupported
+    }
     case RegularOutputChannel(channel) => {
       if(channel == "stdout") {
         regularOutputClosable.foreach(_.close)
@@ -261,21 +290,16 @@ class Interpreter(implicit val context: Context) extends AbstractInterpreter {
         }
       }
     }
-    case PrintSuccess(bv) => {
-      printSuccess = bv
-      Success
+    case RandomSeed(n) => {
+      logger.warning("ignoring unimplementd :random-seeds option.")
+      Unsupported
     }
     case Verbosity(level) => {
       loggingLevel = verbosityToLogLevel(level)
       Success
     }
-    case InteractiveMode(bv) => {
-      /* TODO: maybe can only be invoked at the very beginning ? */
-      interactiveMode = bv
-      Success
-    }
-    case _ => {
-      logger.info("ignoring unsupported option: " + option)
+    case AttributeOption(attr) => {
+      logger.info("ignoring unsupported option: " + attr)
       Unsupported
     }
   }
@@ -313,7 +337,7 @@ class Interpreter(implicit val context: Context) extends AbstractInterpreter {
     }
   }
 
-  private def parseSort(sExpr: SExpr): TSort = sExpr match {
+  def parseSort(sExpr: SExpr): TSort = sExpr match {
     case SSymbol(s) => TSort(s, List())
     case SList(SSymbol(s) :: ss) => TSort(s, ss map parseSort)
     case _ => sys.error("Error in parseSort: unexpected sexpr: " + sExpr)
