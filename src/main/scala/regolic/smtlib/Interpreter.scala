@@ -12,7 +12,6 @@ import util.Logger
 import _root_.smtlib.{Interpreter => AbstractInterpreter, _}
 import Commands._
 import CommandResponses._
-import _root_.smtlib.sexpr
 import sexpr.SExprs._
 
 import java.io.OutputStream
@@ -147,6 +146,7 @@ class Interpreter(implicit val context: Context) extends AbstractInterpreter {
             CheckSatResponse(UnknownStatus)
         }
       }
+      case GetOption(option) => evalGetOption(option)
       case GetInfo(flag) => evalGetInfo(flag)
       case Exit => {
         sys.exit()
@@ -167,6 +167,15 @@ class Interpreter(implicit val context: Context) extends AbstractInterpreter {
       logger.info("Command led to error. Ignoring command")
     }
     res
+  }
+
+  private def evalGetOption(option: String): CommandResponse = option match {
+    case "PRINT-SUCCESS" => GetOptionResponse(SBool(printSuccess))
+    case "PRINT-SUCCESS" => GetOptionResponse(SBool(printSuccess))
+    case _ => {
+      logger.info("Ignoring unsuported option: " + option)
+      Unsupported
+    }
   }
 
   private def evalGetInfo(infoFlag: InfoFlag): CommandResponse = infoFlag match {
@@ -192,7 +201,7 @@ class Interpreter(implicit val context: Context) extends AbstractInterpreter {
       Unsupported
     }
     case KeywordInfoFlag(keyword) => {
-      logger.warning("ignoring unsupported info flag: " + keyword)
+      logger.info("ignoring unsupported info flag: " + keyword)
       Unsupported
     }
   }
@@ -266,7 +275,7 @@ class Interpreter(implicit val context: Context) extends AbstractInterpreter {
       Success
     }
     case _ => {
-      logger.warning("ignoring unsupported option: " + option)
+      logger.info("ignoring unsupported option: " + option)
       Unsupported
     }
   }

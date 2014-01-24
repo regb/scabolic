@@ -16,5 +16,14 @@ object Regolic extends Build {
   //val testAllTask = testAll <<= (test in Test, testIntegration) map { (_, _) => ()}
 
 
-  lazy val root = Project("root", file("."), settings = Project.defaultSettings)
+  lazy val root = 
+    Project("root", file("."), settings = Project.defaultSettings).dependsOn(Projects.depProject)
+}
+
+object V {
+  val depProject = "master"
+}
+
+object Projects {
+  lazy val depProject = RootProject(uri("git://github.com/regb/scala-smtlib.git#%s".format(V.depProject)))
 }
