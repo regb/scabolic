@@ -23,6 +23,10 @@ import java.io.PrintStream
  * (Even Z3 is not supporting that)
  * Though, we might want to actually support this as that is the standard and may not be that difficult to implement
  *
+ * Note that despite returning the command response, the interpreter should handle the printing
+ * of those responses itself. That is because it needs to handle the verbosity and *-output-channel
+ * options commands, and will do the correct printing depending on the internal state.
+ * The responses are returned as a way to progamatically communicate with a solver.
  */
 class Interpreter(implicit val context: Context) extends AbstractInterpreter {
 
@@ -127,7 +131,7 @@ class Interpreter(implicit val context: Context) extends AbstractInterpreter {
         logger.warning("get-assertions can only be used in interactive mode")
         Error("get-assertions can only be used in interactive mode")
       }
-      case SetInfo(attr) => evalAttribute(attr)
+      case SetInfo(attr) => evalSetInfo(attr)
       case SetOption(option) => evalSetOption(option)
       case CheckSat => {
         val result = solver.check()
@@ -179,7 +183,7 @@ class Interpreter(implicit val context: Context) extends AbstractInterpreter {
 
   private def evalGetInfo(infoFlag: InfoFlag): CommandResponse = infoFlag match {
     case ErrorBehaviourInfoFlag =>
-      GetInfoResponse(ErrorBehaviourInfoResponse(ContinuedExecutionErrorBehaviour), Seq())
+      GetInfoResponse(ErrorBehaviourInfoResponse(ContinueExecutionErrorBehaviour), Seq())
     case NameInfoFlag =>
       GetInfoResponse(NameInfoResponse("CafeSat"), Seq())
     case AuthorsInfoFlag =>
@@ -304,36 +308,39 @@ class Interpreter(implicit val context: Context) extends AbstractInterpreter {
     }
   }
 
-  private def evalAttribute(attr: Attribute): CommandResponse = attr match {
-    case Attribute("STATUS", Some(SSymbol("SAT"))) => {
-      if(expectedResult != None)
-        logger.warning("Setting status multiple times")
-      expectedResult = Some(true)
-      Success
-    }
-    case Attribute("STATUS", Some(SSymbol("UNSAT"))) => {
-      if(expectedResult != None)
-        logger.warning("Setting status multiple times")
-      expectedResult = Some(false)
-      Success
-    }
-    case Attribute("STATUS", v) => {
-      logger.warning("set-info status set to unsupported value: " + v)
-      expectedResult = None
-      Error("set-info :status with invalid value: " + v)
-    }
-    case Attribute("SOURCE", Some(SSymbol(src))) => {
-      Success
-    }
-    case Attribute("SMT-LIB-VERSION", Some(SDouble(ver))) => {
-      Success
-    }
-    case Attribute("CATEGORY", Some(SString(cat))) => {
-      Success
-    }
+  /*
+   * We consider any set-info as metadata for the script, not interpreted by solver
+   */
+  private def evalSetInfo(attr: Attribute): CommandResponse = attr match {
+    //case Attribute("STATUS", Some(SSymbol("SAT"))) => {
+    //  if(expectedResult != None)
+    //    logger.warning("Setting status multiple times")
+    //  expectedResult = Some(true)
+    //  Success
+    //}
+    //case Attribute("STATUS", Some(SSymbol("UNSAT"))) => {
+    //  if(expectedResult != None)
+    //    logger.warning("Setting status multiple times")
+    //  expectedResult = Some(false)
+    //  Success
+    //}
+    //case Attribute("STATUS", v) => {
+    //  logger.warning("set-info status set to unsupported value: " + v)
+    //  expectedResult = None
+    //  Error("set-info :status with invalid value: " + v)
+    //}
+    //case Attribute("SOURCE", Some(SSymbol(src))) => {
+    //  Success
+    //}
+    //case Attribute("SMT-LIB-VERSION", Some(SDouble(ver))) => {
+    //  Success
+    //}
+    //case Attribute("CATEGORY", Some(SString(cat))) => {
+    //  Success
+    //}
     case Attribute(key, value) => {
-      logger.warning("Ignoring unsupported set-info attribute with key: " + key + " and value: " + value)
-      Unsupported
+      logger.info("Ignoring metadata set-info attribute with key: " + key + " and value: " + value)
+      Success
     }
   }
 
