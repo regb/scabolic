@@ -52,8 +52,6 @@ class Interpreter(implicit val context: Context) extends AbstractInterpreter {
   private var funSymbols: Map[String, FunctionSymbol] = Map()
   private var predSymbols: Map[String, PredicateSymbol] = Map()
 
-  private var expectedResult: Option[Boolean] = None
-
   private var regularOutput: PrintStream = System.out
   private var regularOutputClosable: Option[PrintStream] = None
   private var loggingOutput: PrintStream = System.err
@@ -136,18 +134,9 @@ class Interpreter(implicit val context: Context) extends AbstractInterpreter {
       case CheckSat => {
         val result = solver.check()
         result match {
-          case Some(true) => {
-            if(expectedResult == Some(false))
-              Error("result is sat, but :status info requires unsat")
-            else
-              CheckSatResponse(SatStatus)
-          }           
-          case Some(false) if expectedResult == Some(true) =>
-            Error("result is unsat, but :status info requires sat")
-          case Some(false) =>
-            CheckSatResponse(UnsatStatus)
-          case None => 
-            CheckSatResponse(UnknownStatus)
+          case Some(true) => CheckSatResponse(SatStatus)
+          case Some(false) => CheckSatResponse(UnsatStatus)
+          case None => CheckSatResponse(UnknownStatus)
         }
       }
       case GetOption(option) => evalGetOption(option)
