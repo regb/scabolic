@@ -17,6 +17,9 @@ object API {
     def ||(f2: Formula): Formula = Or(f, f2)
     def unary_!(): Formula = Not(f)
   }
+
+  def or(fs: Formula*): Formula = Or(fs: _*)
+  def and(fs: Formula*): Formula = And(fs: _*)
   
   implicit class TermWrapper(t: Term)
   
