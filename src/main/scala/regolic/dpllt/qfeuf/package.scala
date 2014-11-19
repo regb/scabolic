@@ -53,7 +53,7 @@ package object qfeuf {
       }
     }
     def unapply(pApply: FunctionApplication): Option[(Term, Term)] = pApply match {
-      case FunctionApplication(ApplySymbol(_), List(t1, t2)) => Some((t1, t2))
+      case FunctionApplication(ApplySymbol(_, _), List(t1, t2)) => Some((t1, t2))
       case _ => None
     }
   }

@@ -18,7 +18,7 @@ trait Solver {
    * Return a pair containing the answer (true / false) and if unsat a Map from
    * each inequality causing it, to the explanation
    */
-  def isSat(f: Formula): Pair[Boolean, Option[Map[Formula, Set[Formula]]]]
+  def isSat(f: Formula): (Boolean, Option[Map[Formula, Set[Formula]]])
 
   def isValid(f: Formula): Boolean = isSat(Not(f))._1 == false
   

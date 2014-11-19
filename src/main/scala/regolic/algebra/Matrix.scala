@@ -325,7 +325,7 @@ class Matrix[T <: Field[T]](m: Array[Array[T]])(implicit field: Field[T], ct: Cl
 object Matrix {
 
   //convert the vector to a one column matrix
-  def apply[F <: Field[F]](vec: Vector[F])(implicit field: Field[F], ct: ClassTag[F]): Matrix[F] = try {
+  def apply[F <: Field[F]](vec: Vector[F])(implicit field: Field[F], ct: ClassTag[F]): Matrix[F] = {
     val vecArray: Array[F] = vec.toArray
     val nbElements = vecArray.size
     val matArray: Array[Array[F]] = Array.ofDim(nbElements, 1)

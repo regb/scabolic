@@ -13,7 +13,7 @@ object Flattener {
 
   private def freshVar(sort: Sort) = freshVariable("variable", sort)
   
-  private val terms = collection.mutable.Map[FunctionApplication, Pair[List[PredicateApplication], Variable]]()
+  private val terms = collection.mutable.Map[FunctionApplication, (List[PredicateApplication], Variable)]()
 
 
   def transform(term: Term): (Term, Map[String, FunctionApplication]) = {

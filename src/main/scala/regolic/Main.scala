@@ -125,7 +125,8 @@ object Main {
           satSolver(new java.io.File(inputFile))
         } else {
           val is = new java.io.FileReader(inputFile)
-          regolic.smtlib.Interpreter.execute(new _root_.smtlib.Parser(is))
+          val lexer = new _root_.smtlib.lexer.Lexer(is)
+          regolic.smtlib.Interpreter.execute(new _root_.smtlib.parser.Parser(lexer))
         }
         val end = System.currentTimeMillis
         val elapsed = end - start
@@ -144,7 +145,8 @@ object Main {
       } else if(cmd == "smt") {
         val inputFile = trueArgs(0)
         val is = new java.io.FileReader(inputFile)
-        regolic.smtlib.Interpreter.execute(new _root_.smtlib.Parser(is))
+        val lexer = new _root_.smtlib.lexer.Lexer(is)
+        regolic.smtlib.Interpreter.execute(new _root_.smtlib.parser.Parser(lexer))
       } else if(cmd == "satlib") {
         val dir = trueArgs(0)
         val dirFile = new java.io.File(dir)

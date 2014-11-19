@@ -13,7 +13,7 @@ import regolic.algebra.Rational
 
 object SimplexSolver extends regolic.smt.Solver {
 
-  def isSat(f: Formula): Pair[Boolean, Option[Map[Formula, Set[Formula]]]] = {
+  def isSat(f: Formula): (Boolean, Option[Map[Formula, Set[Formula]]]) = {
     val Or(ands) = disjunctiveNormalForm(f)
 
     var modelFound = false

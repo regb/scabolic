@@ -1,14 +1,15 @@
 package regolic
 package smtlib
 
-import _root_.smtlib.Parser
+import _root_.smtlib.parser.Parser
 
 class REPL(implicit val context: Context) {
 
-  def run: Unit = {
-    val stdinReader = new java.io.InputStreamReader(System.in)
-    val parser = new Parser(stdinReader)
-    Interpreter.execute(parser)
+  def run: Unit = ???
+  //{
+    //val stdinReader = new java.io.InputStreamReader(System.in)
+    //val parser = new Parser(stdinReader)
+    //Interpreter.execute(parser)
     //val interpreter = new Interpreter
     //while(true) {
     //  val cmd = parser.next
@@ -16,5 +17,5 @@ class REPL(implicit val context: Context) {
     //  println(response)
     //}
     //throw new Exception("Should not happen")
-  }
+  //}
 }

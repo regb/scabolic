@@ -1,4 +1,4 @@
-package regolic.api
+package cafesat.api
 
 import regolic.asts.core.Trees._
 import regolic.asts.fol.Trees._

@@ -601,8 +601,8 @@
 //    var p = from
 //    var q = -1
 //    var r = -1
-//    var qEdge: Pair[Formula, Formula] = null
-//    var rEdge: Pair[Formula, Formula] = null
+//    var qEdge: (Formula, Formula) = null
+//    var rEdge: (Formula, Formula) = null
 //
 //    while(p != -1) {
 //      r = q
@@ -627,14 +627,14 @@
 //    reverseEdges(reversedTo)
 //  }
 //  
-//  private def makeEdge(from: Int, to: Int, label: Pair[Formula, Formula]): Int =  {
+//  private def makeEdge(from: Int, to: Int, label: (Formula, Formula)): Int =  {
 //    val retVal = reverseEdges(from)
 //    proofStructure(from) = to
 //    proofLabels(from) = label
 //    retVal
 //  }
 //  
-//  private def insertEdge(a: Int, b: Int, label: Pair[Formula, Formula]) = {
+//  private def insertEdge(a: Int, b: Int, label: (Formula, Formula)) = {
 //    val from = a
 //    val reversedTo = makeEdge(a, b, label)
 //
@@ -691,7 +691,7 @@
 //
 //  // l is t-consequence of setTrue(lPrime)
 //  def explain(l: Formula, lPrime: Formula = null): Set[Formula] = {
-//    val restoreIStack = Stack[Pair[Int, Formula]]()
+//    val restoreIStack = Stack[(Int, Formula)]()
 //    if(lPrime != null) {
 //      // undo all merges after lPrime was pushed onto the iStack
 //      var j = 0

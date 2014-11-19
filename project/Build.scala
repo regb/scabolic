@@ -21,7 +21,7 @@ object Regolic extends Build {
 }
 
 object V {
-  val depProject = "master"
+  val depProject = "004fab30fc294677a14429fad2cd95ab4d366416"
 }
 
 object Projects {

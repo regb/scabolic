@@ -1,17 +1,12 @@
-name := "Regolic"
+name := "CafeSat"
 
 version := "0.01"
 
-scalaVersion := "2.10.3"
+scalaVersion := "2.11.4"
 
-scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature") //"-optimize"
+scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature")
 
-//parallelExecution in Test := false
-
-libraryDependencies += "org.scalatest" % "scalatest_2.10" % "1.9.1" % "test"
-
-libraryDependencies += "org.scala-lang" % "scala-reflect" % "2.10.0"
-
+libraryDependencies += "org.scalatest" % "scalatest_2.11" % "2.2.1" % "test"
 
 scabolic <<= (baseDirectory, fullClasspath in Runtime) map { (base, cp) =>
   val template = """#!/bin/sh
