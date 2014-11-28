@@ -22,6 +22,7 @@ object API {
     def unary_!(): Formula = Not(f)
 
     def iff(f2: Formula): Formula = Or(And(f, f2), And(Not(f), Not(f2)))
+    def xor(f2: Formula): Formula = Or(And(f, Not(f2)), And(Not(f), f2))
   }
 
   def or(fs: Formula*): Formula = Or(fs: _*)
