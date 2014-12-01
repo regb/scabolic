@@ -36,5 +36,4 @@ object Formulas {
   object True extends Formula(CoreTrue())
   object False extends Formula(CoreFalse())
 
-
 }
