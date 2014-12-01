@@ -1,16 +1,17 @@
 package cafesat.api
 
-import API._
+import FormulaBuilder._
+import Solver._
 
 import org.scalatest.FunSuite
 
 
 class APISuite extends FunSuite {
 
-  val x1 = boolVar()
-  val x2 = boolVar()
+  val x1 = propVar()
+  val x2 = propVar()
 
-  test("api unsat example with assumption") {
+  test("api unsat example") {
     val f1 = (x1 || x2) && !x1
     val result = solveForSatisfiability(f1 && !x2)
     assert(result === None)
@@ -39,4 +40,5 @@ class APISuite extends FunSuite {
       assert(model(x2))
     })
   }
+
 }
