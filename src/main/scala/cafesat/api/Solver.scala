@@ -11,15 +11,29 @@ import regolic.sat.Solver.Clause
 import regolic.sat.ConjunctiveNormalForm
 import regolic.sat.Literal
 
+trait Solver {
+
+  type Var
+  type Lit
+
+  def newVar(): Var
+
+  def mkLit(v: Var, pol: Boolean): Lit
+
+  def addClause(lits: Vector[Lit]): Unit
+
+  def solve(assumptions: Vector[Lit]): Boolean
+
+  def model: Map[Var, Boolean]
+
+}
+
 
 object Solver {
-  
 
   type Model = Map[PropVar, Boolean]
 
-
   def solveForSatisfiability(formula: Formula): Option[Model] = {
-
     val f = formula.formula
     val simpleF = simplify(f)
     simpleF match {
