@@ -38,7 +38,7 @@ CafeSat is the tool interface to the SMT solver in Scabolic. To build CafeSat:
 
 Then you can use CafeSat as follows:
 
-    ./cafesat [ OPTIONS ] { INPUT ]
+    ./target/cafesat [ OPTIONS ] { INPUT ]
 
 If no INPUT is specified, then CafeSat will expect SMT-LIB commands on the standard input, which
 is the standard behaviour of the SMT-LIB specifications. If an input is specified, then it will

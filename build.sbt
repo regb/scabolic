@@ -11,7 +11,7 @@ scabolic := {
   val cp = (fullClasspath in Runtime).value
   val mainClass = "regolic.Main"
   val contents = runnerScriptTemplate.format(cp.files.absString, mainClass)
-  val out = baseDirectory.value / "scabolic"
+  val out = target.value / "scabolic"
   IO.write(out, contents)
   out.setExecutable(true)
   out
@@ -21,7 +21,7 @@ cafesat := {
   val cp = (fullClasspath in Runtime).value
   val mainClass = "regolic.Main cafesat"
   val contents = runnerScriptTemplate.format(cp.files.absString, mainClass)
-  val out = baseDirectory.value / "cafesat"
+  val out = target.value / "cafesat"
   IO.write(out, contents)
   out.setExecutable(true)
   out
