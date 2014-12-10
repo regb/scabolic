@@ -1,7 +1,4 @@
-/target/
-/project/target
-/project/project/
-/.cache
+target/
 /cafesat
 /scabolic
 *.swp
